@@ -180,7 +180,8 @@ export function empty(message, detail, action) {
   node.setAttribute('data-empty-state', 'true');
   node.append(el('p', null, message));
   if (detail) node.append(el('p', 'hint', detail));
-  if (action?.label && (action.href || action.onClick)) {
+  if (action instanceof Node) node.append(action);
+  else if (action?.label && (action.href || action.onClick)) {
     const control = el(action.href ? 'a' : 'button', 'ghost empty-action', action.label);
     if (action.href) control.href = action.href;
     else {
@@ -466,6 +467,40 @@ export function circuitBreakersValue(circuitBreakers) {
     wrap.append(tag);
   });
   return wrap;
+}
+
+/* ── Disponibilité du cycle ─────────────────────────────────────────── */
+
+// Ce qui empêche un cycle d'aboutir et le geste qui le lève, calculés par l'en-tête. Une page vide
+// proposait « Lancer une analyse » sous la forme d'un lien vers la Vue d'ensemble : rien n'y était
+// lancé, et l'analyse était de toute façon impossible tant que le blocage tenait.
+let cycleGate = { blocker: null, fix: null };
+
+function paintCycleAction(node) {
+  const { blocker, fix } = cycleGate;
+  node.textContent = fix ? fix.label : 'Lancer une analyse';
+  node.href = fix ? fix.href : '#';
+  if (blocker) node.title = blocker;
+  else node.removeAttribute('title');
+}
+
+/** Le bouton d'une page vide qui attend un cycle : le lance, ou mène à ce qui l'empêche. */
+export function cycleAction() {
+  const node = el('a', 'ghost empty-action');
+  node.dataset.cycleAction = '';
+  paintCycleAction(node);
+  node.addEventListener('click', (event) => {
+    if (cycleGate.fix) return;
+    event.preventDefault();
+    dispatchEvent(new CustomEvent('kex:run-cycle'));
+  });
+  return node;
+}
+
+/** Le blocage se calcule après le rendu d'une page vide : les boutons déjà posés suivent. */
+export function setCycleGate(gate) {
+  cycleGate = gate;
+  document.querySelectorAll('[data-cycle-action]').forEach(paintCycleAction);
 }
 
 /* ── Contexte opérateur global ─────────────────────────────────────────── */

@@ -7,6 +7,22 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
 
 ### Corrigé
 
+- « Lancer une analyse » sur une page vide (Cockpit incident, Décisions, Activité, À traiter, dernier
+  cycle) n'était qu'un lien vers la Vue d'ensemble, même quand aucun cycle ne pouvait aboutir. Le
+  bouton lance désormais le cycle sur place, ou, tant qu'un blocage tient, le nomme et mène à sa
+  levée (« Joindre un serveur MCP », « Fournir la clé du modèle », « Préparer un processus ») — le
+  même calcul que « Exécuter maintenant ».
+- Pages vides : « Élargissez la période ou choisissez tous les processus » s'affichait sur une
+  installation jamais analysée, filtres déjà sur « Tous ». Décisions, Activité, Alertes et Audit
+  distinguent maintenant « aucun cycle exécuté », « rien dans ce filtre » (nommé, avec « Afficher
+  toute la période ») et « rien du tout ».
+- Les en-têtes triables des tableaux offrent une cible de 24 px (WCAG 2.5.8) au lieu de 14 px.
+- Intégrations sans serveur : un seul état vide et un seul libellé, « Ajouter un serveur », au lieu
+  de deux encadrés empilés et trois boutons pour le même geste ; la recherche n'apparaît qu'une fois
+  un serveur déclaré.
+- Vue d'ensemble : les filtres « Instance courante » passent sous les « Premiers pas », sur la même
+  ligne que « Personnaliser le tableau de bord ».
+
 - Système : « Jetons consommés » affichait le **double** des jetons réellement consommés —
   Spring AI incrémente `input`, `output` et `total`, et l'endpoint sans filtre les additionnait. La
   tuile lit désormais la seule série `total`, écrit « 0 depuis le démarrage » quand aucun appel n'a

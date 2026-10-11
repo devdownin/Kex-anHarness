@@ -296,6 +296,93 @@ await check('les jetons consommés : un zéro mesuré s’écrit zéro, une mesu
   await context.close();
 });
 
+await check('« Lancer une analyse » d’une page vide mène à ce qui bloque le cycle, puis le lance vraiment', async () => {
+  const { context, page } = await open(desktop, 'decisions');
+  // Sans serveur MCP joignable, le bouton nomme le blocage et mène à sa levée — plus de lien
+  // « Lancer une analyse » vers la Vue d'ensemble, qui ne lançait rien.
+  for (const view of ['decisions', 'incidents', 'activity']) {
+    await page.goto(`${BASE}/#/${view}`, { waitUntil: 'domcontentloaded' });
+    const action = page.locator(`#view-${view} [data-cycle-action]`);
+    await page.waitForFunction((key) => document.querySelector(`#view-${key} [data-cycle-action]`)?.textContent === 'Joindre un serveur MCP', view);
+    assert.equal(await action.getAttribute('href'), '#/integrations', view);
+    assert.equal(await page.locator(`#view-${view} a[href="#/overview"]`, { hasText: 'Lancer une analyse' }).count(), 0, view);
+  }
+  // Blocage levé : le même bouton lance le cycle sur place.
+  await page.route('**/api/agent/mcp/servers', (route) => route.fulfill({ json: [{ connection: 'kafka-explorer', initialized: true, tools: [] }] }));
+  let launched = 0;
+  await page.route('**/api/agent/supervision/cycles', (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    launched += 1;
+    return route.fulfill({ json: { cycleId: 'c-test', events: [] } });
+  });
+  await page.goto(`${BASE}/#/decisions`, { waitUntil: 'domcontentloaded' });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  const action = page.locator('#view-decisions [data-cycle-action]');
+  await page.waitForFunction(() => document.querySelector('#view-decisions [data-cycle-action]')?.textContent === 'Lancer une analyse');
+  await action.click();
+  await page.waitForFunction(() => !location.hash.includes('overview'));
+  await page.waitForTimeout(500);
+  assert.equal(launched, 1, 'le bouton n’a pas lancé de cycle');
+  assert.match(page.url(), /#\/decisions/);
+  await context.close();
+});
+
+await check('une page vide dit la vraie cause : jamais analysé, filtre trop étroit, ou rien', async () => {
+  const { context, page } = await open(desktop, 'decisions');
+  await page.evaluate(() => localStorage.setItem('kex.agent.operator-context', JSON.stringify({ process: '', period: '1h' })));
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  const list = page.locator('#decisions-list');
+  await list.getByText('Aucun cycle exécuté.').waitFor();
+  assert.doesNotMatch(await list.innerText(), /Élargissez/);
+  // Un cycle a eu lieu, mais rien ne tombe dans la dernière heure : le filtre se nomme et se lève.
+  await page.route('**/api/agent/supervision/overview', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    await route.fulfill({ response, json: { ...body, agent: { ...body.agent, lastCycleAt: '2026-01-01T00:00:00Z' } } });
+  });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => /dans ce contexte/.test(document.querySelector('#decisions-list').textContent));
+  assert.match(await list.innerText(), /Filtre actif : dernière heure/);
+  await list.getByRole('button', { name: 'Afficher toute la période' }).click();
+  await list.getByText('Aucune décision pour l’instant.').waitFor();
+  assert.equal(await page.inputValue('#context-period'), 'all');
+  await context.close();
+});
+
+await check('les en-têtes triables offrent une cible de 24 px', async () => {
+  const { context, page } = await open(desktop, 'processes');
+  await page.locator('#processes-table th button.sort').first().waitFor();
+  const sizes = await page.$$eval('#processes-table th button.sort', (nodes) => nodes.map((node) => node.getBoundingClientRect().height));
+  assert.ok(sizes.length && sizes.every((height) => height >= 24), `cibles de ${sizes.join(', ')} px`);
+  await context.close();
+});
+
+await check('Intégrations sans serveur : un seul état vide, un seul nom pour le geste, pas de recherche à vide', async () => {
+  const { context, page } = await open(desktop, 'integrations');
+  const panel = page.locator('.mcp-cockpit-panel');
+  await panel.getByText('Aucun serveur MCP connecté.').waitFor();
+  assert.equal(await panel.locator('[data-empty-state]').count(), 1, 'deux états vides empilés');
+  assert.deepEqual(await panel.locator('[data-empty-state] .empty-action').allInnerTexts(), ['Ajouter un serveur']);
+  assert.equal(await page.getByText('Ajouter une connexion').count(), 0);
+  assert.equal(await page.locator('#tools-search').isVisible(), false);
+  await panel.locator('[data-empty-state] .empty-action').click();
+  assert.equal(await page.locator('#add-mcp-server').evaluate((dialog) => dialog.open), true);
+  await context.close();
+});
+
+await check('Vue d’ensemble : la mise en route d’abord, les filtres ensuite, sur la ligne de « Personnaliser »', async () => {
+  const { context, page } = await open(desktop, 'overview');
+  await page.locator('#onboarding:not([hidden])').waitFor();
+  const [onboarding, filters, customize] = await Promise.all([
+    page.locator('#onboarding').boundingBox(),
+    page.locator('#operator-context').boundingBox(),
+    page.locator('#dashboard-customizer summary').boundingBox(),
+  ]);
+  assert.ok(onboarding.y + onboarding.height <= filters.y, 'les filtres passent au-dessus des « Premiers pas »');
+  assert.ok(Math.abs((customize.y + customize.height / 2) - (filters.y + filters.height / 2)) < 20, '« Personnaliser » occupe sa propre ligne');
+  await context.close();
+});
+
 await browser.close();
 console.log(checks.join('\n'));
 if (problems.length) {

@@ -859,12 +859,17 @@ table.grid td { padding: 11px 12px; border-bottom: 1px solid var(--line-soft); v
 /* Les chiffres s'alignent en colonne : à chasse variable, 111 paraît plus court que 999. */
 table.grid td.mono, table.grid td .mono, .definition dd .mono { font-variant-numeric: tabular-nums; }
 /* Un bouton, pas un `th` cliquable : le tri doit s'atteindre au clavier comme à la souris. */
+/* 24 px de cible au minimum (WCAG 2.5.8) : à la hauteur du texte, 14 px, le tri se ratait au doigt.
+   La marge négative rend la hauteur gagnée à l'en-tête, qui garde sa taille. */
 table.grid th button.sort {
   all: unset;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  min-height: 24px;
+  min-width: 24px;
+  margin-block: -5px;
 }
 table.grid th button.sort:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 table.grid th[aria-sort] button.sort { color: var(--ink); }
@@ -1677,6 +1682,7 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
      peut naître, et « Piloter l'agent » envoyait vers un cycle qui ne pouvait pas aboutir. L'ordre
      du tableau de bord est posé en ligne par applyDashboardLayout, d'où !important. */
   #view-overview #onboarding { order: -3 !important; }
+  #view-overview .overview-customizer { order: -2 !important; flex-wrap: wrap; }
   .kpis-grid { display: flex; flex-direction: column; }
   .kpi:nth-child(3) { order: -2; }
   .kpi:nth-child(4) { order: -1; }
@@ -2036,7 +2042,8 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
 .operator-context select { min-height: 34px; padding-block: 5px; font-size: 13px; font-weight: 500; letter-spacing: normal; text-transform: none; }
 
 #view-overview:not([hidden]) { display: flex; flex-direction: column; }
-.overview-customizer { order: 0; display: flex; justify-content: flex-end; margin-bottom: 10px; }
+.overview-customizer { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-bottom: 10px; }
+.overview-customizer .operator-context { flex: 1; margin-bottom: 0; }
 .overview-customizer details { position: relative; }
 .overview-customizer summary { list-style: none; cursor: pointer; }
 .overview-customizer summary::-webkit-details-marker { display: none; }
