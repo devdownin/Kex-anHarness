@@ -165,6 +165,44 @@ await check('Prévisions : le diagnostic s’ouvre seul, en clair, et la mise en
   await context.close();
 });
 
+await check('un serveur MCP Kex éteint se dit désactivé, sans toast d’erreur', async () => {
+  const { context, page } = await open(desktop, 'settings');
+  await page.locator('#mcp-server-disabled:not([hidden])').waitFor();
+  assert.equal(await page.textContent('#mcp-server-status-label'), 'Désactivé');
+  assert.match(await page.locator('#mcp-server-disabled').innerText(), /KEX_MCP_SERVER_ENABLED=true/);
+  assert.equal(await page.locator('#mcp-server-body').isHidden(), true);
+  assert.equal(await page.getByText('MCP HTTP 404').count(), 0, 'une fonctionnalité éteinte rendue comme une panne');
+  await context.close();
+});
+
+await check('la mise en route envoie déclarer un processus vers l’assistant guidé', async () => {
+  const { context, page } = await open(desktop, 'overview');
+  // La CI déclare des processus : on ne retire que ce compte, pour voir l'étape apparaître.
+  await page.route('**/api/agent/supervision/overview', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    await route.fulfill({ response, json: { ...body, processesMonitored: 0 } });
+  });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  const step = page.locator('#onboarding-steps .onboarding-step', { hasText: 'Déclarer les processus surveillés' });
+  await step.waitFor();
+  assert.equal(await step.locator('a').getAttribute('href'), '#/chat?creation=process');
+  await context.close();
+});
+
+await check('les libellés restent en français : Attention, Essais, santé en clair', async () => {
+  const { context, page } = await open(desktop, 'processes');
+  await page.locator('[data-filter="WARNING"]').waitFor();
+  assert.equal((await page.textContent('[data-filter="WARNING"]')).trim(), 'Attention');
+  await page.goto(`${BASE}/#/settings`, { waitUntil: 'domcontentloaded' });
+  assert.equal((await page.textContent('[data-mcp-tab="playground"]')).trim(), 'Essais');
+  await page.goto(`${BASE}/#/system`, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => /En service/.test(document.querySelector('#health-summary')?.textContent || ''));
+  assert.match(await page.textContent('#health-summary'), /vivacité, disponibilité/);
+  assert.equal(await page.locator('#health-dump').isVisible(), false, 'le JSON brut reste replié');
+  await context.close();
+});
+
 await browser.close();
 console.log(checks.join('\n'));
 if (problems.length) {

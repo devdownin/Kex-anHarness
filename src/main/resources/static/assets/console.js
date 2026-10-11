@@ -403,8 +403,10 @@ async function renderOnboarding(data) {
     { done: capabilities.model.ready, label: 'Fournir la clé du modèle',
       detail: `Définir ${capabilities.model.variable} puis redémarrer l’agent.`, href: '#/settings' },
     { done: capabilities.mcp.ready, label: 'Joindre un serveur MCP', detail: mcp.detail, href: mcp.href },
+    // L'assistant guidé, comme partout ailleurs dans la console : #/settings menait à un écran de
+    // préférences où aucun processus ne se déclare.
     { done: data.processesMonitored > 0, label: 'Déclarer les processus surveillés',
-      detail: 'Sans processus, un cycle n’a rien à analyser.', href: '#/settings' },
+      detail: 'Sans processus, un cycle n’a rien à analyser.', href: '#/chat?creation=process' },
     { done: Boolean(data.agent?.lastCycleAt), label: 'Exécuter le premier cycle', action: runCycle,
       blocked: cycleBlocker },
     { done: capabilities.kafka.ready, label: 'Connecter Kafka', href: '#/integrations' },

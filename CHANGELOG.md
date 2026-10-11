@@ -28,6 +28,13 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
 - Vue d'ensemble : l'état de l'agent n'est plus répété dans le bandeau d'accueil (la pastille de
   l'en-tête le porte), et le résumé ne dit plus « aucune intervention requise » avant le premier
   cycle — il dit « pas encore analysé ».
+- Serveur MCP Kex éteint (le défaut) : la page dit « Désactivé » et la variable à poser, au lieu
+  d'une pastille « Indisponible », de six compteurs vides et d'un toast rouge « MCP HTTP 404 ».
+- Mise en route : « Déclarer les processus surveillés » ouvre l'assistant guidé
+  (`#/chat?creation=process`), et non plus la page Configuration où aucun processus ne se déclare.
+- Libellés : « Attention » au lieu de « Warning » (filtres et pastilles), « Essais » au lieu de
+  « Playground » ; la santé de l'instance se lit « En service · sondes : vivacité, disponibilité »,
+  la réponse brute d'Actuator restant dépliable.
 - Pile prévisions, étape démo : `POST /api/metrics` de KafkaExplorer répond `200` sans corps, et
   `scripts/forecast-stack.py` décodait toute réponse en JSON — la démo s'interrompait juste après
   avoir créé sa métrique, sur un « Diagnostic interrompu » sans cause. Une réponse vide vaut

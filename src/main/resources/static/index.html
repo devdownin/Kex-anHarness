@@ -472,7 +472,7 @@
           <div class="filters" role="group" aria-label="Filtrer par état">
             <button type="button" class="chip-toggle" data-filter="ALL" aria-pressed="true">Tous</button>
             <button type="button" class="chip-toggle" data-filter="OK" aria-pressed="false">OK</button>
-            <button type="button" class="chip-toggle" data-filter="WARNING" aria-pressed="false">Warning</button>
+            <button type="button" class="chip-toggle" data-filter="WARNING" aria-pressed="false">Attention</button>
             <button type="button" class="chip-toggle" data-filter="ERROR" aria-pressed="false">Erreur</button>
             <button type="button" class="chip-toggle" data-filter="ATTENTION" aria-pressed="false">Intervention requise</button>
             <button type="button" class="chip-toggle" data-filter="FAVORITES" aria-pressed="false">★ Favoris</button>
@@ -532,10 +532,20 @@
         </div>
         <p class="hint">Inspecter ce que Kex expose en tant que serveur aux clients MCP. Cet espace est distinct des connexions MCP externes utilisées par l’agent.</p>
         <div id="mcp-server-freshness" class="freshness-slot" aria-live="polite"></div>
+        <!-- Éteint par défaut : ce n'est pas une panne. Une pastille « Indisponible », six compteurs
+             vides et un toast « MCP HTTP 404 » faisaient chercher un incident là où il n'y a qu'une
+             propriété à changer. -->
+        <div class="state empty" id="mcp-server-disabled" data-empty-state="true" hidden>
+          <p>Le serveur MCP Kex est désactivé.</p>
+          <p class="hint">C’est le réglage par défaut : Kex n’expose rien aux clients MCP. Pour l’exposer,
+            définir <code>KEX_MCP_SERVER_ENABLED=true</code> (propriété <code>kex.mcp.server.enabled</code>)
+            puis redémarrer l’agent.</p>
+        </div>
+        <div id="mcp-server-body">
         <nav class="local-nav mcp-tabs" aria-label="Vues du serveur MCP">
           <button type="button" class="active" data-mcp-tab="overview">Vue d’ensemble</button>
           <button type="button" data-mcp-tab="catalog">Catalogue</button>
-          <button type="button" data-mcp-tab="playground">Playground</button>
+          <button type="button" data-mcp-tab="playground">Essais</button>
         </nav>
         <div data-mcp-panel="overview">
           <div class="mcp-metrics" id="mcp-metrics">
@@ -572,6 +582,7 @@
             </form>
             <div class="subpanel"><span class="panel-kicker">Résultat</span><h2>Réponse MCP</h2><h3>Données structurées</h3><pre id="mcp-playground-structured" tabindex="0">Aucune requête exécutée.</pre><h3>Contenu texte</h3><pre id="mcp-playground-text" tabindex="0">—</pre><div class="panel-head"><h3>JSON-RPC brut</h3><button type="button" class="ghost" id="mcp-playground-copy">Copier</button></div><pre id="mcp-playground-result" tabindex="0">Aucune requête exécutée.</pre></div>
           </div>
+        </div>
         </div>
       </section>
       <section class="panel" id="settings-preferences">
@@ -774,7 +785,11 @@
         <div class="panel-head"><h2>Santé de l'instance</h2></div>
         <div id="system-freshness" class="freshness-slot" aria-live="polite"></div>
         <div class="tiles" id="metric-tiles"></div>
-        <pre class="dump" id="health-dump">—</pre>
+        <p class="health-summary" id="health-summary" role="status">Vérification…</p>
+        <details class="health-raw">
+          <summary>Réponse brute de /actuator/health</summary>
+          <pre class="dump" id="health-dump">—</pre>
+        </details>
       </section>
     </section>
 

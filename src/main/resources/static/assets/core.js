@@ -330,7 +330,7 @@ export const percent = (ratio) => `${Math.round((ratio ?? 0) * 100)} %`;
  * daltonisme comme en impression noir et blanc.
  */
 const MARKS = { OK: '●', WARNING: '▲', ERROR: '✕', UNKNOWN: '?', PENDING: '◷', RUNNING: '◌', PAUSED: '⏸' };
-const LABELS = { OK: 'OK', WARNING: 'Warning', ERROR: 'Erreur', UNKNOWN: 'Inconnu' };
+const LABELS = { OK: 'OK', WARNING: 'Attention', ERROR: 'Erreur', UNKNOWN: 'Inconnu' };
 
 /** Le même glyphe que `stateTag`, pour les endroits qui composent leur propre pastille. */
 export const stateMark = (state) => MARKS[state] || '●';

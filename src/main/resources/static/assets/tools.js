@@ -877,14 +877,27 @@ function tile(label, value) {
   return node;
 }
 
+const HEALTH = {
+  UP: ['OK', 'En service'], DOWN: ['ERROR', 'Hors service'],
+  OUT_OF_SERVICE: ['ERROR', 'Retiré du service'], UNKNOWN: ['UNKNOWN', 'État inconnu'],
+};
+const HEALTH_GROUPS = { liveness: 'vivacité', readiness: 'disponibilité' };
+
 export async function health() {
   const tiles = $('#metric-tiles');
   const dump = $('#health-dump');
+  const summary = $('#health-summary');
   try {
     const status = await fetch('/actuator/health').then((response) => response.json());
     dump.textContent = JSON.stringify(status, null, 2);
+    // `"status": "UP"` en JSON brut demandait de savoir lire un endpoint Actuator ; la phrase dit la
+    // même chose, la réponse reste dépliable pour qui la cherche.
+    summary.replaceChildren(stateTag(HEALTH[status?.status]?.[0] || 'UNKNOWN', HEALTH[status?.status]?.[1] || `État ${status?.status ?? 'inconnu'}`),
+      el('span', 'hint', Array.isArray(status?.groups) && status.groups.length
+        ? ` Sondes publiées : ${status.groups.map((group) => HEALTH_GROUPS[group] || group).join(', ')}.` : ''));
   } catch (error) {
     dump.textContent = error.message;
+    summary.replaceChildren(stateTag('UNKNOWN', 'Santé illisible'), el('span', 'hint', ` ${error.message}`));
   }
 
   const [tokens, requests, memory] = await Promise.all([
