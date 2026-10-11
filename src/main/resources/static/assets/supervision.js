@@ -269,9 +269,12 @@ export async function attentionView() {
       + degraded.filter((item) => item.state === 'ERROR').length;
     const workspace = el('div', 'attention-grid');
     if (!data.processesMonitored && !(current()?.processes?.length)) {
-      workspace.append(empty('Aucun processus sous surveillance.',
+      // Sur une file vide, « Actualiser » ne ramène rien : le geste qui compte est celui-ci.
+      const guide = empty('Aucun processus sous surveillance.',
         'Déclarez votre premier processus pour remplir cette file avec des observations réelles.',
-        { href: '#/chat?creation=process', label: 'Préparer un processus' }));
+        { href: '#/chat?creation=process', label: 'Préparer un processus' });
+      guide.classList.add('empty-guide');
+      workspace.append(guide);
       return workspace;
     }
     const summary = el('section', 'attention-summary');
@@ -2034,6 +2037,11 @@ function syncSavedViews() {
     return option;
   }));
   $('#delete-process-view').disabled = true;
+  // Sans vue enregistrée, la liste ne propose rien et « Supprimer » n'a rien à supprimer : seul
+  // « Enregistrer la vue » a un sens.
+  $('#saved-process-view').hidden = !views.length;
+  $('#delete-process-view').hidden = !views.length;
+  $('.saved-views').classList.toggle('empty', !views.length);
 }
 
 export function wire() {

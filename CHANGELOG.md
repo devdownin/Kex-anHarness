@@ -7,6 +7,21 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
 
 ### Corrigé
 
+- Système : « Jetons consommés » affichait le **double** des jetons réellement consommés —
+  Spring AI incrémente `input`, `output` et `total`, et l'endpoint sans filtre les additionnait. La
+  tuile lit désormais la seule série `total`, écrit « 0 depuis le démarrage » quand aucun appel n'a
+  eu lieu et « non mesuré » quand la mesure est inaccessible, au lieu d'un « — » qui ne
+  distinguait pas les deux.
+- Les filtres « Instance courante » (Processus, Période) ne s'affichent plus que sur les huit vues
+  qui les appliquent, sous leur titre ; ailleurs ils ne filtraient rien. Leurs listes ne
+  s'écrivent plus en 10 px majuscules.
+- Un seul gabarit d'en-tête pour toutes les vues — titre, une phrase, actions à droite — et un
+  seul `h1` par vue ; Agent et Configuration n'en avaient aucun, Processus ou Audit le portaient dans
+  un panneau. « Rafraîchir » devient « Actualiser » partout.
+- À traiter : sur une file vide, l'action mise en avant est « Préparer un processus », plus
+  « Actualiser ». Processus : la liste « Vues enregistrées » et son « Supprimer » rouge
+  n'apparaissent qu'une fois une vue enregistrée.
+
 - Console, premier démarrage : la mise en route passe en tête de la Vue d'ensemble (desktop et
   mobile), compte une connexion MCP comme faite seulement si elle est **joignable**, ajoute la clé
   du modèle, et dit pour chaque étape ce qui manque. « Exécuter maintenant » est désactivé tant

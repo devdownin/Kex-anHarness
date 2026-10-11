@@ -979,15 +979,6 @@ table.grid tr.clickable:hover td:last-child { border-top-right-radius: var(--rad
 .brief-lead { max-width: 90ch; font-size: 15px; font-weight: 600; line-height: 1.55; }
 .brief-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 
-.attention-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: end;
-  gap: 20px;
-  padding: 8px 4px;
-}
-.attention-head h1 { margin: 2px 0 3px; font-size: 28px; letter-spacing: -.025em; }
-.attention-head p { margin: 0; color: var(--ink-3); }
 .attention-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
 .attention-group {
   min-width: 0;
@@ -1171,9 +1162,6 @@ table.grid tr.just-changed td, .compact-card.just-changed { animation: change-ar
 
 /* ── Cockpit incident et preuves ────────────────────────────────────── */
 
-.incident-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; }
-.incident-heading h1 { margin: 3px 0; }
-.incident-heading p { margin: 0; color: var(--ink-2); }
 .incident-cockpit { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 16px; align-items: start; }
 .incident-queue, .incident-detail {
   border: 1px solid var(--line);
@@ -1550,6 +1538,7 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
 #action-verification-verdict[data-state="PENDING"] { color: var(--pending); background: var(--pending-soft); }
 
 .saved-views { display: grid; grid-template-columns: minmax(180px, 1fr) auto auto; gap: 8px; margin: 10px 0; }
+.saved-views.empty { grid-template-columns: auto; justify-content: start; }
 .help-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .help-grid details { padding: 12px; border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg); }
 .help-grid summary { cursor: pointer; font-weight: 650; }
@@ -1676,7 +1665,7 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
   .onboarding-steps { grid-template-columns: minmax(0, 1fr); }
   .preferences-grid { grid-template-columns: minmax(0, 1fr); }
   .comparison-grid, .help-grid { grid-template-columns: minmax(0, 1fr); }
-  .saved-views { grid-template-columns: minmax(0, 1fr); }
+  .saved-views:not(.empty) { grid-template-columns: minmax(0, 1fr); }
   .skeleton-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
   /* Mobile : priorité aux actions et aux alertes. Le tableau des processus n'est pas ce qu'on
@@ -1701,7 +1690,6 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
   .skeleton-kpis { grid-template-columns: minmax(0, 1fr); }
   .overview-hero { min-height: 0; padding: 21px; }
   .overview-hero h1 { font-size: 23px; }
-  .attention-head { align-items: stretch; flex-direction: column; }
   .composer { grid-template-columns: minmax(0, 1fr); }
   .composer-side { justify-content: space-between; }
   .kpi-value { font-size: 22px; }
@@ -1769,6 +1757,9 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
   text-transform: uppercase;
 }
 
+/* Un seul gabarit d'en-tête pour toutes les vues : titre, une phrase, actions à droite. Quatre
+   variantes coexistaient (sur-titre, titre dans un panneau, aucun titre) et rien ne disait sur quel
+   écran l'on se trouvait de la même façon d'une vue à l'autre. */
 .workspace-heading {
   display: flex;
   align-items: end;
@@ -2040,7 +2031,9 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
   letter-spacing: .04em;
   text-transform: uppercase;
 }
-.operator-context select { min-height: 34px; padding-block: 5px; }
+/* `font: inherit` reprenait le 10 px majuscule de l'étiquette : la valeur choisie se lisait plus
+   petit que tout le reste de l'écran. */
+.operator-context select { min-height: 34px; padding-block: 5px; font-size: 13px; font-weight: 500; letter-spacing: normal; text-transform: none; }
 
 #view-overview:not([hidden]) { display: flex; flex-direction: column; }
 .overview-customizer { order: 0; display: flex; justify-content: flex-end; margin-bottom: 10px; }

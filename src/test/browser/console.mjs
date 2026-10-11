@@ -381,7 +381,7 @@ await check('la vue Intégrations n’a qu’un bouton de rafraîchissement', as
   await page.goto(`${BASE}/#/overview`, { waitUntil: 'domcontentloaded' });
   await page.goto(`${BASE}/#/integrations`, { waitUntil: 'domcontentloaded' });
   const refreshers = await page.$$eval('#view-integrations button',
-    (nodes) => nodes.filter((node) => node.textContent.trim() === 'Rafraîchir').length);
+    (nodes) => nodes.filter((node) => node.textContent.trim() === 'Actualiser').length);
 
   assert.equal(refreshers, 1);
   // Et il rafraîchit la vue entière, pas le seul panneau dans lequel il est posé.
