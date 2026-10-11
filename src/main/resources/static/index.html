@@ -524,66 +524,6 @@
         <button type="button" data-settings-target="settings-monitoring-panel">Surveillance</button>
         <button type="button" data-settings-target="settings-mcp-server">Serveur MCP Kex</button>
       </nav>
-      <section class="panel mcp-server-panel" id="settings-mcp-server">
-        <div class="panel-head">
-          <div><span class="panel-kicker">Exposition agentique</span><h2>Serveur MCP Kex</h2></div>
-          <span class="status" id="mcp-server-status" data-state="unknown"><span class="status-mark" aria-hidden="true">●</span><span id="mcp-server-status-label">Vérification…</span></span>
-        </div>
-        <p class="hint">Inspecter ce que Kex expose en tant que serveur aux clients MCP. Cet espace est distinct des connexions MCP externes utilisées par l’agent.</p>
-        <div id="mcp-server-freshness" class="freshness-slot" aria-live="polite"></div>
-        <!-- Éteint par défaut : ce n'est pas une panne. Une pastille « Indisponible », six compteurs
-             vides et un toast « MCP HTTP 404 » faisaient chercher un incident là où il n'y a qu'une
-             propriété à changer. -->
-        <div class="state empty" id="mcp-server-disabled" data-empty-state="true" hidden>
-          <p>Le serveur MCP Kex est désactivé.</p>
-          <p class="hint">C’est le réglage par défaut : Kex n’expose rien aux clients MCP. Pour l’exposer,
-            définir <code>KEX_MCP_SERVER_ENABLED=true</code> (propriété <code>kex.mcp.server.enabled</code>)
-            puis redémarrer l’agent.</p>
-        </div>
-        <div id="mcp-server-body">
-        <nav class="local-nav mcp-tabs" aria-label="Vues du serveur MCP">
-          <button type="button" class="active" data-mcp-tab="overview">Vue d’ensemble</button>
-          <button type="button" data-mcp-tab="catalog">Catalogue</button>
-          <button type="button" data-mcp-tab="playground">Essais</button>
-        </nav>
-        <div data-mcp-panel="overview">
-          <div class="mcp-metrics" id="mcp-metrics">
-            <div class="metric"><strong id="mcp-tools-count">—</strong><span>Outils</span></div>
-            <div class="metric"><strong id="mcp-resources-count">—</strong><span>Ressources</span></div>
-            <div class="metric"><strong id="mcp-templates-count">—</strong><span>Modèles</span></div>
-            <div class="metric"><strong id="mcp-prompts-count">—</strong><span>Prompts</span></div>
-            <div class="metric"><strong id="mcp-active-sessions">—</strong><span>Sessions actives</span></div>
-            <div class="metric"><strong id="mcp-health-state">—</strong><span>Santé MCP</span></div>
-          </div>
-          <div class="mcp-summary-grid">
-            <div class="subpanel"><span class="panel-kicker">Contrat</span><h2>Lecture seule</h2><p class="hint">Les mutations gouvernées ne sont pas exposées par le catalogue MCP.</p></div>
-            <div class="subpanel"><span class="panel-kicker">Protocole</span><h2 id="mcp-protocol">—</h2><p class="hint" id="mcp-server-version">Version serveur inconnue</p></div>
-          </div>
-          <div class="subpanel"><span class="panel-kicker">Clients</span><h2>Sessions MCP</h2><div id="mcp-session-list" class="mcp-session-list"><p class="hint">Aucun client MCP connecté.</p></div></div>
-        </div>
-        <div data-mcp-panel="catalog" hidden>
-          <div class="toolbar"><label>Type <select id="mcp-catalog-kind"><option value="tools">Outils</option><option value="resources">Ressources</option><option value="templates">Modèles de ressource</option><option value="prompts">Prompts</option></select></label></div>
-          <div id="mcp-catalog-list" class="mcp-catalog-list"></div>
-        </div>
-        <div data-mcp-panel="playground" hidden>
-          <div class="mcp-playground-grid">
-            <form id="mcp-playground-form" class="subpanel">
-              <span class="panel-kicker">Requête</span><h2>Tester le contrat MCP</h2>
-              <label>Opération <select id="mcp-playground-operation"><option value="tool">Appeler un outil</option><option value="resource">Lire une ressource</option><option value="template">Instancier un modèle de ressource</option><option value="prompt">Rendre un prompt</option></select></label>
-              <label>Cible <select id="mcp-playground-target"></select></label>
-              <div id="mcp-template-fields" class="stack" hidden></div>
-              <div id="mcp-schema-fields" class="mcp-schema-fields" hidden></div>
-              <details class="advanced mcp-json-mode">
-                <summary>Mode avancé · JSON</summary>
-                <label>Arguments JSON <textarea id="mcp-playground-arguments" rows="8" spellcheck="false">{}</textarea></label>
-              </details>
-              <button type="submit" class="primary">Exécuter</button>
-            </form>
-            <div class="subpanel"><span class="panel-kicker">Résultat</span><h2>Réponse MCP</h2><h3>Données structurées</h3><pre id="mcp-playground-structured" tabindex="0">Aucune requête exécutée.</pre><h3>Contenu texte</h3><pre id="mcp-playground-text" tabindex="0">—</pre><div class="panel-head"><h3>JSON-RPC brut</h3><button type="button" class="ghost" id="mcp-playground-copy">Copier</button></div><pre id="mcp-playground-result" tabindex="0">Aucune requête exécutée.</pre></div>
-          </div>
-        </div>
-        </div>
-      </section>
       <section class="panel" id="settings-preferences">
         <div class="panel-head">
           <div><span class="panel-kicker">Préférences locales</span><h2>Apparence et usage</h2></div>
@@ -662,6 +602,68 @@
           </details>
         </section>
       </div>
+      <!-- Dans l'ordre des onglets : la section du serveur MCP Kex, désactivé par défaut, ouvrait la
+           page alors que son onglet est le dernier. -->
+      <section class="panel mcp-server-panel" id="settings-mcp-server">
+        <div class="panel-head">
+          <div><span class="panel-kicker">Exposition agentique</span><h2>Serveur MCP Kex</h2></div>
+          <span class="status" id="mcp-server-status" data-state="unknown"><span class="status-mark" aria-hidden="true">●</span><span id="mcp-server-status-label">Vérification…</span></span>
+        </div>
+        <p class="hint">Inspecter ce que Kex expose en tant que serveur aux clients MCP. Cet espace est distinct des connexions MCP externes utilisées par l’agent.</p>
+        <div id="mcp-server-freshness" class="freshness-slot" aria-live="polite"></div>
+        <!-- Éteint par défaut : ce n'est pas une panne. Une pastille « Indisponible », six compteurs
+             vides et un toast « MCP HTTP 404 » faisaient chercher un incident là où il n'y a qu'une
+             propriété à changer. -->
+        <div class="state empty" id="mcp-server-disabled" data-empty-state="true" hidden>
+          <p>Le serveur MCP Kex est désactivé.</p>
+          <p class="hint">C’est le réglage par défaut : Kex n’expose rien aux clients MCP. Pour l’exposer,
+            définir <code>KEX_MCP_SERVER_ENABLED=true</code> (propriété <code>kex.mcp.server.enabled</code>)
+            puis redémarrer l’agent.</p>
+        </div>
+        <div id="mcp-server-body">
+        <nav class="local-nav mcp-tabs" aria-label="Vues du serveur MCP">
+          <button type="button" class="active" data-mcp-tab="overview">Vue d’ensemble</button>
+          <button type="button" data-mcp-tab="catalog">Catalogue</button>
+          <button type="button" data-mcp-tab="playground">Essais</button>
+        </nav>
+        <div data-mcp-panel="overview">
+          <div class="mcp-metrics" id="mcp-metrics">
+            <div class="metric"><strong id="mcp-tools-count">—</strong><span>Outils</span></div>
+            <div class="metric"><strong id="mcp-resources-count">—</strong><span>Ressources</span></div>
+            <div class="metric"><strong id="mcp-templates-count">—</strong><span>Modèles</span></div>
+            <div class="metric"><strong id="mcp-prompts-count">—</strong><span>Prompts</span></div>
+            <div class="metric"><strong id="mcp-active-sessions">—</strong><span>Sessions actives</span></div>
+            <div class="metric"><strong id="mcp-health-state">—</strong><span>Santé MCP</span></div>
+          </div>
+          <div class="mcp-summary-grid">
+            <div class="subpanel"><span class="panel-kicker">Contrat</span><h2>Lecture seule</h2><p class="hint">Les mutations gouvernées ne sont pas exposées par le catalogue MCP.</p></div>
+            <div class="subpanel"><span class="panel-kicker">Protocole</span><h2 id="mcp-protocol">—</h2><p class="hint" id="mcp-server-version">Version serveur inconnue</p></div>
+          </div>
+          <div class="subpanel"><span class="panel-kicker">Clients</span><h2>Sessions MCP</h2><div id="mcp-session-list" class="mcp-session-list"><p class="hint">Aucun client MCP connecté.</p></div></div>
+        </div>
+        <div data-mcp-panel="catalog" hidden>
+          <div class="toolbar"><label>Type <select id="mcp-catalog-kind"><option value="tools">Outils</option><option value="resources">Ressources</option><option value="templates">Modèles de ressource</option><option value="prompts">Prompts</option></select></label></div>
+          <div id="mcp-catalog-list" class="mcp-catalog-list"></div>
+        </div>
+        <div data-mcp-panel="playground" hidden>
+          <div class="mcp-playground-grid">
+            <form id="mcp-playground-form" class="subpanel">
+              <span class="panel-kicker">Requête</span><h2>Tester le contrat MCP</h2>
+              <label>Opération <select id="mcp-playground-operation"><option value="tool">Appeler un outil</option><option value="resource">Lire une ressource</option><option value="template">Instancier un modèle de ressource</option><option value="prompt">Rendre un prompt</option></select></label>
+              <label>Cible <select id="mcp-playground-target"></select></label>
+              <div id="mcp-template-fields" class="stack" hidden></div>
+              <div id="mcp-schema-fields" class="mcp-schema-fields" hidden></div>
+              <details class="advanced mcp-json-mode">
+                <summary>Mode avancé · JSON</summary>
+                <label>Arguments JSON <textarea id="mcp-playground-arguments" rows="8" spellcheck="false">{}</textarea></label>
+              </details>
+              <button type="submit" class="primary">Exécuter</button>
+            </form>
+            <div class="subpanel"><span class="panel-kicker">Résultat</span><h2>Réponse MCP</h2><h3>Données structurées</h3><pre id="mcp-playground-structured" tabindex="0">Aucune requête exécutée.</pre><h3>Contenu texte</h3><pre id="mcp-playground-text" tabindex="0">—</pre><div class="panel-head"><h3>JSON-RPC brut</h3><button type="button" class="ghost" id="mcp-playground-copy">Copier</button></div><pre id="mcp-playground-result" tabindex="0">Aucune requête exécutée.</pre></div>
+          </div>
+        </div>
+        </div>
+      </section>
     </section>
 
     <!-- ══ Alertes ══ -->
@@ -754,24 +756,25 @@
       </header>
       <section class="panel">
         <div class="panel-head"><h2>Mémoire long-terme</h2></div>
-        <p class="hint">Ce que le modèle retient au-delà d'une conversation, via l'outil
-          remember_fact. Lecture et suppression seulement : écrire n'est jamais un geste d'opérateur.</p>
+        <p class="hint">Les faits que l’agent a choisi de garder d’une conversation à l’autre : une
+          préférence, une règle, un contexte durable. Vous pouvez les consulter et les supprimer ; seul
+          l’agent en ajoute.</p>
         <div id="memory-list"></div>
       </section>
 
       <section class="panel">
         <div class="panel-head"><h2>Résumés durables</h2></div>
-        <p class="hint">Ce que la mémoire long-terme retient d'un échange terminé normalement —
-          demande et résultat. Lecture et suppression seulement, au même titre que les souvenirs
-          ponctuels ci-dessus.</p>
+        <p class="hint">Pour chaque échange mené à son terme, la demande et le résultat, gardés pour
+          les conversations suivantes. Consultation et suppression seulement, comme les souvenirs
+          ci-dessus.</p>
         <div id="summaries-list"></div>
       </section>
 
       <section class="panel">
         <div class="panel-head"><h2>Base de connaissance</h2></div>
-        <p class="hint">Aucune liste exhaustive n'existe côté serveur : le magasin vectoriel n'expose
-          qu'ajouter, retirer et chercher par similarité — jamais énumérer. Rechercher ici applique
-          les mêmes seuils qu'avant un échange réel, pour voir ce que le modèle verrait.</p>
+        <p class="hint">Les documents que l’agent consulte avant de répondre. La base ne se parcourt
+          pas en liste : une recherche montre les passages qu’une conversation retrouverait, avec les
+          mêmes seuils.</p>
         <div id="knowledge-panel"></div>
       </section>
 

@@ -6,7 +6,7 @@
 // chaînes pour une poignée de fichiers statiques.
 
 import {
-  $, ago, api, confirmAction, credentials, drawerOpen, duration, el, onCredentialChange, onUnauthorized, operatorContext,
+  $, DEFAULT_PERIOD, ago, api, confirmAction, credentials, drawerOpen, duration, el, onCredentialChange, onUnauthorized, operatorContext,
   refreshFreshnessTag, report, restoreDrawerFromUrl, setCycleGate, setOperatorContext, stamp, toast, viewName,
 } from './core.js';
 import * as automations from './automations.js';
@@ -548,7 +548,7 @@ function syncOperatorContext(data) {
     select.append(option);
   }
   select.value = current.process || '';
-  $('#context-period').value = current.period || '1h';
+  $('#context-period').value = current.period || DEFAULT_PERIOD;
 }
 
 /** Le contexte se lit sous le titre de la vue qui l'applique, comme ses autres filtres. */
@@ -565,7 +565,7 @@ function placeOperatorContext(view) {
 function wireOperatorContext() {
   const current = operatorContext();
   $('#context-process').value = current.process || '';
-  $('#context-period').value = current.period || '1h';
+  $('#context-period').value = current.period || DEFAULT_PERIOD;
   $('#context-process').addEventListener('change', (event) => {
     setOperatorContext({ process: event.target.value });
     reload();
@@ -575,7 +575,11 @@ function wireOperatorContext() {
     reload();
   });
   $('#context-reset').addEventListener('click', () => {
-    setOperatorContext({ process: '', period: '1h' });
+    setOperatorContext({ process: '', period: DEFAULT_PERIOD });
+    // Les listes suivent même sans instantané : syncOperatorContext n'agit qu'une fois les processus
+    // lus, et « Réinitialiser » laissait l'ancienne période affichée sur Audit ou Décisions.
+    $('#context-process').value = '';
+    $('#context-period').value = DEFAULT_PERIOD;
     syncOperatorContext(supervision.current());
     reload();
   });

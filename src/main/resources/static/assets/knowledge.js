@@ -39,7 +39,7 @@ function build() {
 
   const results = el('div');
   results.append(empty('Recherchez pour voir ce qu’un échange verrait.',
-    'Aucune liste exhaustive n’existe côté serveur : chaque recherche applique les mêmes seuils que ceux appliqués avant un échange réel.'));
+    'Les passages affichés sont ceux qu’une conversation retrouverait, avec les mêmes seuils.'));
   wrap.append(results);
 
   form.addEventListener('submit', (event) => {
@@ -69,7 +69,7 @@ async function runSearch(query, host, button) {
 
 function renderResults(matches, host) {
   if (!matches.length) {
-    host.replaceChildren(empty('Aucun passage au-dessus du seuil de similarité.',
+    host.replaceChildren(empty('Aucun passage assez proche de la recherche.',
       'Un passage sans rapport vaut moins que pas de passage du tout : le seuil l’a écarté, comme il l’écarterait avant un échange réel.'));
     return;
   }
@@ -115,7 +115,7 @@ async function removeMatch(match, card, list) {
     toast('Document retiré.');
     card.remove();
     if (!list.children.length) {
-      list.replaceWith(empty('Aucun passage au-dessus du seuil de similarité.'));
+      list.replaceWith(empty('Aucun passage assez proche de la recherche.'));
     }
   }
   catch (error) { report(error); }

@@ -7,6 +7,17 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
 
 ### Corrigé
 
+- Tâches désactivées : le message nomme la propriété à changer (`KEX_AGENT_TASKS_ENABLED=true`) ;
+  « Actualiser » et le panneau de détail vide disparaissent. Le panneau de détail ne s'affiche plus
+  vide non plus quand aucune tâche n'est sélectionnée.
+- Configuration : les sections suivent l'ordre de leurs onglets — le serveur MCP Kex, désactivé par
+  défaut, ouvrait la page alors que son onglet est le dernier.
+- La période par défaut du contexte opérateur passe d'une heure à 24 h : Audit et Décisions
+  s'ouvraient vides dès que le dernier geste datait de la veille. « Réinitialiser » remet aussi les
+  listes à jour quand l'instantané de supervision n'est pas encore lu.
+- Connaissance : les descriptions parlent d'usage (`remember_fact`, « magasin vectoriel »,
+  « locataire » retirés), et le lien vers la conversation porte un seul libellé.
+
 - Un rendu périmé n'écrase plus un rendu récent : `render()` ignorait l'ordre des réponses, si bien
   qu'un sondage de fond parti avant une navigation ou un filtre pouvait, en arrivant après, remettre
   le bloc dans son état ancien jusqu'au sondage suivant. Plusieurs vérifications navigateur en

@@ -19,8 +19,8 @@ export async function list() {
     }
     if (!data.rows.length) {
       return empty('Aucun résumé conservé.',
-        'Aucun échange terminé normalement n’a encore été résumé pour ce locataire.',
-        { href: '#/chat', label: 'Démarrer une conversation' });
+        'Aucun échange n’a encore été mené à son terme.',
+        { href: '#/chat', label: 'Ouvrir une conversation' });
     }
 
     const stack = el('div', 'stack');
