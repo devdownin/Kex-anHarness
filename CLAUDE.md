@@ -407,4 +407,10 @@ JDK 25 requis. La CI construit aussi l'image Docker et monte la stack de fumée.
   Pour une enveloppe d'**outil** : `EXHAUSTED` établit la complétude, un `complete` présent doit
   valoir `true`. Une fixture se recopie d'une réponse réelle, jamais de l'idée qu'on s'en fait.
 
+- **`gen_ai.client.token.usage` compte chaque jeton deux fois sans filtre.** Spring AI incrémente
+  trois séries par appel — `input`, `output` et `total` — sous le même nom ; `/actuator/metrics`
+  sans `?tag=` les additionne. Lire `gen_ai.token.type:total`, et en PromQL filtrer ou regrouper
+  sur `gen_ai_token_type`. Le compteur naît au premier appel : son `404` est un vrai zéro, pas une
+  mesure absente.
+
 Le détail et les raisons sont dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).

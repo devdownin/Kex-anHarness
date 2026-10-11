@@ -28,13 +28,21 @@ scrape_configs:
 
 | Métrique | Origine | Étiquettes utiles |
 |---|---|---|
-| `gen_ai_client_token_usage` | Spring AI | `gen_ai_token_type` (`input` / `output`), `gen_ai_request_model` |
+| `gen_ai_client_token_usage` | Spring AI | `gen_ai_token_type` (`input` / `output` / `total`), `gen_ai_request_model` |
 | `gen_ai_client_operation_seconds` | Spring AI | `gen_ai_operation_name`, `gen_ai_request_model`, `error` |
 
 Les compteurs de jetons n'existent que parce qu'un `MeterRegistry` est présent :
 `ChatObservationAutoConfiguration` n'enregistre `ChatModelMeterObservationHandler` qu'à cette
 condition. `KexAgentApplicationTests` vérifie que le bean est bien là, pour qu'un retrait de la
 dépendance Prometheus ne rende pas le coût silencieusement invisible.
+
+Chaque appel incrémente **trois** séries — `input`, `output` et `total`, qui est leur somme. Une
+somme sans filtre ni regroupement sur `gen_ai_token_type` compte donc chaque jeton deux fois :
+filtrer sur `gen_ai_token_type="total"`, ou regrouper par type comme la requête d'alerte plus bas.
+La tuile « Jetons consommés » de la page Système lit `?tag=gen_ai.token.type:total` pour la même
+raison. Le compteur n'existe qu'après le premier appel au modèle : avant, l'endpoint répond `404`,
+ce que la tuile lit comme un vrai zéro (« 0 depuis le démarrage ») ; toute autre erreur s'affiche
+« non mesuré ».
 
 Les compteurs sont agrégés par modèle, **pas par conversation** : un `conversationId` en étiquette
 ferait exploser la cardinalité. Pour imputer un coût à un échange précis, lire la réponse plutôt que

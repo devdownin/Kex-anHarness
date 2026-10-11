@@ -157,7 +157,7 @@
     <p class="offline" id="offline" role="status" hidden>
       Navigateur hors ligne — ce qui est affiché date de la dernière connexion.
     </p>
-    <section class="operator-context" id="operator-context" aria-label="Contexte opérateur">
+    <section class="operator-context" id="operator-context" aria-label="Contexte opérateur" hidden>
       <span class="context-scope">Instance courante</span>
       <label>Processus
         <select id="context-process"><option value="">Tous</option></select>
@@ -174,13 +174,13 @@
 
     <!-- ══ Vue d'ensemble ══ -->
     <section class="view" id="view-forecasts" hidden>
-      <div class="workspace-heading">
-        <div><h1>Prévisions des métriques</h1><p class="hint">Anticiper les évolutions à partir des résultats calculés par KafkaExplorer.</p></div>
+      <header class="workspace-heading">
+        <div><h1>Prévisions des métriques</h1><p>Anticiper les évolutions à partir des résultats calculés par KafkaExplorer.</p></div>
         <div class="panel-actions">
           <button type="button" class="ghost" id="check-forecast-readiness">Vérifier la préparation MCP</button>
           <button type="button" class="ghost" id="refresh-forecasts">Actualiser les résultats</button>
         </div>
-      </div>
+      </header>
       <label class="forecast-refresh-option"><input type="checkbox" id="forecast-auto-refresh"> Actualiser automatiquement (60 s)</label>
       <p class="hint" id="forecast-refresh-status" role="status">Actualisation automatique désactivée · dernière lecture : aucune</p>
       <details class="panel" id="forecast-first-run">
@@ -268,7 +268,7 @@
       <div class="split" data-dashboard-block="operations">
         <section class="panel">
           <div class="panel-head">
-            <h1>Processus surveillés</h1>
+            <h2>Processus surveillés</h2>
             <a class="ghost" href="#/processes" aria-label="Voir tous les processus">Tout voir</a>
           </div>
           <div id="overview-processes" data-skeleton="table"></div>
@@ -287,11 +287,10 @@
 
     <!-- ══ Activité ══ -->
     <section class="view" id="view-activity" hidden>
-      <section class="workspace-heading">
-        <div><span class="panel-kicker">Chronologie opérationnelle</span><h1>Activité</h1>
-          <p>Alertes, décisions, actions et changements d’état réunis dans un seul fil.</p></div>
-        <button type="button" class="ghost" id="refresh-activity">Actualiser</button>
-      </section>
+      <header class="workspace-heading">
+        <div><h1>Activité</h1><p>Alertes, décisions, actions et changements d’état réunis dans un seul fil.</p></div>
+        <div class="panel-actions"><button type="button" class="ghost" id="refresh-activity">Actualiser</button></div>
+      </header>
       <section class="panel">
         <div id="activity-timeline" data-skeleton="list"></div>
       </section>
@@ -299,32 +298,27 @@
 
     <!-- ══ À traiter ══ -->
     <section class="view" id="view-attention" hidden>
-      <section class="attention-head">
-        <div>
-          <span class="panel-kicker">Priorités opérationnelles</span>
-          <h1>À traiter</h1>
-          <p>Une file unique, ordonnée par impact, urgence puis ancienneté.</p>
-        </div>
-        <button type="button" class="primary" id="refresh-attention">Actualiser</button>
-      </section>
+      <header class="workspace-heading">
+        <div><h1>À traiter</h1><p>Une file unique, ordonnée par impact, urgence puis ancienneté.</p></div>
+        <div class="panel-actions"><button type="button" class="ghost" id="refresh-attention">Actualiser</button></div>
+      </header>
       <div class="attention-columns" id="attention-workspace" data-skeleton="list"></div>
     </section>
 
     <!-- ══ Cockpit incident ══ -->
     <section class="view" id="view-incidents" hidden>
-      <section class="incident-heading">
-        <div>
-          <span class="panel-kicker">Diagnostic opérationnel</span>
-          <h1>Cockpit incident</h1>
-          <p>Symptômes, preuves, décisions et chronologie réunis sans changer d’écran.</p>
-        </div>
-        <button type="button" class="ghost" id="refresh-incidents">Actualiser</button>
-      </section>
+      <header class="workspace-heading">
+        <div><h1>Cockpit incident</h1><p>Symptômes, preuves, décisions et chronologie réunis sans changer d’écran.</p></div>
+        <div class="panel-actions"><button type="button" class="ghost" id="refresh-incidents">Actualiser</button></div>
+      </header>
       <div id="incident-workspace" data-skeleton="list"></div>
     </section>
 
     <!-- ══ Agent ══ -->
     <section class="view" id="view-agent" hidden>
+      <header class="workspace-heading">
+        <div><h1>Agent</h1><p>Comportement, autonomie et performances de l’agent, et ce qui l’encadre.</p></div>
+      </header>
       <nav class="local-nav" aria-label="Sections de l’agent">
         <button type="button" data-agent-tab="general" aria-pressed="true">Général</button>
         <button type="button" data-agent-tab="capabilities" aria-pressed="false">Autonomie</button>
@@ -335,7 +329,7 @@
       </nav>
       <div class="split">
         <section class="panel" data-agent-section="general">
-          <div class="panel-head"><h1>Comportement</h1></div>
+          <div class="panel-head"><h2>Comportement</h2></div>
           <div id="agent-summary"></div>
 
           <form id="agent-form" class="stack">
@@ -380,7 +374,7 @@
           <section class="panel" data-agent-section="performance" hidden>
             <div class="panel-head">
               <h2>Performance de l'agent</h2>
-              <button type="button" class="ghost" id="refresh-performance">Rafraîchir</button>
+              <button type="button" class="ghost" id="refresh-performance">Actualiser</button>
             </div>
             <p class="hint">Mesuré sur la fenêtre d'historique conservée en mémoire, pas depuis le
               premier jour : ce sont des tendances récentes.</p>
@@ -466,9 +460,11 @@
 
     <!-- ══ Processus ══ -->
     <section class="view" id="view-processes" hidden>
+      <header class="workspace-heading">
+        <div><h1>Processus</h1><p>Les processus métier surveillés, leur état au dernier cycle et leurs tendances.</p></div>
+      </header>
       <section class="panel">
         <div class="panel-head">
-          <h1>Processus</h1>
           <div class="filters" role="group" aria-label="Filtrer par état">
             <button type="button" class="chip-toggle" data-filter="ALL" aria-pressed="true">Tous</button>
             <button type="button" class="chip-toggle" data-filter="OK" aria-pressed="false">OK</button>
@@ -492,14 +488,14 @@
 
     <!-- ══ Décisions ══ -->
     <section class="view" id="view-decisions" hidden>
-      <section class="panel">
-        <div class="panel-head">
-          <h1>Décisions</h1>
-          <div class="panel-actions">
-            <button type="button" class="ghost" id="export-decisions">Exporter (CSV)</button>
-            <button type="button" class="ghost" id="refresh-decisions">Rafraîchir</button>
-          </div>
+      <header class="workspace-heading">
+        <div><h1>Décisions</h1><p>Ce que l’agent a proposé, exécuté ou soumis à validation, avec ses motifs.</p></div>
+        <div class="panel-actions">
+          <button type="button" class="ghost" id="export-decisions">Exporter (CSV)</button>
+          <button type="button" class="ghost" id="refresh-decisions">Actualiser</button>
         </div>
+      </header>
+      <section class="panel">
         <div class="filters decision-filters" role="group" aria-label="Filtrer les décisions">
           <button type="button" class="chip-toggle" data-decision-filter="ALL" aria-pressed="true">Toutes</button>
           <button type="button" class="chip-toggle" data-decision-filter="PENDING" aria-pressed="false">À valider</button>
@@ -518,6 +514,9 @@
 
     <!-- ══ Configuration ══ -->
     <section class="view" id="view-settings" hidden>
+      <header class="workspace-heading">
+        <div><h1>Configuration</h1><p>Préférences de la console, modèle, seuils de détection et serveur MCP exposé.</p></div>
+      </header>
       <nav class="local-nav" aria-label="Sections de la configuration">
         <button type="button" data-settings-target="settings-preferences">Apparence et usage</button>
         <button type="button" data-settings-target="settings-model">Modèle</button>
@@ -527,7 +526,7 @@
       </nav>
       <section class="panel mcp-server-panel" id="settings-mcp-server">
         <div class="panel-head">
-          <div><span class="panel-kicker">Exposition agentique</span><h1>Serveur MCP Kex</h1></div>
+          <div><span class="panel-kicker">Exposition agentique</span><h2>Serveur MCP Kex</h2></div>
           <span class="status" id="mcp-server-status" data-state="unknown"><span class="status-mark" aria-hidden="true">●</span><span id="mcp-server-status-label">Vérification…</span></span>
         </div>
         <p class="hint">Inspecter ce que Kex expose en tant que serveur aux clients MCP. Cet espace est distinct des connexions MCP externes utilisées par l’agent.</p>
@@ -587,7 +586,7 @@
       </section>
       <section class="panel" id="settings-preferences">
         <div class="panel-head">
-          <div><span class="panel-kicker">Préférences locales</span><h1>Apparence et usage</h1></div>
+          <div><span class="panel-kicker">Préférences locales</span><h2>Apparence et usage</h2></div>
           <button type="button" class="ghost" id="reset-preferences">Réinitialiser</button>
         </div>
         <p class="hint">Ces choix sont conservés dans ce navigateur et n’affectent pas la configuration de l’agent.</p>
@@ -623,8 +622,8 @@
       </section>
       <section class="panel" id="settings-model">
         <div class="panel-head">
-          <h1>Modèle de langage</h1>
-          <button type="button" class="ghost" id="refresh-llm">Rafraîchir</button>
+          <h2>Modèle de langage</h2>
+          <button type="button" class="ghost" id="refresh-llm">Actualiser</button>
         </div>
         <details class="inline-help"><summary>Pourquoi cette configuration est-elle en lecture seule ?</summary>
           <p class="hint">La vue montre la configuration réellement résolue de l’instance, variables d’environnement comprises. Le client du modèle est câblé au démarrage : toute modification prend donc effet après redémarrage.</p>
@@ -634,7 +633,7 @@
 
       <div class="split">
         <section class="panel" id="settings-detection">
-          <div class="panel-head"><h1>Détection</h1></div>
+          <div class="panel-head"><h2>Détection</h2></div>
           <form id="thresholds-form" class="stack">
             <p class="hint">Ces seuils sont transmis au modèle comme critères explicites : une anomalie doit se justifier par une mesure, pas par une impression.</p>
             <label for="th-lag">Consumer lag supérieur à</label>
@@ -667,22 +666,24 @@
 
     <!-- ══ Alertes ══ -->
     <section class="view" id="view-alerts" hidden>
+      <header class="workspace-heading">
+        <div><h1>Alertes</h1><p>Les alertes ouvertes par l’agent, de la première détection à la résolution.</p></div>
+      </header>
       <section class="panel">
-        <div class="panel-head"><h1>Alertes</h1></div>
         <div id="alerts-list" data-skeleton="list"></div>
       </section>
     </section>
 
     <!-- ══ Audit ══ -->
     <section class="view" id="view-audit" hidden>
-      <section class="panel">
-        <div class="panel-head">
-          <h1>Audit</h1>
-          <div class="panel-actions">
-            <button type="button" class="ghost" id="export-audit">Exporter (CSV)</button>
-            <button type="button" class="ghost" id="refresh-audit">Rafraîchir</button>
-          </div>
+      <header class="workspace-heading">
+        <div><h1>Audit</h1><p>Qui a fait quoi, quand : chaque geste humain ou automatique, dans l’ordre.</p></div>
+        <div class="panel-actions">
+          <button type="button" class="ghost" id="export-audit">Exporter (CSV)</button>
+          <button type="button" class="ghost" id="refresh-audit">Actualiser</button>
         </div>
+      </header>
+      <section class="panel">
         <label class="sr-only" for="audit-search">Filtrer l'audit</label>
         <input type="search" id="audit-search" placeholder="Filtrer par acteur, action, processus ou identifiant">
         <div id="audit-table" data-skeleton="table"></div>
@@ -691,18 +692,18 @@
 
     <!-- ══ Intégrations ══ -->
     <section class="view" id="view-integrations" hidden>
-      <section class="workspace-heading">
-        <div><span class="panel-kicker">Plateforme</span><h1>Intégrations</h1><p>Connexions externes utilisées par l’agent pour observer et agir.</p></div>
-      </section>
+      <header class="workspace-heading">
+        <div><h1>Intégrations</h1><p>Connexions externes utilisées par l’agent pour observer et agir.</p></div>
+        <div class="panel-actions"><button type="button" class="ghost" id="refresh-tools"
+                aria-label="Actualiser les intégrations" title="Actualiser les intégrations">Actualiser</button></div>
+      </header>
       <section class="panel mcp-cockpit-panel">
         <div class="panel-head">
-          <div><span class="panel-kicker">Cockpit MCP</span><h1>Connexions MCP</h1></div>
+          <div><span class="panel-kicker">Cockpit MCP</span><h2>Connexions MCP</h2></div>
           <div class="panel-actions">
             <button type="button" class="ghost" id="import-mcp">Importer</button>
             <button type="button" class="ghost" id="export-mcp">Exporter</button>
             <button type="button" class="primary" id="open-add-mcp">Ajouter un serveur</button>
-            <button type="button" class="ghost" id="refresh-tools"
-                    aria-label="Rafraîchir les intégrations" title="Rafraîchir les intégrations">Rafraîchir</button>
           </div>
         </div>
         <p class="hint">Serveurs MCP externes consommés par Kex. Le serveur MCP Kex exposé aux clients se configure séparément.</p>
@@ -715,7 +716,7 @@
       </section>
       <section class="panel">
         <div class="panel-head">
-          <h1>Catalogue recommandé</h1>
+          <h2>Catalogue recommandé</h2>
         </div>
         <p class="hint">Deux points d'accès distants sélectionnés par l'équipe, sans commande locale
           ni destination modifiable. Statique côté serveur : chargé avec le reste de la vue, sans
@@ -724,7 +725,7 @@
       </section>
       <section class="panel">
         <div class="panel-head">
-          <h1>Découverte de serveurs MCP</h1>
+          <h2>Découverte de serveurs MCP</h2>
           <div class="panel-actions">
             <button type="button" class="ghost" id="discover-mcp"
                     aria-label="Interroger les sources de catalogue MCP"
@@ -738,7 +739,7 @@
         <div id="mcp-discovery"></div>
       </section>
       <section class="panel">
-        <div class="panel-head"><h1>Cluster Kafka</h1></div>
+        <div class="panel-head"><h2>Cluster Kafka</h2></div>
         <p class="hint">Relevé par les outils du serveur MCP, jamais recalculé ici : les verdicts de
           retard sont ceux que l'outil rend, et une mesure absente s'affiche « non mesurée », pas zéro.</p>
         <div id="kafka-topics"></div>
@@ -748,18 +749,18 @@
 
     <!-- ══ Connaissance ══ -->
     <section class="view" id="view-knowledge" hidden>
-      <section class="workspace-heading">
-        <div><span class="panel-kicker">Plateforme</span><h1>Connaissance</h1><p>Mémoire, résumés durables et base de connaissance utilisés par l’agent.</p></div>
-      </section>
+      <header class="workspace-heading">
+        <div><h1>Connaissance</h1><p>Mémoire, résumés durables et base de connaissance utilisés par l’agent.</p></div>
+      </header>
       <section class="panel">
-        <div class="panel-head"><h1>Mémoire long-terme</h1></div>
+        <div class="panel-head"><h2>Mémoire long-terme</h2></div>
         <p class="hint">Ce que le modèle retient au-delà d'une conversation, via l'outil
           remember_fact. Lecture et suppression seulement : écrire n'est jamais un geste d'opérateur.</p>
         <div id="memory-list"></div>
       </section>
 
       <section class="panel">
-        <div class="panel-head"><h1>Résumés durables</h1></div>
+        <div class="panel-head"><h2>Résumés durables</h2></div>
         <p class="hint">Ce que la mémoire long-terme retient d'un échange terminé normalement —
           demande et résultat. Lecture et suppression seulement, au même titre que les souvenirs
           ponctuels ci-dessus.</p>
@@ -767,7 +768,7 @@
       </section>
 
       <section class="panel">
-        <div class="panel-head"><h1>Base de connaissance</h1></div>
+        <div class="panel-head"><h2>Base de connaissance</h2></div>
         <p class="hint">Aucune liste exhaustive n'existe côté serveur : le magasin vectoriel n'expose
           qu'ajouter, retirer et chercher par similarité — jamais énumérer. Rechercher ici applique
           les mêmes seuils qu'avant un échange réel, pour voir ce que le modèle verrait.</p>
@@ -778,9 +779,9 @@
 
     <!-- ══ Système ══ -->
     <section class="view" id="view-system" hidden>
-      <section class="workspace-heading">
-        <div><span class="panel-kicker">Plateforme</span><h1>Système</h1><p>État technique de l’instance, métriques et diagnostic d’exécution.</p></div>
-      </section>
+      <header class="workspace-heading">
+        <div><h1>Système</h1><p>État technique de l’instance, métriques et diagnostic d’exécution.</p></div>
+      </header>
       <section class="panel">
         <div class="panel-head"><h2>Santé de l'instance</h2></div>
         <div id="system-freshness" class="freshness-slot" aria-live="polite"></div>
@@ -794,8 +795,11 @@
     </section>
 
     <section class="view" id="view-tasks" hidden>
+      <header class="workspace-heading">
+        <div><h1>Tâches</h1><p>Objectifs confiés à l’agent, avec leur plan, leurs étapes et leurs preuves.</p></div>
+        <div class="panel-actions"><button type="button" class="ghost" id="refresh-tasks">Actualiser</button></div>
+      </header>
       <section class="panel">
-        <div class="panel-head"><h1>Tâches</h1><button type="button" class="ghost" id="refresh-tasks">Actualiser</button></div>
         <p class="hint" id="task-note" role="status">Chargement des tâches…</p>
         <form id="task-plan-form">
           <label for="task-objective">Objectif et critère de réussite</label>

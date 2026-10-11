@@ -203,6 +203,99 @@ await check('les libellés restent en français : Attention, Essais, santé en c
   await context.close();
 });
 
+await check('le contexte opérateur ne s’affiche que sur les vues qu’il filtre, sous leur titre', async () => {
+  const { context, page } = await open(desktop, 'integrations');
+  await page.locator('#view-integrations:not([hidden])').waitFor();
+  for (const view of ['integrations', 'agent', 'settings', 'system', 'chat', 'forecasts', 'knowledge', 'tasks']) {
+    await page.goto(`${BASE}/#/${view}`, { waitUntil: 'domcontentloaded' });
+    await page.locator(`#view-${view}:not([hidden])`).waitFor();
+    assert.equal(await page.locator('#operator-context').isVisible(), false, `filtres affichés sur ${view}, qui n’en lit rien`);
+  }
+  for (const view of ['processes', 'decisions', 'alerts', 'audit', 'activity', 'attention', 'incidents']) {
+    await page.goto(`${BASE}/#/${view}`, { waitUntil: 'domcontentloaded' });
+    await page.locator(`#view-${view} #operator-context:not([hidden])`).waitFor();
+    const heading = await page.locator(`#view-${view} > .workspace-heading`).boundingBox();
+    const filters = await page.locator('#operator-context').boundingBox();
+    assert.ok(filters.y >= heading.y + heading.height, `filtres au-dessus du titre sur ${view}`);
+  }
+  // Les listes reprenaient le 10 px majuscule de leur étiquette.
+  const size = await page.locator('#context-process').evaluate((node) => parseFloat(getComputedStyle(node).fontSize));
+  assert.ok(size >= 12, `liste du contexte en ${size} px`);
+  await context.close();
+});
+
+await check('chaque vue s’ouvre sur le même en-tête : un titre, une phrase, les actions à droite', async () => {
+  const { context, page } = await open(desktop, 'processes');
+  for (const view of ['forecasts', 'activity', 'attention', 'incidents', 'agent', 'processes', 'decisions', 'settings',
+    'alerts', 'audit', 'integrations', 'knowledge', 'system', 'tasks']) {
+    const shape = await page.evaluate((key) => {
+      const section = document.querySelector(`#view-${key}`);
+      const heading = section.querySelector(':scope > .workspace-heading');
+      return {
+        first: section.firstElementChild === heading,
+        titles: section.querySelectorAll('h1').length,
+        sentence: heading?.querySelector('h1 + p')?.textContent.trim().length > 0,
+        kicker: Boolean(heading?.querySelector('.panel-kicker')),
+      };
+    }, view);
+    assert.deepEqual(shape, { first: true, titles: 1, sentence: true, kicker: false }, `en-tête hors gabarit sur ${view}`);
+  }
+  await context.close();
+});
+
+await check('« Vues enregistrées » n’apparaît qu’une fois une vue enregistrée', async () => {
+  const { context, page } = await open(desktop, 'processes');
+  await page.evaluate(() => localStorage.removeItem('kex.agent.saved-process-views'));
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('#save-process-view').waitFor();
+  assert.equal(await page.locator('#saved-process-view').isVisible(), false);
+  assert.equal(await page.locator('#delete-process-view').isVisible(), false, '« Supprimer » rouge sans rien à supprimer');
+  page.once('dialog', (dialog) => dialog.accept('Mes erreurs'));
+  await page.locator('#save-process-view').click();
+  await page.locator('#saved-process-view').waitFor();
+  assert.equal(await page.locator('#delete-process-view').isVisible(), true);
+  await page.locator('#delete-process-view').click();
+  await page.locator('#saved-process-view').waitFor({ state: 'hidden' });
+  await context.close();
+});
+
+await check('À traiter vide : l’action mise en avant est de préparer un processus', async () => {
+  const { context, page } = await open(desktop, 'attention');
+  await page.route('**/api/agent/supervision/overview', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    await route.fulfill({ response, json: { ...body, processesMonitored: 0, processes: [] } });
+  });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  const action = page.locator('#attention-workspace a.empty-action', { hasText: 'Préparer un processus' });
+  await action.waitFor();
+  const background = (locator) => locator.evaluate((node) => getComputedStyle(node).backgroundColor);
+  assert.notEqual(await background(action), await background(page.locator('#refresh-attention')),
+    'l’action utile a le même poids qu’« Actualiser »');
+  assert.doesNotMatch(await page.locator('#refresh-attention').getAttribute('class'), /primary/,
+    '« Actualiser » reste le bouton principal d’une file vide');
+  await context.close();
+});
+
+await check('les jetons consommés : un zéro mesuré s’écrit zéro, une mesure absente se dit absente', async () => {
+  const { context, page } = await open(desktop, 'system');
+  const asked = [];
+  page.on('request', (request) => { if (request.url().includes('gen_ai.client.token.usage')) asked.push(request.url()); });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  const tokens = page.locator('#metric-tiles .tile', { hasText: 'Jetons consommés' });
+  await tokens.waitFor();
+  // La CI n'appelle aucun modèle : le compteur n'existe pas encore, ce qui est un vrai zéro.
+  assert.match(await tokens.innerText(), /\b0\b[\s\S]*depuis le démarrage/);
+  // Spring AI compte input, output et total : sans filtre, l'endpoint rend la somme des trois.
+  assert.ok(asked.every((url) => decodeURIComponent(url).includes('tag=gen_ai.token.type:total')), asked.join(' '));
+  await page.route('**/actuator/metrics/gen_ai.client.token.usage**', (route) => route.fulfill({ status: 500, body: '' }));
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('#metric-tiles .tile', { hasText: 'non mesuré' }).first().waitFor();
+  assert.match(await page.locator('#metric-tiles .tile', { hasText: 'Jetons consommés' }).innerText(), /non mesuré/);
+  assert.doesNotMatch(await page.locator('#metric-tiles').innerText(), /—/);
+  await context.close();
+});
+
 await browser.close();
 console.log(checks.join('\n'));
 if (problems.length) {

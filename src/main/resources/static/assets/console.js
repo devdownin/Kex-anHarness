@@ -23,27 +23,30 @@ import * as tasks from './tasks.js';
 const BASE = '/api/agent/supervision';
 $('#refresh-forecasts').addEventListener('click', forecasts.view);
 
+// `scoped` : la vue filtre ce qu'elle affiche sur le contexte opérateur (processus, période). Les
+// autres n'en lisent rien ; y afficher les deux listes laissait croire qu'elles filtraient, et
+// poussait le contenu vers le bas pour rien.
 const VIEWS = {
   tasks: { title: 'Tâches', load: tasks.view },
   forecasts: { title: 'Prévisions', load: forecasts.view },
-  overview: { title: 'Vue d’ensemble', load: supervision.overview },
-  attention: { title: 'À traiter', load: supervision.attentionView },
-  incidents: { title: 'Cockpit incident', load: supervision.incidents },
-  activity: { title: 'Activité', load: supervision.activity },
+  overview: { title: 'Vue d’ensemble', load: supervision.overview, scoped: true },
+  attention: { title: 'À traiter', load: supervision.attentionView, scoped: true },
+  incidents: { title: 'Cockpit incident', load: supervision.incidents, scoped: true },
+  activity: { title: 'Activité', load: supervision.activity, scoped: true },
   // La gouvernance (charte, compétences) est une lecture indépendante de l'état de l'agent :
   // l'une ne doit pas retarder l'autre, comme pour la configuration plus bas.
   agent: { title: 'Agent', load: () => Promise.all([supervision.agent(), skills.governance(),
     automations.panel(), channels.status()]) },
-  processes: { title: 'Processus', load: supervision.processes },
-  decisions: { title: 'Décisions', load: supervision.decisions },
+  processes: { title: 'Processus', load: supervision.processes, scoped: true },
+  decisions: { title: 'Décisions', load: supervision.decisions, scoped: true },
   // La configuration réunit deux lectures indépendantes : les seuils, modifiables, et le modèle,
   // qui ne l'est pas. Un seul écran, deux requêtes — celle du modèle ne doit pas retarder les seuils.
   settings: {
     title: 'Configuration',
     load: () => Promise.all([supervision.settings(), llm.view(), mcpServer.view()]),
   },
-  alerts: { title: 'Alertes', load: supervision.alerts },
-  audit: { title: 'Audit', load: supervision.audit },
+  alerts: { title: 'Alertes', load: supervision.alerts, scoped: true },
+  audit: { title: 'Audit', load: supervision.audit, scoped: true },
   integrations: { title: 'Intégrations', load: tools.integrationsView },
   knowledge: { title: 'Connaissance', load: tools.knowledgeView },
   system: { title: 'Système', load: tools.systemView },
@@ -521,6 +524,16 @@ function syncOperatorContext(data) {
   }
   select.value = current.process || '';
   $('#context-period').value = current.period || '1h';
+}
+
+/** Le contexte se lit sous le titre de la vue qui l'applique, comme ses autres filtres. */
+function placeOperatorContext(view) {
+  const context = $('#operator-context');
+  context.hidden = !VIEWS[view].scoped;
+  if (context.hidden) return;
+  const heading = $(`#view-${view} > .workspace-heading`);
+  if (heading) heading.after(context);
+  else $(`#view-${view}`).prepend(context);
 }
 
 function wireOperatorContext() {
@@ -1052,6 +1065,7 @@ async function route() {
     // Sur mobile la navigation défile horizontalement : l'entrée courante doit être visible, sinon
     // rien ne dit où l'on est après un lien profond (#/integrations depuis la mise en route).
     document.querySelector('.nav-item[aria-current="page"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    placeOperatorContext(view);
     $('#crumb').textContent = VIEWS[view].title;
     // Le titre suit la vue : un onglet parmi dix ne se retrouve pas, et un signet pris sur un
     // écran précis reviendrait avec le nom de l'application pour seul repère.

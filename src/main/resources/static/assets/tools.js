@@ -245,7 +245,7 @@ function card(server) {
     const edit = el('button', 'ghost', 'Modifier');
     edit.type = 'button';
     edit.addEventListener('click', () => openEditor(managed));
-    const refresh = el('button', 'ghost', 'Rafraîchir les outils');
+    const refresh = el('button', 'ghost', 'Actualiser les outils');
     refresh.type = 'button';
     refresh.addEventListener('click', () => busy(refresh, async () => {
       try {
@@ -860,20 +860,26 @@ async function listResources(host, connection) {
   }
 }
 
-async function metric(name) {
+/**
+ * `absentIsZero` : Micrometer ne crée un compteur qu'à son premier incrément. Pour un compteur, un
+ * 404 veut donc dire « rien compté depuis le démarrage », un vrai zéro ; toute autre erreur reste
+ * une mesure absente, qui n'est jamais zéro.
+ */
+async function metric(name, { tag, absentIsZero = false } = {}) {
   try {
-    const body = await api(`/actuator/metrics/${encodeURIComponent(name)}`);
+    const query = tag ? `?tag=${encodeURIComponent(tag)}` : '';
+    const body = await api(`/actuator/metrics/${encodeURIComponent(name)}${query}`);
     const measurement = body.measurements?.find((m) => m.statistic === 'VALUE' || m.statistic === 'COUNT');
     return measurement ? measurement.value : null;
-  } catch {
-    // Une métrique absente (modèle jamais appelé, endpoint filtré) n'est pas une panne.
-    return null;
+  } catch (error) {
+    return absentIsZero && error.status === 404 ? 0 : null;
   }
 }
 
-function tile(label, value) {
+function tile(label, value, detail) {
   const node = el('div', 'tile');
   node.append(el('div', 'label', label), el('div', 'value', value));
+  if (detail) node.append(el('div', 'hint', detail));
   return node;
 }
 
@@ -901,15 +907,19 @@ export async function health() {
   }
 
   const [tokens, requests, memory] = await Promise.all([
-    metric('gen_ai.client.token.usage'),
+    // Spring AI incrémente trois compteurs par appel — input, output et total : sans le filtre,
+    // l'endpoint les additionne et la tuile affichait le double des jetons réellement consommés.
+    metric('gen_ai.client.token.usage', { tag: 'gen_ai.token.type:total', absentIsZero: true }),
     metric('http.server.requests'),
     metric('jvm.memory.used'),
   ]);
-  const format = (value) => (value == null ? '—' : Math.round(value).toLocaleString('fr-FR'));
+  // « — » ne distinguait pas « aucun échange » de « mesure indisponible » : un zéro mesuré s'écrit
+  // zéro, une mesure absente se dit absente.
+  const format = (value) => (value == null ? 'non mesuré' : Math.round(value).toLocaleString('fr-FR'));
   tiles.replaceChildren(
-    tile('Jetons consommés', format(tokens)),
+    tile('Jetons consommés', format(tokens), tokens == null ? null : 'depuis le démarrage'),
     tile('Requêtes HTTP', format(requests)),
-    tile('Mémoire JVM', memory == null ? '—' : `${Math.round(memory / 1048576)} Mio`),
+    tile('Mémoire JVM', memory == null ? 'non mesuré' : `${Math.round(memory / 1048576)} Mio`),
   );
 
   try {
