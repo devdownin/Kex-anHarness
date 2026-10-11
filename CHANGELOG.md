@@ -5,6 +5,14 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
 
 ## [Non publié]
 
+### Corrigé
+
+- Pile prévisions (`bin/forecast-stack.sh`, workflow `Forecast stack`) : la vérification MCP
+  envoyait `tools/list` sans ouvrir de session, ce que le transport Streamable HTTP de
+  l'Explorer refuse en `400` — le diagnostic restait `BLOQUÉ` sur une pile saine. Elle passe
+  désormais par `initialize`, et un blocage de la connexion MCP de l'agent nomme le contrôle
+  en échec au lieu d'une consigne générique.
+
 ### Ajouté
 
 - Serveur MCP de SpectraLLM (0.10.0+) : surcouche `compose/spectrallm.yml` qui ajoute la

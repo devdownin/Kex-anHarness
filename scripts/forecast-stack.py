@@ -43,25 +43,38 @@ def request(url, body=None, token=None):
         return json.load(response)
 
 
+def mcp_post(url, headers, body, session=None):
+    """Streamable HTTP : hors `initialize`, une requête sans Mcp-Session-Id est refusée en 400."""
+    if session:
+        headers = dict(headers, **{'Mcp-Session-Id': session})
+    request_ = urllib.request.Request(url, data=json.dumps(body).encode(), headers=headers)
+    with urllib.request.urlopen(request_, timeout=20) as response:
+        return response.headers.get('Mcp-Session-Id'), response.read().decode()
+
+
+def mcp_result(raw):
+    events = [json.loads(line[5:].strip()) for line in raw.splitlines() if line.startswith('data:')]
+    return events[-1] if events else json.loads(raw)
+
+
 def check_mcp(settings):
     url = base_url(settings, 'explorer') + '/mcp'
-    body = {'jsonrpc': '2.0', 'id': 1, 'method': 'tools/list', 'params': {}}
-    data = json.dumps(body).encode()
+    initialize = {'jsonrpc': '2.0', 'id': 0, 'method': 'initialize', 'params': {
+        'protocolVersion': '2025-06-18', 'capabilities': {},
+        'clientInfo': {'name': 'forecast-stack', 'version': '1'}}}
     headers = {'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream'}
     try:
-        with urllib.request.urlopen(urllib.request.Request(url, data=data, headers=headers), timeout=20):
-            pass
+        mcp_post(url, headers, initialize)
     except urllib.error.HTTPError as error:
         if error.code != 401:
             raise urllib.error.HTTPError(url, error.code, 'MCP refused request', None, None) from error
     else:
         raise ValueError('MCP accepted an unauthenticated request')
     headers['Authorization'] = 'Bearer ' + settings['services']['explorer']['environment']['EXPLORER_MCP_AUTH_TOKEN']
-    with urllib.request.urlopen(urllib.request.Request(url, data=data, headers=headers), timeout=20) as response:
-        raw = response.read().decode()
-    events = [json.loads(line[5:].strip()) for line in raw.splitlines() if line.startswith('data:')]
-    value = events[-1] if events else json.loads(raw)
-    names = {tool['name'] for tool in value.get('result', {}).get('tools', [])}
+    session, _ = mcp_post(url, headers, initialize)
+    mcp_post(url, headers, {'jsonrpc': '2.0', 'method': 'notifications/initialized'}, session)
+    _, raw = mcp_post(url, headers, {'jsonrpc': '2.0', 'id': 1, 'method': 'tools/list', 'params': {}}, session)
+    names = {tool['name'] for tool in mcp_result(raw).get('result', {}).get('tools', [])}
     if not TOOLS <= names:
         raise ValueError('Forecast MCP tool catalogue incomplete')
 
@@ -113,6 +126,11 @@ def diagnose(settings):
         if not data.get('connected') or data.get('missingTools') or data.get('unavailable') or data.get('catalogComplete') is not True:
             failed = True
             print('BLOQUÉ · Connexion MCP de l’agent · vérifier les permissions et le token.')
+            for check in data.get('checks') or []:
+                if check.get('state') not in ('READY', 'NOT_CHECKED'):
+                    print(f"  {check.get('id')} · {check.get('state')} · {check.get('detail')}")
+            if data.get('unavailable'):
+                print('  Motif : ' + str(data['unavailable']))
         else:
             print('OK · Connexion MCP de l’agent')
         if not data.get('ready'):
