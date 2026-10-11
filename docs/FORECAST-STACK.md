@@ -124,6 +124,18 @@ effective.
 | `Forecast MCP tool catalogue incomplete` | L'Explorer construit n'expose pas les cinq outils | Vérifier la révision épinglée et `EXPLORER_FORECASTING_PILOT_ENABLED=true` |
 | `BLOQUÉ · Connexion MCP de l’agent` | Voir la ou les lignes indentées qui suivent : elles nomment le contrôle en échec (`connection`, un outil, `visible-series`) et le motif | Traiter le contrôle nommé ; `Découverte MCP indisponible` renvoie à l'URL et au jeton, un outil `BLOCKED` à la politique d'outils de l'agent |
 
+Un script peut aussi s'arrêter **avant** d'avoir pu diagnostiquer, par exemple pendant `--demo` :
+il affiche alors `Diagnostic interrompu : <cause>` sur la sortie d'erreur. La cause dit où
+regarder sans jamais recopier d'URL complète ni de variable d'environnement :
+
+| Cause affichée | Ce qu'elle veut dire |
+|---|---|
+| `HTTP 4xx sur /api/…` | L'Explorer a refusé l'appel nommé ; ses logs donnent le motif |
+| `commande Docker Compose en échec (code N) …` | Une commande `docker compose` a échoué ; sa dernière ligne d'erreur suit |
+| `service injoignable (…)` | Le port publié ne répond pas : service arrêté ou port personnalisé |
+| `métrique de démonstration absente des candidats KafkaExplorer` | La métrique `forecast-demo-lag` n'a pas été créée ou n'est pas listée |
+| `ValueError : Demo metric is not eligible…` | La métrique existe mais l'Explorer la refuse : lire ses `blockers` dans **Metrics Forecast** |
+
 Un exemple de ligne détaillée, et ce qu'il faut en lire :
 
 ```text
