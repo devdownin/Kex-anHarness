@@ -141,7 +141,7 @@ public class ForecastViewService {
         }
         catch (UnknownMcpServerException ex) {
             return Read.failed("Connexion MCP « " + properties.connection()
-                    + " » introuvable. Vérifiez kex.agent.kafka.connection et la connexion dans la page MCP.");
+                    + " » introuvable. Vérifiez kex.agent.kafka.connection et la connexion dans Intégrations.");
         }
         catch (McpToolForbiddenException ex) {
             return Read.failed("Accès refusé à " + tool + " sur « " + properties.connection()
@@ -149,7 +149,7 @@ public class ForecastViewService {
         }
         catch (McpServerUnavailableException ex) {
             return Read.failed("Serveur MCP « " + properties.connection()
-                    + " » indisponible. Vérifiez son état, son URL et son authentification dans la page MCP.");
+                    + " » indisponible. Vérifiez son état, son URL et son authentification dans Intégrations.");
         }
         catch (Exception ex) {
             // Ne pas transmettre les détails d'une exception transport : ils peuvent contenir

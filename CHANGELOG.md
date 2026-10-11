@@ -7,6 +7,17 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
 
 ### Corrigé
 
+- Console, premier démarrage : la mise en route passe en tête de la Vue d'ensemble (desktop et
+  mobile), compte une connexion MCP comme faite seulement si elle est **joignable**, ajoute la clé
+  du modèle, et dit pour chaque étape ce qui manque. « Exécuter maintenant » est désactivé tant
+  qu'un cycle ne peut pas aboutir (pas de clé, aucun serveur MCP joignable, aucun processus), avec
+  la raison en infobulle et au clic depuis la palette de commandes.
+- Les messages « lecture indisponible » renvoyaient à une « page MCP » inexistante : ils nomment
+  Intégrations et portent un lien direct vers la fiche de la connexion en cause.
+- Mise en page : « Replier » ne déborde plus du rail, la zone de saisie de la conversation reste
+  visible, l'en-tête mobile tient sur deux lignes sans perdre l'état de l'agent, la navigation
+  basse montre l'entrée courante et signale qu'elle défile. `src/test/browser/first-run.mjs`
+  verrouille chacun de ces points.
 - Pile prévisions, étape démo : `POST /api/metrics` de KafkaExplorer répond `200` sans corps, et
   `scripts/forecast-stack.py` décodait toute réponse en JSON — la démo s'interrompait juste après
   avoir créé sa métrique, sur un « Diagnostic interrompu » sans cause. Une réponse vide vaut

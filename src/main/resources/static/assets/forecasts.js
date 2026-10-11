@@ -161,8 +161,16 @@ export async function dashboard() {
   } catch (error) { if (ticket === dashboardGeneration) host.replaceChildren(errorState(error, dashboard)); }
 }
 
+// Les motifs de l'agent nomment la connexion en cause entre guillemets français : c'est elle que
+// la page Intégrations doit ouvrir, plutôt que de laisser chercher une « page MCP » qui n'existe pas.
+export function integrationsLink(reason) {
+  const connection = /« ([^»]+?) »/.exec(reason || '')?.[1];
+  if (!connection) return null;
+  return { label: `Ouvrir ${connection} dans Intégrations`, href: `#/integrations?q=${encodeURIComponent(connection)}` };
+}
+
 function note(read) {
-  if (read?.unavailable) return empty('Lecture indisponible.', read.unavailable);
+  if (read?.unavailable) return empty('Lecture indisponible.', read.unavailable, integrationsLink(read.unavailable));
   if (!read || read.truncated || read.coverage?.complete !== true) {
     return empty('Lecture incomplète.', 'La couverture de cette réponse ne permet pas de conclure.');
   }

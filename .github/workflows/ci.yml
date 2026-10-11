@@ -188,6 +188,7 @@ jobs:
           KEX_AGENT_API_KEY: ci-secret
         run: |
           node src/test/browser/actions-menu.mjs
+          node src/test/browser/first-run.mjs
           node src/test/browser/ui-controls.mjs
           node src/test/browser/forecasts.mjs
           node src/test/browser/process-associations.mjs

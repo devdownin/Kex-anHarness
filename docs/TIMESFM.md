@@ -11,7 +11,8 @@ Kex ne charge pas le modèle, ne collecte pas de nouvelles données et n’activ
 Le message générique « outil absent, accès refusé ou serveur indisponible » des anciennes
 versions de Kex ne prouve pas que l'outil manque : il regroupait tous les échecs d'appel.
 Vérifier la connexion configurée par `kex.agent.kafka.connection` (par défaut `kafka-explorer`)
-dans la page MCP et son catalogue d'outils.
+dans **Intégrations** et son catalogue d'outils — le message d'indisponibilité affiche un lien
+direct vers sa fiche.
 
 Si le serveur répond mais n'annonce pas `kex_list_forecastable_metrics`, vérifier sa version
 et activer `explorer.forecasting.pilot.enabled=true` dans **KafkaExplorer**. Les outils de

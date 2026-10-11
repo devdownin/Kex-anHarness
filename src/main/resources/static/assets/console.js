@@ -63,7 +63,7 @@ function renderStatus(next) {
   pill.querySelector('.status-mark').textContent = state.mark;
   $('#agent-status-label').textContent = state.label;
   $('#toggle-pause').textContent = next?.paused ? 'Reprendre l’agent' : 'Pause agent';
-  $('#run-cycle').disabled = Boolean(next?.paused || next?.analysing);
+  applyRunAvailability();
 
   const freshness = $('#freshness');
   // Le motif prime sur la fraîcheur : « DÉGRADÉ » sans explication envoie chercher la cause dans
@@ -320,30 +320,93 @@ function comparisonMetric(label, value, state) {
 
 let capabilityProbe = null;
 let capabilityProbeAt = 0;
+// Pourquoi un cycle ne peut pas aboutir maintenant, `null` s'il le peut. Calculé avec la mise en
+// route : « Exécuter maintenant » restait le bouton principal, vert, sur une installation sans
+// processus ni serveur joignable — un clic qui ne pouvait qu'échouer, ou ne rien analyser.
+let cycleBlocker = null;
 
 async function platformCapabilities() {
   if (capabilityProbe && Date.now() - capabilityProbeAt < 30_000) return capabilityProbe;
-  const [mcp, automations, kafka] = await Promise.all([
-    api('/api/agent/mcp/servers').then((rows) => ({ supported: true, ready: rows.length > 0 })).catch(() => ({ supported: true, ready: false })),
+  const [mcp, automations, kafka, model] = await Promise.all([
+    // `initialized` et non le simple nombre de connexions : une connexion déclarée mais injoignable
+    // cochait l'étape, et la mise en route se disait presque terminée au-dessus d'un agent aveugle.
+    // La lecture tente le handshake de chaque connexion en attente, donc `false` veut dire injoignable.
+    api('/api/agent/mcp/servers')
+      .then((rows) => ({
+        supported: true,
+        ready: rows.some((row) => row.initialized),
+        declared: rows.length,
+        unreachable: rows.filter((row) => !row.initialized).map((row) => row.connection),
+      }))
+      .catch(() => ({ supported: true, ready: false, declared: 0, unreachable: [] })),
     api('/api/agent/automations').then((rows) => ({ supported: true, ready: rows.length > 0 }))
       .catch((error) => ({ supported: error.status !== 404, ready: false })),
     api('/api/agent/kafka/topics').then((value) => ({ supported: true, ready: !value?.unavailable }))
       .catch(() => ({ supported: true, ready: false })),
+    // `apiKeyPresent` vaut null quand la configuration du fournisseur n'est pas lisible ici : une
+    // clé inconnue n'est pas une clé absente, elle ne bloque rien.
+    api('/api/agent/llm')
+      .then((view) => ({ ready: view?.apiKeyPresent !== false, variable: view?.apiKeyVariable || 'la clé du fournisseur' }))
+      .catch(() => ({ ready: true, variable: null })),
   ]);
-  capabilityProbe = { mcp, automations, kafka };
+  capabilityProbe = { mcp, automations, kafka, model };
   capabilityProbeAt = Date.now();
   return capabilityProbe;
+}
+
+function blockerFor(data, capabilities) {
+  if (!capabilities.model.ready) return `Aucune clé pour le modèle : définir ${capabilities.model.variable}`;
+  if (!capabilities.mcp.ready) return 'Aucun serveur MCP joignable : l’agent ne pourrait rien lire';
+  if (!(data.processesMonitored > 0)) return 'Aucun processus déclaré : un cycle n’aurait rien à analyser';
+  return null;
+}
+
+function applyRunAvailability() {
+  const button = $('#run-cycle');
+  if (!button || button.textContent === 'Analyse en cours…') return;
+  button.disabled = Boolean(status?.paused || status?.analysing || cycleBlocker);
+  // La raison voyage avec le bouton désactivé : un bouton grisé sans motif fait chercher une panne.
+  if (cycleBlocker) {
+    button.title = cycleBlocker;
+    button.setAttribute('aria-description', cycleBlocker);
+  } else {
+    button.removeAttribute('title');
+    button.removeAttribute('aria-description');
+  }
+}
+
+function mcpStep(mcp) {
+  if (!mcp.declared) {
+    return { detail: 'Aucune connexion déclarée.', href: '#/integrations' };
+  }
+  const names = mcp.unreachable.join(', ');
+  return {
+    detail: `Injoignable : ${names}. Vérifier son URL, son jeton et que le serveur tourne.`,
+    // Un seul serveur en cause : la page s'ouvre filtrée sur sa fiche, pas sur la liste entière.
+    href: mcp.unreachable.length === 1
+      ? `#/integrations?q=${encodeURIComponent(mcp.unreachable[0])}`
+      : '#/integrations',
+  };
 }
 
 async function renderOnboarding(data) {
   const host = $('#onboarding');
   if (!host || !data) return;
   const capabilities = await platformCapabilities();
+  cycleBlocker = blockerFor(data, capabilities);
+  applyRunAvailability();
+  const mcp = mcpStep(capabilities.mcp);
+  // Ordre de dépendance : chaque étape suppose les précédentes. Le cycle vient après tout ce qui
+  // le rend possible, et son bouton porte le même blocage que celui de l'en-tête.
   const steps = [
     { done: Boolean(credentials.get()), label: 'Connecter le jeton API', action: openCredentials },
-    { done: data.processesMonitored > 0, label: 'Déclarer les processus surveillés', href: '#/settings' },
-    { done: Boolean(data.agent?.lastCycleAt), label: 'Exécuter le premier cycle', action: runCycle },
-    { done: capabilities.mcp.ready, label: 'Ajouter une connexion MCP externe', href: '#/integrations' },
+    { done: capabilities.model.ready, label: 'Fournir la clé du modèle',
+      detail: `Définir ${capabilities.model.variable} puis redémarrer l’agent.`, href: '#/settings' },
+    { done: capabilities.mcp.ready, label: 'Joindre un serveur MCP', detail: mcp.detail, href: mcp.href },
+    { done: data.processesMonitored > 0, label: 'Déclarer les processus surveillés',
+      detail: 'Sans processus, un cycle n’a rien à analyser.', href: '#/settings' },
+    { done: Boolean(data.agent?.lastCycleAt), label: 'Exécuter le premier cycle', action: runCycle,
+      blocked: cycleBlocker },
     { done: capabilities.kafka.ready, label: 'Connecter Kafka', href: '#/integrations' },
     ...(capabilities.automations.supported
       ? [{ done: capabilities.automations.ready, label: 'Créer une première automatisation', href: '#/agent' }]
@@ -356,11 +419,16 @@ async function renderOnboarding(data) {
   const list = $('#onboarding-steps');
   list.replaceChildren(...incomplete.map((step, index) => {
     const item = el('div', 'onboarding-step');
-    item.append(el('span', 'onboarding-mark', String(index + 1)), el('span', 'strong', step.label));
-    const action = el(step.href ? 'a' : 'button', 'ghost', 'Configurer');
+    const text = el('span', 'onboarding-text');
+    text.append(el('span', 'strong', step.label));
+    const detail = step.blocked || step.detail;
+    if (detail) text.append(el('span', 'hint', detail));
+    item.append(el('span', 'onboarding-mark', String(index + 1)), text);
+    const action = el(step.href ? 'a' : 'button', 'ghost', step.action === runCycle ? 'Lancer' : 'Configurer');
     if (step.href) action.href = step.href;
     else {
       action.type = 'button';
+      action.disabled = Boolean(step.blocked);
       action.addEventListener('click', step.action);
     }
     item.append(action);
@@ -376,7 +444,7 @@ function badge(selector, count) {
 
 /* ── Contexte opérateur et tableau de bord ───────────────────────────── */
 
-const DASHBOARD_DEFAULT = ['hero', 'kpis', 'forecasts', 'onboarding', 'visit', 'incidents', 'verification', 'comparison', 'brief', 'operations', 'timeline'];
+const DASHBOARD_DEFAULT = ['onboarding', 'hero', 'kpis', 'forecasts', 'visit', 'incidents', 'verification', 'comparison', 'brief', 'operations', 'timeline'];
 const DASHBOARD_LABELS = {
   hero: 'Synthèse globale', kpis: 'Indicateurs clés', onboarding: 'Configuration restante',
   forecasts: 'Risques à venir',
@@ -477,6 +545,12 @@ function wireOperatorContext() {
 /* ── Pilotage ──────────────────────────────────────────────────────────── */
 
 async function runCycle() {
+  // La palette de commandes et la mise en route appellent aussi cette fonction : le motif est dit
+  // là aussi, plutôt que de lancer un cycle qui ne peut qu'échouer.
+  if (cycleBlocker) {
+    toast(`Analyse impossible pour l’instant — ${cycleBlocker}.`);
+    return;
+  }
   const button = $('#run-cycle');
   button.disabled = true;
   button.textContent = 'Analyse en cours…';
@@ -493,6 +567,7 @@ async function runCycle() {
     stopProgress();
     supervision.liveCycle(null);
     button.textContent = 'Exécuter maintenant';
+    applyRunAvailability();
   }
 }
 
@@ -972,6 +1047,9 @@ async function route() {
       if (key === view) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     }
+    // Sur mobile la navigation défile horizontalement : l'entrée courante doit être visible, sinon
+    // rien ne dit où l'on est après un lien profond (#/integrations depuis la mise en route).
+    document.querySelector('.nav-item[aria-current="page"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     $('#crumb').textContent = VIEWS[view].title;
     // Le titre suit la vue : un onglet parmi dix ne se retrouve pas, et un signet pris sur un
     // écran précis reviendrait avec le nom de l'application pour seul repère.
