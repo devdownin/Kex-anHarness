@@ -24,7 +24,7 @@ class McpBearerTokenCustomizer implements McpSyncHttpClientRequestCustomizer {
 
     private static final Logger log = LoggerFactory.getLogger(McpBearerTokenCustomizer.class);
 
-    private record Credential(URI base, String token) {
+    private record Credential(URI base, String header, String value) {
     }
 
     private final List<Credential> credentials;
@@ -62,7 +62,9 @@ class McpBearerTokenCustomizer implements McpSyncHttpClientRequestCustomizer {
                     || base.getQuery() != null || base.getFragment() != null) {
                 throw new IllegalArgumentException("URL absolue sans userinfo, query ni fragment requise");
             }
-            return new Credential(base, token.token());
+            return StringUtils.hasText(token.header())
+                    ? new Credential(base, token.header().trim(), token.token())
+                    : new Credential(base, "Authorization", "Bearer " + token.token());
         }
         catch (IllegalArgumentException ex) {
             log.warn("Entrée kex.mcp.bearer-tokens ignorée : url-prefix invalide ({})", ex.getMessage());
@@ -76,7 +78,7 @@ class McpBearerTokenCustomizer implements McpSyncHttpClientRequestCustomizer {
         credentials.stream()
                 .filter(credential -> matches(credential.base(), uri))
                 .findFirst()
-                .ifPresent(credential -> builder.header("Authorization", "Bearer " + credential.token()));
+                .ifPresent(credential -> builder.header(credential.header(), credential.value()));
     }
 
     private static boolean matches(URI base, URI request) {

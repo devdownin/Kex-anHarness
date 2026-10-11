@@ -130,6 +130,12 @@ kex:
     bearer-tokens:
       - url-prefix: ${KAFKA_EXPLORER_URL:http://localhost:8080}
         token: ${EXPLORER_MCP_AUTH_TOKEN:}
+      # SpectraLLM (devdownin/SpectraLLM, 0.10.0+) : serveur MCP en lecture seule, qui lit sa clé
+      # dans X-API-Key et non dans un porteur. Inerte tant que SPECTRALLM_URL est vide ; la
+      # connexion elle-même s'ajoute avec compose/spectrallm.yml (voir docs/MCP.md).
+      - url-prefix: ${SPECTRALLM_URL:}
+        token: ${SPECTRA_API_KEY:}
+        header: X-API-Key
     runtime:
       # Les serveurs ajoutés dans la console ne sont persistés que si cette clé est fournie.
       # Le fichier est chiffré en AES-GCM ; sans clé, aucune valeur sensible ne touche le disque.

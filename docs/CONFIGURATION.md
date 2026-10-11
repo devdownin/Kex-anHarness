@@ -27,6 +27,8 @@ arrive.
 | `OPENROUTER_MODEL` | `openai/gpt-oss-120b:free` | Modèle OpenRouter, au format `fournisseur/modèle` |
 | `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | Toute autre passerelle compatible OpenAI se règle ici |
 | `KAFKA_EXPLORER_URL` | `http://localhost:8080` | URL de l'Explorer, côté agent |
+| `SPECTRALLM_URL` | *(vide)* | URL de l'API SpectraLLM, côté agent. Vide, aucune clé n'est posée — voir [MCP.md](MCP.md#spectrallm) |
+| `SPECTRA_API_KEY` | *(vide)* | Clé de SpectraLLM, envoyée en `X-API-Key` aux seules requêtes vers `SPECTRALLM_URL` |
 | `KEX_AGENT_PORT` | `8081` | Port publié de l'agent (côté hôte) |
 | `EXPLORER_PORT` | `8080` | Port publié de l'Explorer |
 | `KAFKA_PORT` | `9092` | Port publié du broker |

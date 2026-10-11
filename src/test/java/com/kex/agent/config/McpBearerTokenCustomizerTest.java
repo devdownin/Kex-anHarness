@@ -19,8 +19,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class McpBearerTokenCustomizerTest {
 
     private static final List<McpAuthProperties.BearerToken> TOKENS = List.of(
-            new McpAuthProperties.BearerToken("http://localhost:8080", "secret"),
-            new McpAuthProperties.BearerToken("https://vide.example.com", "  "));
+            new McpAuthProperties.BearerToken("http://localhost:8080", "secret", null),
+            new McpAuthProperties.BearerToken("https://vide.example.com", "  ", null));
 
     @Test
     void se_tait_sur_un_prefixe_sans_jeton_declare() {
@@ -34,7 +34,7 @@ class McpBearerTokenCustomizerTest {
         // Là, jamais posé nulle part : customize() ne l'applique qu'à une URL qui commence par
         // le préfixe, donc un jeton sans préfixe ne s'appliquera jamais à aucune requête.
         List<McpAuthProperties.BearerToken> tokens = List.of(
-                new McpAuthProperties.BearerToken("  ", "orphelin"));
+                new McpAuthProperties.BearerToken("  ", "orphelin", null));
 
         assertThat(collectLogs(tokens)).anySatisfy(event -> {
             assertThat(event.getLevel()).isEqualTo(Level.WARN);
@@ -69,7 +69,7 @@ class McpBearerTokenCustomizerTest {
     @Test
     void ne_diffuse_pas_le_jeton_vers_un_hote_qui_commence_par_le_meme_texte() {
         List<McpAuthProperties.BearerToken> tokens = List.of(
-                new McpAuthProperties.BearerToken("https://mcp.example.com", "secret"));
+                new McpAuthProperties.BearerToken("https://mcp.example.com", "secret", null));
 
         assertThat(authorizationFor("https://mcp.example.com.attacker.test/mcp", tokens)).isEmpty();
     }
@@ -77,7 +77,7 @@ class McpBearerTokenCustomizerTest {
     @Test
     void respecte_la_frontiere_du_chemin_et_les_ports_par_defaut() {
         List<McpAuthProperties.BearerToken> tokens = List.of(
-                new McpAuthProperties.BearerToken("https://mcp.example.com/api", "chemin"));
+                new McpAuthProperties.BearerToken("https://mcp.example.com/api", "chemin", null));
 
         assertThat(authorizationFor("https://mcp.example.com:443/api/tools", tokens))
                 .contains("Bearer chemin");
@@ -87,11 +87,26 @@ class McpBearerTokenCustomizerTest {
     @Test
     void retient_le_prefixe_de_chemin_le_plus_specifique() {
         List<McpAuthProperties.BearerToken> tokens = List.of(
-                new McpAuthProperties.BearerToken("https://mcp.example.com", "racine"),
-                new McpAuthProperties.BearerToken("https://mcp.example.com/admin", "admin"));
+                new McpAuthProperties.BearerToken("https://mcp.example.com", "racine", null),
+                new McpAuthProperties.BearerToken("https://mcp.example.com/admin", "admin", null));
 
         assertThat(authorizationFor("https://mcp.example.com/admin/tools", tokens))
                 .contains("Bearer admin");
+    }
+
+    @Test
+    void pose_le_jeton_tel_quel_dans_l_en_tete_declare() {
+        // SpectraLLM lit X-API-Key et ignore Authorization : un porteur y répondrait 401.
+        List<McpAuthProperties.BearerToken> tokens = List.of(
+                new McpAuthProperties.BearerToken("http://spectra:8080", "cle", "X-API-Key"));
+        String url = "http://spectra:8080/mcp";
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url));
+
+        new McpBearerTokenCustomizer(tokens).customize(builder, "POST", URI.create(url), null, null);
+
+        HttpRequest request = builder.build();
+        assertThat(request.headers().firstValue("X-API-Key")).contains("cle");
+        assertThat(request.headers().firstValue("Authorization")).isEmpty();
     }
 
     @Test

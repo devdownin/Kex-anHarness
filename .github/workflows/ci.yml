@@ -286,6 +286,8 @@ jobs:
         run: |
           docker compose config --quiet
           docker compose -f docker-compose.yml -f compose/shared-memory.yml config --quiet
+          SPECTRALLM_URL=http://spectra:8080 SPECTRA_API_KEY=ci-key \
+            docker compose -f docker-compose.yml -f compose/spectrallm.yml config --quiet
 
       # Valider la syntaxe ne prouve pas que la stack se parle. Celle-ci est montée pour de vrai,
       # avec un serveur MCP factice au lieu de Kafka SQL Explorer : ce qui est vérifié ici
