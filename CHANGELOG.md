@@ -7,6 +7,11 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
 
 ### Corrigé
 
+- Pile prévisions, étape démo : `POST /api/metrics` de KafkaExplorer répond `200` sans corps, et
+  `scripts/forecast-stack.py` décodait toute réponse en JSON — la démo s'interrompait juste après
+  avoir créé sa métrique, sur un « Diagnostic interrompu » sans cause. Une réponse vide vaut
+  désormais `None`, et une interruption nomme sa cause (code HTTP et chemin, commande en échec,
+  service injoignable…) sans URL complète ni secret.
 - Pile prévisions (`bin/forecast-stack.sh`, workflow `Forecast stack`) : la vérification MCP
   envoyait `tools/list` sans ouvrir de session, ce que le transport Streamable HTTP de
   l'Explorer refuse en `400` — le diagnostic restait `BLOQUÉ` sur une pile saine. Elle passe

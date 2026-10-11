@@ -4,6 +4,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import sys
 import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -120,6 +121,56 @@ class DiagnosticTest(unittest.TestCase):
         self.assertIn('BLOQUÉ', output.getvalue())
         self.assertNotIn('private-token', output.getvalue())
         self.assertNotIn('private-agent-token', output.getvalue())
+
+
+class RequestTest(unittest.TestCase):
+    def setUp(self):
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def do_GET(self):
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'[{"id": "forecast-demo-lag"}]')
+
+            def do_POST(self):
+                # Comme `POST /api/metrics` de KafkaExplorer : 200, sans corps.
+                self.rfile.read(int(self.headers['Content-Length']))
+                self.send_response(200)
+                self.send_header('Content-Length', '0')
+                self.end_headers()
+
+        self.server = HTTPServer(('127.0.0.1', 0), Handler)
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+        self.base = f'http://127.0.0.1:{self.server.server_port}'
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.thread.join()
+        self.server.server_close()
+
+    def test_une_reponse_sans_corps_n_interrompt_pas_la_demo(self):
+        self.assertIsNone(stack.request(self.base + '/api/metrics', {'id': 'forecast-demo-lag'}))
+        self.assertEqual(stack.request(self.base + '/api/metrics'), [{'id': 'forecast-demo-lag'}])
+
+
+class InterruptionReasonTest(unittest.TestCase):
+    def test_la_cause_est_nommee_sans_url_complete_ni_secret(self):
+        http = stack.urllib.error.HTTPError('http://127.0.0.1:8080/api/metrics?token=secret', 400, 'Bad', None, None)
+        self.assertEqual(stack.reason(http), 'HTTP 400 sur /api/metrics')
+        failed = stack.subprocess.CalledProcessError(1, ['docker'], stderr='warn\nseed: topic introuvable\n')
+        self.assertEqual(stack.reason(failed), 'commande Docker Compose en échec (code 1) seed: topic introuvable')
+        self.assertIn('absente des candidats', stack.reason(StopIteration()))
+        self.assertEqual(stack.reason(ValueError('Demo metric is not eligible')), 'ValueError : Demo metric is not eligible')
+
+    def test_main_affiche_la_cause_au_lieu_d_un_message_generique(self):
+        err = io.StringIO()
+        with patch.object(stack, 'config', side_effect=StopIteration()), patch.object(sys, 'argv', ['x', 'demo']), \
+             contextlib.redirect_stderr(err):
+            self.assertEqual(stack.main(), 1)
+        self.assertIn('Diagnostic interrompu : métrique de démonstration absente', err.getvalue())
 
 
 class DemoMetricTest(unittest.TestCase):

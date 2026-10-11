@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -40,7 +41,10 @@ def request(url, body=None, token=None):
         headers['Authorization'] = 'Bearer ' + token
     data = None if body is None else json.dumps(body).encode()
     with urllib.request.urlopen(urllib.request.Request(url, data=data, headers=headers), timeout=20) as response:
-        return json.load(response)
+        raw = response.read()
+    # KafkaExplorer répond 200 sans corps à `POST /api/metrics` : un json.load inconditionnel y
+    # levait une JSONDecodeError et interrompait la démo juste après la création de la métrique.
+    return json.loads(raw) if raw.strip() else None
 
 
 def mcp_post(url, headers, body, session=None):
@@ -180,9 +184,28 @@ def main():
                     return 1
                 time.sleep(5)
         return diagnose(settings)
-    except (OSError, subprocess.SubprocessError, ValueError, StopIteration):
-        print('Diagnostic interrompu. Vérifier Docker Compose, les fichiers .env et les logs des services.', file=sys.stderr)
+    except (OSError, subprocess.SubprocessError, ValueError, StopIteration) as error:
+        print('Diagnostic interrompu : ' + reason(error) + '.', file=sys.stderr)
+        print('Vérifier Docker Compose, les fichiers .env et les logs des services.', file=sys.stderr)
         return 1
+
+
+def reason(error):
+    """La cause d'une interruption, sans URL complète ni environnement : jamais de secret."""
+    if isinstance(error, urllib.error.HTTPError):
+        return f'HTTP {error.code} sur {urllib.parse.urlsplit(error.url or "").path or "?"}'
+    if isinstance(error, subprocess.CalledProcessError):
+        last = (error.stderr or '').strip().splitlines()[-1:] or ['']
+        return f'commande Docker Compose en échec (code {error.returncode}) {last[0]}'.strip()
+    if isinstance(error, subprocess.TimeoutExpired):
+        return 'commande Docker Compose trop longue'
+    if isinstance(error, StopIteration):
+        return 'métrique de démonstration absente des candidats KafkaExplorer'
+    if isinstance(error, json.JSONDecodeError):
+        return 'réponse JSON illisible'
+    if isinstance(error, urllib.error.URLError):
+        return f'service injoignable ({error.reason})'
+    return f'{type(error).__name__} : {error}'
 
 
 if __name__ == '__main__':
