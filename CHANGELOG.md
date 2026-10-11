@@ -18,6 +18,16 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
   visible, l'en-tête mobile tient sur deux lignes sans perdre l'état de l'agent, la navigation
   basse montre l'entrée courante et signale qu'elle défile. `src/test/browser/first-run.mjs`
   verrouille chacun de ces points.
+- Vocabulaire : les disjoncteurs se lisent « Normal », « Coupé après trop d'échecs », « En test
+  après coupure » au lieu de `CLOSED`/`OPEN`/`HALF_OPEN` — `OPEN` se lisait « disponible ». Le mode
+  d'exécution s'affiche « Supervisé », y compris dans le diff de politique ; un serveur MCP jamais
+  contacté dit « Jamais joint » plutôt que « Pas de handshake ». La valeur brute reste en infobulle.
+- Prévisions : quand la lecture est indisponible, le diagnostic s'ouvre seul et liste ses contrôles
+  en clair (« Connexion à KafkaExplorer · Bloqué »), avec un lien vers la connexion ; la mise en
+  garde sur les quantiles quitte le bandeau orange pour suivre les résultats.
+- Vue d'ensemble : l'état de l'agent n'est plus répété dans le bandeau d'accueil (la pastille de
+  l'en-tête le porte), et le résumé ne dit plus « aucune intervention requise » avant le premier
+  cycle — il dit « pas encore analysé ».
 - Pile prévisions, étape démo : `POST /api/metrics` de KafkaExplorer répond `200` sans corps, et
   `scripts/forecast-stack.py` décodait toute réponse en JSON — la démo s'interrompait juste après
   avoir créé sa métrique, sur un « Diagnostic interrompu » sans cause. Une réponse vide vaut

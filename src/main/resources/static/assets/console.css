@@ -404,28 +404,6 @@ main:focus { outline: none; }
 .hero-cycle.is-running .hero-cycle-dot { animation: live-pulse 1.6s ease-out infinite; }
 .hero-cycle.is-running::after { content: ""; width: 45px; height: 3px; border-radius: 4px; background: linear-gradient(90deg, var(--accent) 0 30%, var(--line) 30%); background-size: 45px 100%; animation: cycle-track 1.2s linear infinite; }
 @keyframes cycle-track { to { background-position: 45px 0; } }
-.hero-health {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 170px;
-  padding: 13px 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-  backdrop-filter: blur(8px);
-}
-.hero-health-mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--surface-2); font: 700 15px var(--mono); }
-.hero-health span:last-child { display: flex; flex-direction: column; }
-.hero-health small { color: var(--ink-2); font-size: 10px; letter-spacing: .07em; text-transform: uppercase; }
-.hero-health strong { font-size: 12px; letter-spacing: .03em; }
-.hero-health[data-state="OK"] .hero-health-mark { color: var(--ok); background: var(--ok-soft); }
-.hero-health[data-state="WARNING"] .hero-health-mark { color: var(--warn); background: var(--warn-soft); }
-.hero-health[data-state="ERROR"] .hero-health-mark { color: var(--danger); background: var(--danger-soft); }
-.hero-health[data-state="RUNNING"] .hero-health-mark { color: var(--accent); background: var(--accent-soft); }
-.hero-health.just-changed { animation: state-arrived .5s ease-out; }
-@keyframes state-arrived { 45% { box-shadow: 0 0 0 6px rgb(255 255 255 / 17%); } }
 
 /* ── Primitives ─────────────────────────────────────────────────────── */
 
@@ -1601,7 +1579,7 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
 @media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
 @media (prefers-reduced-motion: reduce) {
   .view:not([hidden]) > *, .live-pulse, .hero-cycle.is-running .hero-cycle-dot,
-  .hero-cycle.is-running::after, .hero-health.just-changed, .kpi-change.just-changed,
+  .hero-cycle.is-running::after, .kpi-change.just-changed,
   table.grid tr.just-changed td, .compact-card.just-changed,
   .process-wizard #process-wizard-question { animation: none; }
   html { scroll-behavior: auto; }
@@ -1683,7 +1661,6 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
      devient une feuille fixe, comme sur mobile étroit, et reste entièrement cliquable. */
   .action-menu-popover { position: fixed; top: auto; right: 14px; left: 14px; }
   .overview-hero { align-items: flex-start; flex-direction: column; padding: 24px; }
-  .hero-health { min-width: 0; }
   main { padding: 14px; }
   .drawer { width: 100vw; border-left: 0; }
   .context-chat { width: 100vw; border-left: 0; }
@@ -2167,6 +2144,10 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
 .forecast-risk-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 1rem; }
 .forecast-risk-card { min-width: 0; border: 1px solid var(--line-soft); border-radius: 10px; padding: 1rem; overflow-wrap: anywhere; }
 .forecast-help { margin: 1rem 0; }
+.readiness-checks { display: grid; gap: 8px; padding: 0; list-style: none; }
+.readiness-checks li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+.readiness-checks li .hint { flex-basis: 100%; margin: 0; }
+.forecast-caveat { margin-top: 4px; }
 .forecast-help summary { cursor: pointer; }
 .forecast-help dt { font-weight: 600; margin-top: .8rem; }
 .forecast-help dd { margin: .3rem 0; color: var(--muted); }

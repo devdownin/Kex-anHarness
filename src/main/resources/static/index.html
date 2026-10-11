@@ -176,12 +176,13 @@
     <section class="view" id="view-forecasts" hidden>
       <div class="workspace-heading">
         <div><h1>Prévisions des métriques</h1><p class="hint">Anticiper les évolutions à partir des résultats calculés par KafkaExplorer.</p></div>
-        <button type="button" class="ghost" id="refresh-forecasts">Actualiser les résultats</button>
+        <div class="panel-actions">
+          <button type="button" class="ghost" id="check-forecast-readiness">Vérifier la préparation MCP</button>
+          <button type="button" class="ghost" id="refresh-forecasts">Actualiser les résultats</button>
+        </div>
       </div>
-      <p class="banner">Une prévision est une estimation, pas un incident constaté. Les quantiles ne garantissent pas une probabilité de dépassement. L’activation se gère dans KafkaExplorer.</p>
       <label class="forecast-refresh-option"><input type="checkbox" id="forecast-auto-refresh"> Actualiser automatiquement (60 s)</label>
       <p class="hint" id="forecast-refresh-status" role="status">Actualisation automatique désactivée · dernière lecture : aucune</p>
-      <button type="button" class="ghost" id="check-forecast-readiness">Vérifier la préparation MCP</button>
       <details class="panel" id="forecast-first-run">
         <summary>Créer ma première prévision</summary>
         <ol>
@@ -195,6 +196,9 @@
       </details>
       <div id="forecast-readiness" aria-live="polite"></div>
       <div id="forecast-content" aria-live="polite"></div>
+      <!-- Une mise en garde sur les quantiles n'a de sens qu'à côté d'un résultat : en bandeau orange
+           au-dessus d'une page vide, elle criait plus fort que le seul problème réel, l'indisponibilité. -->
+      <p class="hint forecast-caveat">Une prévision est une estimation, pas un incident constaté. Les quantiles ne garantissent pas une probabilité de dépassement. L’activation se gère dans KafkaExplorer.</p>
     </section>
     <section class="view" id="view-overview" hidden>
       <div class="overview-customizer">
@@ -213,13 +217,9 @@
             <span id="overview-cycle-label">En attente du premier cycle</span>
           </div>
         </div>
-        <div class="hero-health" id="overview-health" data-state="UNKNOWN">
-          <span class="hero-health-mark" aria-hidden="true">?</span>
-          <span>
-            <small>État global</small>
-            <strong id="overview-health-label">Non mesuré</strong>
-          </span>
-        </div>
+        <!-- Pas de second « État global » ici : la pastille de l'en-tête le porte déjà sur chaque
+             écran, et trois occurrences du même « EN ATTENTE D'ANALYSE » diluaient la seule phrase
+             qui compte sur cet écran, la mise en route. -->
       </section>
       <div class="kpis" id="kpis" data-dashboard-block="kpis"></div>
       <section class="panel" data-dashboard-block="forecasts" aria-labelledby="forecast-dashboard-title">

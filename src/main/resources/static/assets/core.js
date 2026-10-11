@@ -424,9 +424,35 @@ const CIRCUIT_STATES = {
   METRICS_ONLY: 'UNKNOWN',
 };
 
+// « OPEN » se lit « ouvert, donc disponible » pour qui ne connaît pas le vocabulaire des
+// disjoncteurs — l'inverse exact de ce qu'il veut dire. La valeur brute reste en infobulle pour
+// l'exploitant qui la cherche dans les métriques Resilience4j.
+const CIRCUIT_LABELS = {
+  CLOSED: 'Normal',
+  HALF_OPEN: 'En test après coupure',
+  OPEN: 'Coupé après trop d’échecs',
+  FORCED_OPEN: 'Coupé manuellement',
+  DISABLED: 'Protection désactivée',
+  METRICS_ONLY: 'Observation seule',
+};
+
+export function circuitLabel(state) {
+  return CIRCUIT_LABELS[state] || 'État inconnu';
+}
+
+/** Nom lisible d'un disjoncteur de l'agent : `mcp-tool-<connexion>` porte le nom de sa connexion. */
+export function circuitName(name) {
+  if (name === 'agent-model') return 'Modèle';
+  if (name === 'mcp-tool') return 'Outils MCP (conversation)';
+  if (name?.startsWith('mcp-tool-')) return `MCP ${name.slice('mcp-tool-'.length)}`;
+  return name || 'Disjoncteur';
+}
+
 /** Pastille pour un état de disjoncteur brut ({@code CLOSED}/{@code OPEN}/...), ou l'inconnu. */
 export function circuitStateTag(state, label) {
-  return stateTag(CIRCUIT_STATES[state] || 'UNKNOWN', label ?? state ?? 'Inconnu');
+  const tag = stateTag(CIRCUIT_STATES[state] || 'UNKNOWN', label ?? circuitLabel(state));
+  if (state) tag.title = `Disjoncteur : ${state}`;
+  return tag;
 }
 
 export function circuitBreakersValue(circuitBreakers) {
@@ -435,7 +461,9 @@ export function circuitBreakersValue(circuitBreakers) {
   }
   const wrap = el('span', 'tag-group');
   circuitBreakers.forEach((breaker) => {
-    wrap.append(circuitStateTag(breaker.state, `${breaker.name} : ${breaker.state}`));
+    const tag = circuitStateTag(breaker.state, `${circuitName(breaker.name)} : ${circuitLabel(breaker.state)}`);
+    tag.title = `${breaker.name} : ${breaker.state}`;
+    wrap.append(tag);
   });
   return wrap;
 }

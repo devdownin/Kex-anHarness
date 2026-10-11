@@ -125,6 +125,46 @@ await check('sur mobile, l’en-tête reste compact et l’entrée courante est 
   await context.close();
 });
 
+await check('l’état de l’agent n’apparaît qu’une fois sur la Vue d’ensemble, sans promettre de calme', async () => {
+  const { context, page } = await open(desktop, 'overview');
+  await page.locator('#onboarding:not([hidden])').waitFor();
+  assert.equal(await page.locator('#overview-health').count(), 0);
+  const occurrences = await page.locator('#view-overview').getByText('EN ATTENTE D’ANALYSE').count();
+  assert.equal(occurrences, 0, 'l’état est répété dans la vue au lieu de la seule pastille d’en-tête');
+  // Avant tout cycle, rien ne permet de dire qu'aucune intervention n'est requise.
+  await page.waitForFunction(() => /pas encore analysé/.test(document.querySelector('#overview-summary').textContent));
+  await context.close();
+});
+
+await check('les disjoncteurs et le mode se lisent sans vocabulaire Resilience4j', async () => {
+  const { context, page } = await open(desktop, 'agent');
+  const summary = page.locator('#agent-summary');
+  await summary.getByText('Modèle', { exact: false }).first().waitFor();
+  const text = await summary.innerText();
+  assert.doesNotMatch(text, /\b(CLOSED|OPEN|HALF_OPEN|SUPERVISED|AUTOMATIC|MANUAL)\b/);
+  assert.match(text, /Supervisé|Automatique|Manuel/);
+  assert.match(text, /Normal|Coupé|En test/);
+  await context.close();
+});
+
+await check('Prévisions : le diagnostic s’ouvre seul, en clair, et la mise en garde suit le contenu', async () => {
+  const { context, page } = await open(desktop, 'forecasts');
+  const readiness = page.locator('#forecast-readiness');
+  await readiness.getByText('Préparation MCP bloquée').waitFor();
+  const text = await readiness.innerText();
+  assert.match(text, /Connexion à KafkaExplorer/);
+  assert.doesNotMatch(text, /\b(connection|visible-series) ·/);
+  assert.equal(await readiness.locator('a', { hasText: 'Intégrations' }).getAttribute('href'), '#/integrations?q=kafka-explorer');
+  assert.equal(await page.locator('#view-forecasts p.banner').count(), 0, 'la mise en garde reste en bandeau d’alerte');
+  const order = await page.evaluate(() => {
+    const content = document.querySelector('#forecast-content');
+    const caveat = document.querySelector('.forecast-caveat');
+    return Boolean(content.compareDocumentPosition(caveat) & Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+  assert.ok(order, 'la mise en garde précède les résultats');
+  await context.close();
+});
+
 await browser.close();
 console.log(checks.join('\n'));
 if (problems.length) {

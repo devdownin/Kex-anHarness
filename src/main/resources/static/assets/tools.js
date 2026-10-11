@@ -5,7 +5,7 @@
 // bord métier n'en soit pas saturé — les signaux bruts sont au second niveau, jamais au premier.
 
 import {
-  $, ago, api, busy, circuitStateTag, confirmAction, definition, el, empty, exampleFromSchema, freshnessTag,
+  $, ago, api, busy, circuitLabel, circuitStateTag, confirmAction, definition, el, empty, exampleFromSchema, freshnessTag,
   dismissDrawer, openDrawer, params, registerDrawer, render, report, schemaErrors, setDrawerParam, setParams, stamp, stateTag, toast,
 } from './core.js';
 import * as kafka from './kafka.js';
@@ -172,11 +172,11 @@ function card(server) {
   // Le serveur s'adresse par clé de connexion : le nom qu'il annonce n'existe qu'après le handshake.
   head.append(el('h3', null, server.connection));
   head.append(stateTag(managed && !managed.enabled ? 'UNKNOWN' : (server.initialized ? 'OK' : 'UNKNOWN'),
-    managed && !managed.enabled ? 'Désactivé' : (server.initialized ? 'Initialisé' : 'Pas de handshake')));
+    managed && !managed.enabled ? 'Désactivé' : (server.initialized ? 'Connecté' : 'Jamais joint')));
   // Propre à cette connexion pour l'appel direct ; le chemin piloté par le modèle reste sur un
   // disjoncteur partagé entre serveurs, voir McpServerInfo.circuitBreakerState.
   if (server.circuitBreakerState) {
-    head.append(circuitStateTag(server.circuitBreakerState, `Disjoncteur : ${server.circuitBreakerState}`));
+    head.append(circuitStateTag(server.circuitBreakerState, `Appels directs : ${circuitLabel(server.circuitBreakerState)}`));
   }
   node.append(head);
 
@@ -440,8 +440,7 @@ function openServerDrawer(server, updateUrl = true, inspected = false, refresh =
     definition('Outils', el('span', null, String(server.tools?.length || 0))),
   );
   if (server.circuitBreakerState) {
-    body.append(definition('Disjoncteur', circuitStateTag(server.circuitBreakerState,
-      server.circuitBreakerState)));
+    body.append(definition('Appels directs', circuitStateTag(server.circuitBreakerState)));
   }
 
   const tools = server.tools || [];
