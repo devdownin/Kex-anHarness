@@ -31,6 +31,22 @@ class McpBoundaryTest(unittest.TestCase):
                     self.send_response(401)
                     self.end_headers()
                     return
+                # Comme le serveur Streamable HTTP de l'Explorer : hors initialize, sans session → 400.
+                method = json.loads(self.rfile.read(int(self.headers['Content-Length'])))['method']
+                if method == 'initialize':
+                    self.send_response(200)
+                    self.send_header('Mcp-Session-Id', 'session-1')
+                    self.end_headers()
+                    self.wfile.write(b'{"jsonrpc": "2.0", "id": 0, "result": {}}')
+                    return
+                if self.headers.get('Mcp-Session-Id') != 'session-1':
+                    self.send_response(400)
+                    self.end_headers()
+                    return
+                if method.startswith('notifications/'):
+                    self.send_response(202)
+                    self.end_headers()
+                    return
                 self.send_response(200)
                 self.end_headers()
                 data = json.dumps({'jsonrpc': '2.0', 'id': 1, 'result': {'tools': [{'name': name} for name in owner.tools]}})
@@ -77,6 +93,23 @@ class DiagnosticTest(unittest.TestCase):
             self.assertEqual(stack.diagnose(settings), 0)
         self.assertIn('À CONFIGURER', output.getvalue())
         self.assertNotIn('private-agent-token', output.getvalue())
+
+    def test_agent_block_names_the_failing_check(self):
+        rows = [{'Service': name, 'State': 'running', 'Health': 'healthy'} for name in
+                ['kafka', 'forecast-postgres', 'timesfm', 'explorer', 'agent']]
+        rows += [{'Service': 'forecast-model-prefetch', 'State': 'exited', 'ExitCode': 0}]
+        settings = {'services': {'agent': {'ports': [{'published': 8081}], 'environment': {'KEX_AGENT_API_KEY': 'private-agent-token'}}}}
+        readiness = {'connected': False, 'catalogComplete': False, 'ready': False,
+                     'unavailable': 'Découverte MCP indisponible',
+                     'checks': [{'id': 'connection', 'state': 'BLOCKED', 'detail': 'Découverte MCP indisponible'},
+                                {'id': 'kex_metric_history', 'state': 'NOT_CHECKED', 'detail': 'Découverte non terminée'}]}
+        output = io.StringIO()
+        with patch.object(stack, 'compose', side_effect=lambda *args: json.dumps(rows) if args[0] == 'ps' else '1'), \
+             patch.object(stack, 'check_mcp'), patch.object(stack, 'request', return_value=readiness), \
+             contextlib.redirect_stdout(output):
+            self.assertEqual(stack.diagnose(settings), 1)
+        self.assertIn('connection · BLOCKED · Découverte MCP indisponible', output.getvalue())
+        self.assertNotIn('NOT_CHECKED', output.getvalue())
 
     def test_unhealthy_service_causes_nonzero_status_without_leaking_secrets(self):
         settings = {'services': {'agent': {'ports': [{'published': 8081}], 'environment': {'KEX_AGENT_API_KEY': 'private-agent-token'}}}}
