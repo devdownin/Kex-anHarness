@@ -7,7 +7,7 @@
 
 import {
   $, ago, api, confirmAction, credentials, drawerOpen, duration, el, onCredentialChange, onUnauthorized, operatorContext,
-  refreshFreshnessTag, report, restoreDrawerFromUrl, setOperatorContext, stamp, toast, viewName,
+  refreshFreshnessTag, report, restoreDrawerFromUrl, setCycleGate, setOperatorContext, stamp, toast, viewName,
 } from './core.js';
 import * as automations from './automations.js';
 import * as channels from './channels.js';
@@ -357,11 +357,15 @@ async function platformCapabilities() {
   return capabilityProbe;
 }
 
-function blockerFor(data, capabilities) {
-  if (!capabilities.model.ready) return `Aucune clé pour le modèle : définir ${capabilities.model.variable}`;
-  if (!capabilities.mcp.ready) return 'Aucun serveur MCP joignable : l’agent ne pourrait rien lire';
-  if (!(data.processesMonitored > 0)) return 'Aucun processus déclaré : un cycle n’aurait rien à analyser';
-  return null;
+/** Le motif du blocage et le geste qui le lève — celui que la mise en route propose à la même étape. */
+function gateFor(data, capabilities) {
+  if (!capabilities.model.ready) return { blocker: `Aucune clé pour le modèle : définir ${capabilities.model.variable}`,
+    fix: { label: 'Fournir la clé du modèle', href: '#/settings' } };
+  if (!capabilities.mcp.ready) return { blocker: 'Aucun serveur MCP joignable : l’agent ne pourrait rien lire',
+    fix: { label: 'Joindre un serveur MCP', href: mcpStep(capabilities.mcp).href } };
+  if (!(data.processesMonitored > 0)) return { blocker: 'Aucun processus déclaré : un cycle n’aurait rien à analyser',
+    fix: { label: 'Préparer un processus', href: '#/chat?creation=process' } };
+  return { blocker: null, fix: null };
 }
 
 function applyRunAvailability() {
@@ -396,7 +400,9 @@ async function renderOnboarding(data) {
   const host = $('#onboarding');
   if (!host || !data) return;
   const capabilities = await platformCapabilities();
-  cycleBlocker = blockerFor(data, capabilities);
+  const gate = gateFor(data, capabilities);
+  cycleBlocker = gate.blocker;
+  setCycleGate(gate);
   applyRunAvailability();
   const mcp = mcpStep(capabilities.mcp);
   // Ordre de dépendance : chaque étape suppose les précédentes. Le cycle vient après tout ce qui
@@ -412,15 +418,20 @@ async function renderOnboarding(data) {
       detail: 'Sans processus, un cycle n’a rien à analyser.', href: '#/chat?creation=process' },
     { done: Boolean(data.agent?.lastCycleAt), label: 'Exécuter le premier cycle', action: runCycle,
       blocked: cycleBlocker },
-    { done: capabilities.kafka.ready, label: 'Connecter Kafka', href: '#/integrations' },
+    { done: capabilities.kafka.ready, label: 'Connecter Kafka',
+      detail: 'Topics et lag se lisent par le serveur MCP de Kafka SQL Explorer.', href: '#/integrations' },
     ...(capabilities.automations.supported
-      ? [{ done: capabilities.automations.ready, label: 'Créer une première automatisation', href: '#/agent' }]
+      ? [{ done: capabilities.automations.ready, label: 'Créer une première automatisation',
+        detail: 'Une règle qui agit d’elle-même sur un signal récurrent.', href: '#/agent' }]
       : []),
   ];
   const incomplete = steps.filter((step) => !step.done);
   host.hidden = incomplete.length === 0;
   if (host.hidden) return;
-  $('#onboarding-progress').textContent = `${steps.length - incomplete.length}/${steps.length}`;
+  // « 3/6 » se lisait aussi bien « trois faites » que « trois restantes » au-dessus des trois étapes
+  // affichées ; et les étapes faites disparaissaient sans trace.
+  const done = steps.filter((step) => step.done);
+  $('#onboarding-progress').textContent = `${done.length} ${done.length > 1 ? 'étapes faites' : 'étape faite'} sur ${steps.length}`;
   const list = $('#onboarding-steps');
   list.replaceChildren(...incomplete.map((step, index) => {
     const item = el('div', 'onboarding-step');
@@ -439,6 +450,14 @@ async function renderOnboarding(data) {
     item.append(action);
     return item;
   }));
+  if (done.length) {
+    const recap = el('details', 'onboarding-done');
+    recap.append(el('summary', null, `Déjà fait (${done.length})`));
+    const list = el('ul');
+    done.forEach((step) => list.append(el('li', null, `✓ ${step.label}`)));
+    recap.append(list);
+    $('#onboarding-steps').append(recap);
+  }
 }
 
 function badge(selector, count) {
@@ -472,12 +491,18 @@ function saveDashboardLayout(layout) {
 }
 
 function applyDashboardLayout() {
-  dashboardLayout().forEach((item, index) => {
+  const layout = dashboardLayout();
+  // Rangs pairs pour les blocs : la barre des filtres se glisse juste après la mise en route quand
+  // celle-ci ouvre le tableau de bord, et tout en haut sinon. Placée d'office en tête, elle passait
+  // au-dessus des « Premiers pas » qu'elle ne concerne pas.
+  layout.forEach((item, index) => {
     const node = document.querySelector(`#view-overview [data-dashboard-block="${item.id}"]`);
     if (!node) return;
-    node.style.order = String(index + 1);
+    node.style.order = String(2 * index + 2);
     node.classList.toggle('dashboard-user-hidden', !item.visible);
   });
+  const toolbar = $('#view-overview .overview-customizer');
+  if (toolbar) toolbar.style.order = layout[0]?.id === 'onboarding' ? '3' : '1';
 }
 
 function renderDashboardCustomizer() {
@@ -533,7 +558,8 @@ function placeOperatorContext(view) {
   if (context.hidden) return;
   const heading = $(`#view-${view} > .workspace-heading`);
   if (heading) heading.after(context);
-  else $(`#view-${view}`).prepend(context);
+  // La Vue d'ensemble n'a pas d'en-tête de page : les filtres partagent la ligne de « Personnaliser ».
+  else $(`#view-${view} .overview-customizer`)?.prepend(context);
 }
 
 function wireOperatorContext() {
@@ -976,6 +1002,7 @@ function showActionFeedback(detail) {
     el('span', 'muted', ` ${ago(detail.at) || ''}`));
   host.hidden = false;
 }
+addEventListener('kex:run-cycle', runCycle);
 addEventListener('kex:action', (event) => {
   showActionFeedback(event.detail);
   renderNotifications(supervision.current());

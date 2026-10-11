@@ -1069,6 +1069,10 @@ await check('un premier lancement guide vers la création et une sélection vide
     })),
   }));
   try {
+    // Le cas précédent se termine sur #/overview : un `goto` vers le même hash ne déclenche aucun
+    // `hashchange`, et la vue restait sur ses données d'avant le mock jusqu'au sondage suivant (15 s,
+    // pour une attente de 10). Passer par une autre vue force le rendu.
+    await page.goto(`${BASE}/#/processes`, { waitUntil: 'domcontentloaded' });
     await page.goto(`${BASE}/#/overview`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#overview-processes .empty-guide');
     assert.match(await page.locator('#overview-attention').innerText(), /Aucun processus sous surveillance/);

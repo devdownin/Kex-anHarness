@@ -96,10 +96,10 @@ function connectionMetrics(connection) {
 function renderMcpCockpit() {
   const host = $('#mcp-connection-cockpit');
   if (!host) return;
+  // Sans connexion, la liste en dessous porte le seul état vide : deux encadrés empilés disaient la
+  // même chose, chacun avec son bouton, sous un « Ajouter un serveur » qui faisait déjà le geste.
   if (!lastServers.length) {
-    host.replaceChildren(empty('Aucune connexion MCP.',
-      'Ajoutez une connexion pour rendre des outils externes disponibles à l’agent.',
-      { label: 'Ajouter une connexion', onClick: () => openEditor() }));
+    host.replaceChildren();
     return;
   }
   const states = lastServers.map((server) => connectionState(server));
@@ -139,12 +139,16 @@ function renderMcpCockpit() {
 function renderServers(list) {
   const query = (params().get('q') || '').trim().toLowerCase();
   const filtered = query ? list.filter((server) => matchesQuery(server, query)) : list;
+  // Rien à chercher tant qu'aucun serveur n'existe ; une recherche en cours reste visible pour être effacée.
+  const search = $('#tools-search');
+  if (search) search.hidden = !list.length && !query;
   if (!filtered.length) {
-    return query
-      ? empty('Aucun serveur ni outil ne correspond à la recherche.')
-      : empty('Aucune connexion MCP configurée.',
-        'Sans outil, l’agent ne peut qu’observer ce qu’on lui raconte.',
-        { label: 'Ajouter une connexion', onClick: () => openEditor() });
+    if (query) return empty('Aucun serveur ni outil ne correspond à la recherche.');
+    const guide = empty('Aucun serveur MCP connecté.',
+      'Sans outil, l’agent ne peut qu’observer ce qu’on lui raconte : un serveur MCP lui donne de quoi lire et agir.',
+      { label: 'Ajouter un serveur', onClick: () => openEditor() });
+    guide.classList.add('empty-guide');
+    return guide;
   }
   const wrap = el('div', 'stack');
   if (lastServersAt) wrap.append(freshnessTag(lastServersAt, 'Connexions vérifiées', 45_000));

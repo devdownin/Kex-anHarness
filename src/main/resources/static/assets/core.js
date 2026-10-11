@@ -180,7 +180,8 @@ export function empty(message, detail, action) {
   node.setAttribute('data-empty-state', 'true');
   node.append(el('p', null, message));
   if (detail) node.append(el('p', 'hint', detail));
-  if (action?.label && (action.href || action.onClick)) {
+  if (action instanceof Node) node.append(action);
+  else if (action?.label && (action.href || action.onClick)) {
     const control = el(action.href ? 'a' : 'button', 'ghost empty-action', action.label);
     if (action.href) control.href = action.href;
     else {
@@ -231,14 +232,23 @@ export function errorState(error, retry) {
  * un flash qui donnait l'impression que le bloc n'occupait plus toute la largeur disponible.
  * L'état de chargement ne s'affiche donc qu'au tout premier rendu, quand l'hôte est encore vide.
  */
+// Dernier rendu demandé pour chaque bloc. Sans ce repère, la réponse lente d'un sondage de fond
+// parti plus tôt écrasait celle, plus récente, d'une navigation ou d'un filtre : le bloc revenait à
+// un état périmé jusqu'au sondage suivant, quinze secondes plus tard.
+const renderGenerations = new WeakMap();
+
 export async function render(host, load, draw) {
+  const generation = (renderGenerations.get(host) || 0) + 1;
+  renderGenerations.set(host, generation);
+  const current = () => renderGenerations.get(host) === generation;
   if (!host.firstChild) host.replaceChildren(skeleton(host.dataset.skeleton || 'list'));
   try {
     const data = await load();
+    if (!current()) return;
     const drawn = draw(data);
     host.replaceChildren(drawn ?? empty('Rien à afficher.'));
   } catch (error) {
-    host.replaceChildren(errorState(error, () => render(host, load, draw)));
+    if (current()) host.replaceChildren(errorState(error, () => render(host, load, draw)));
   }
 }
 
@@ -466,6 +476,40 @@ export function circuitBreakersValue(circuitBreakers) {
     wrap.append(tag);
   });
   return wrap;
+}
+
+/* ── Disponibilité du cycle ─────────────────────────────────────────── */
+
+// Ce qui empêche un cycle d'aboutir et le geste qui le lève, calculés par l'en-tête. Une page vide
+// proposait « Lancer une analyse » sous la forme d'un lien vers la Vue d'ensemble : rien n'y était
+// lancé, et l'analyse était de toute façon impossible tant que le blocage tenait.
+let cycleGate = { blocker: null, fix: null };
+
+function paintCycleAction(node) {
+  const { blocker, fix } = cycleGate;
+  node.textContent = fix ? fix.label : 'Lancer une analyse';
+  node.href = fix ? fix.href : '#';
+  if (blocker) node.title = blocker;
+  else node.removeAttribute('title');
+}
+
+/** Le bouton d'une page vide qui attend un cycle : le lance, ou mène à ce qui l'empêche. */
+export function cycleAction() {
+  const node = el('a', 'ghost empty-action');
+  node.dataset.cycleAction = '';
+  paintCycleAction(node);
+  node.addEventListener('click', (event) => {
+    if (cycleGate.fix) return;
+    event.preventDefault();
+    dispatchEvent(new CustomEvent('kex:run-cycle'));
+  });
+  return node;
+}
+
+/** Le blocage se calcule après le rendu d'une page vide : les boutons déjà posés suivent. */
+export function setCycleGate(gate) {
+  cycleGate = gate;
+  document.querySelectorAll('[data-cycle-action]').forEach(paintCycleAction);
 }
 
 /* ── Contexte opérateur global ─────────────────────────────────────────── */

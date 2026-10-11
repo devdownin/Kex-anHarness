@@ -4,7 +4,7 @@
 // Les vues de supervision : observer → comprendre → décider → agir → vérifier.
 
 import {
-  $, ago, api, busy, circuitBreakersValue, clockTime, confirmAction, definition, dismissDrawer,
+  $, ago, api, busy, circuitBreakersValue, clockTime, confirmAction, cycleAction, definition, dismissDrawer,
   downloadCsv, drawerOpen, duration, el, empty, errorState, frag, freshnessTag, inOperatorPeriod, loading,
   openDrawer, operatorContext, params, percent, registerDrawer, render, report, setOperatorContext, setParams, skeleton, sortable, sparkline, stamp, stateMark,
   stateTag, toast,
@@ -300,6 +300,51 @@ export async function attentionView() {
   });
 }
 
+/* ── Pages vides ───────────────────────────────────────────────────────── */
+
+const PERIOD_LABELS = { '15m': '15 dernières minutes', '1h': 'dernière heure', '24h': '24 dernières heures', '7d': '7 derniers jours' };
+
+/** La page vide d'une liste a besoin de l'instantané pour savoir si un cycle a jamais tourné. */
+async function withSnapshot(rows) {
+  const [result] = await Promise.all([rows, current() || refresh().catch(() => null)]);
+  return result;
+}
+
+function narrowed(context) {
+  return Boolean(context.process) || context.period !== 'all';
+}
+
+function widenContext(reload) {
+  setOperatorContext({ process: '', period: 'all' });
+  $('#context-process').value = '';
+  $('#context-period').value = 'all';
+  reload();
+}
+
+/**
+ * La page vide dit la cause réelle, dans cet ordre : rien n'a jamais été analysé, puis le filtre
+ * écarte tout, puis il n'y a vraiment rien. « Élargissez la période » s'affichait sur une
+ * installation qui n'avait jamais tourné, filtres déjà sur « Tous » : un conseil qui ne pouvait
+ * rien changer.
+ *
+ * @param data instantané de supervision, `null` s'il n'est pas encore lu — le cas « jamais
+ *        analysé » ne se décide alors pas, plutôt que d'être affirmé à tort
+ * @param idle ce que la vue dit quand rien ne filtre et que rien n'existe : [message, détail, action]
+ */
+function emptyView({ data, noun, reload, idle }) {
+  if (data && !data.agent?.lastCycleAt) {
+    return empty('Aucun cycle exécuté.', 'L’agent remplira cette vue après sa première analyse.', cycleAction());
+  }
+  const context = operatorContext();
+  if (narrowed(context)) {
+    const scope = [context.process && `processus ${current()?.processes?.find((row) => row.processId === context.process)?.name || context.process}`,
+      PERIOD_LABELS[context.period]].filter(Boolean).join(' · ');
+    return empty(`${noun} dans ce contexte.`, `Filtre actif : ${scope}.`,
+      { label: 'Afficher toute la période', onClick: () => widenContext(reload) });
+  }
+  return empty(...idle);
+}
+
 /* ── Cockpit incident et explorateur de preuves ─────────────────────────────── */
 
 export async function incidents() {
@@ -319,8 +364,7 @@ function incidentWorkspace(data, decisionHistory) {
       'Préparez un processus surveillé pour que l’agent puisse rechercher des anomalies.',
       { href: '#/chat?creation=process', label: 'Préparer un processus' });
     if (!data.agent?.lastCycleAt) return empty('Aucun cycle exécuté.',
-      'L’agent pourra afficher les incidents après sa première analyse.',
-      { href: '#/overview', label: 'Lancer une analyse' });
+      'L’agent pourra afficher les incidents après sa première analyse.', cycleAction());
     return empty('Aucun incident actif.',
       'Les processus surveillés n’ont pas d’incident actif au dernier cycle.',
       { href: '#/overview', label: 'Voir la synthèse' });
@@ -741,8 +785,7 @@ function attention(data) {
       'Déclarez un processus pour commencer à recevoir des alertes et des décisions.',
       { href: '#/chat?creation=process', label: 'Préparer un processus' });
     if (!data.agent?.lastCycleAt) return empty('Premier relevé en attente.',
-      'Lancez une analyse pour connaître l’état de vos processus.',
-      { href: '#/agent', label: 'Piloter l’agent' });
+      'Lancez une analyse pour connaître l’état de vos processus.', cycleAction());
     return empty('Aucune alerte ni décision en attente.',
       `Dernière analyse : ${clockTime(data.agent.lastCycleAt)}. Les processus restent consultables.`,
       { href: '#/processes', label: 'Voir les processus' });
@@ -761,8 +804,7 @@ function timeline(cycle) {
     if (!current()?.processes?.length) return empty('Le premier cycle attend un processus.',
       'Déclarez un processus avant de lancer son analyse.',
       { href: '#/chat?creation=process', label: 'Préparer un processus' });
-    return empty('Aucun cycle exécuté.', 'Le premier relevé donnera ici les étapes observées.',
-      { href: '#/agent', label: 'Piloter l’agent' });
+    return empty('Aucun cycle exécuté.', 'Le premier relevé donnera ici les étapes observées.', cycleAction());
   }
   const list = el('ol', 'timeline');
   for (const event of cycle.events) {
@@ -1319,7 +1361,7 @@ function actionBaseline(decision) {
 
 export async function decisions() {
   const context = operatorContext();
-  await render($('#decisions-list'), () => api(`${BASE}/decisions`), (rows) => {
+  await render($('#decisions-list'), () => withSnapshot(api(`${BASE}/decisions`)), (rows) => {
     const state = params().get('decisionEtat') || stored(DECISION_FILTER_STORAGE, 'ALL');
     const scoped = rows.filter((decision) =>
       matchesOperatorProcess(decision, context) && inOperatorPeriod(operatorTimestamp(decision), context));
@@ -1327,8 +1369,8 @@ export async function decisions() {
       || (state === 'PENDING' && decision.status === 'PENDING_APPROVAL')
       || (state === 'FAILED' && ['FAILED', 'EXPIRED'].includes(decision.status))
       || (state === 'RESOLVED' && ['EXECUTED', 'EXECUTED_UNVERIFIED', 'VERIFIED', 'VERIFICATION_FAILED', 'VERIFICATION_UNKNOWN', 'REJECTED', 'BLOCKED', 'SIMULATED'].includes(decision.status)));
-    if (!scoped.length) return empty('Aucune décision dans ce contexte.', 'Élargissez la période ou choisissez tous les processus.',
-      { href: '#/overview', label: 'Lancer une analyse' });
+    if (!scoped.length) return emptyView({ data: current(), noun: 'Aucune décision', reload: decisions,
+      idle: ['Aucune décision pour l’instant.', 'L’agent n’a rien proposé : les processus analysés n’en demandaient pas.'] });
     if (!matching.length) return empty('Aucune décision dans cette vue.', 'Choisissez un autre filtre.');
     const list = el('div', 'cards wide');
     matching.forEach((decision) => list.append(decisionRow(decision)));
@@ -1525,13 +1567,14 @@ function decisionSection(title) {
 
 export async function alerts() {
   const context = operatorContext();
-  await render($('#alerts-list'), () => api(`${BASE}/alerts`), (items) => {
+  await render($('#alerts-list'), () => withSnapshot(api(`${BASE}/alerts`)), (items) => {
     items = items.filter((item) =>
       matchesOperatorProcess(item, context) && inOperatorPeriod(operatorTimestamp(item), context));
     if (!items.length) {
-      return empty('Aucune alerte active.',
-        'Une alerte que le dernier cycle ne revoit plus a cessé d’être vraie et sort de cette liste.',
-        { href: '#/overview', label: 'Voir la synthèse' });
+      return emptyView({ data: current(), noun: 'Aucune alerte', reload: alerts,
+        idle: ['Aucune alerte active.',
+          'Une alerte que le dernier cycle ne revoit plus a cessé d’être vraie et sort de cette liste.',
+          { href: '#/overview', label: 'Voir la synthèse' }] });
     }
     // Le serveur les rend déjà dédupliquées et triées — gravité, puis récurrence, puis fraîcheur.
     // Ne restent ici que le regroupement par processus et l'action à portée de clic.
@@ -1588,7 +1631,10 @@ export async function audit() {
       matchesOperatorProcess(row, context)
       && inOperatorPeriod(row.at, context)
       && (!query || JSON.stringify(row).toLowerCase().includes(query)));
-    if (!matching.length) return empty('Aucune entrée d’audit.', 'Chaque décision et chaque changement y laisse une trace.');
+    // L'audit consigne aussi les gestes d'opérateur : il n'attend pas de cycle pour se remplir.
+    if (!matching.length) return query ? empty('Aucune entrée ne correspond à la recherche.')
+      : emptyView({ data: null, noun: 'Aucune entrée d’audit', reload: audit,
+        idle: ['Aucune entrée d’audit.', 'Chaque décision et chaque changement y laisse une trace.'] });
     const table = el('table', 'grid');
     const head = el('thead');
     const headRow = el('tr');
@@ -1650,8 +1696,8 @@ export async function activity() {
       .slice(0, 100);
 
     if (!events.length) {
-      return empty('Aucune activité dans ce contexte.',
-        'Élargissez la période ou choisissez tous les processus.');
+      return emptyView({ data, noun: 'Aucune activité', reload: activity,
+        idle: ['Aucune activité pour l’instant.', 'Alertes, décisions et gestes d’opérateur apparaîtront ici.'] });
     }
     const list = el('ol', 'activity-stream');
     events.forEach((event) => {
@@ -1679,7 +1725,7 @@ export async function agent() {
   try {
     const [status, loaded] = await Promise.all([api(`${BASE}/status`), api(`${BASE}/policy`)]);
     policy = loaded;
-    summary.replaceChildren(agentSummary(status));
+    summary.replaceChildren(agentSummary(status, loaded));
     fillAgentForm(loaded);
     $('#capability-matrix').replaceChildren(capabilityMatrix(loaded));
   } catch (error) {
@@ -1791,14 +1837,31 @@ function perfGroup(title, rows) {
   return group;
 }
 
-function agentSummary(status) {
+/**
+ * Ce que la politique autorise, plutôt que son identifiant : « policy-v1 » ne disait rien de ce que
+ * l'agent peut faire seul. L'identifiant reste à côté, masqué avec les autres identifiants techniques.
+ */
+function policySummary(status, loaded) {
+  const counts = { AUTOMATIC: 0, SUPERVISED: 0, FORBIDDEN: 0 };
+  Object.keys(CAPABILITIES).forEach((capability) =>
+    counts[effectiveAutonomy(loaded?.mode || status.mode, loaded?.autonomy?.[capability] || 'FORBIDDEN')] += 1);
+  const words = [[counts.AUTOMATIC, 'automatique', 'automatiques'], [counts.SUPERVISED, 'sous validation', 'sous validation'],
+    [counts.FORBIDDEN, 'interdite', 'interdites']].filter(([count]) => count)
+    .map(([count, one, many]) => `${count} ${count === 1 ? one : many}`);
+  const node = el('span', null, loaded ? `${words.join(' · ')} sur ${Object.keys(CAPABILITIES).length} actions` : '');
+  if (status.policyVersion) node.append(' ', el('code', 'technical-id muted', status.policyVersion));
+  return node;
+}
+
+function agentSummary(status, loaded) {
   const wrap = el('div', 'summary');
   wrap.append(definition('État', stateTag(agentState(status.state).tag, agentState(status.state).label)));
   const mode = el('span', null, MODES[status.mode] || status.mode);
   mode.title = status.mode;
   wrap.append(definition('Mode', mode));
-  wrap.append(definition('Politique', el('span', null, status.policyVersion)));
-  wrap.append(definition('Dernier cycle', el('span', null, stamp(status.lastCycleAt))));
+  wrap.append(definition('Politique', policySummary(status, loaded)));
+  // Un tiret ne disait pas pourquoi la valeur manque ; avant le premier cycle, elle n'existe pas.
+  wrap.append(definition('Dernier cycle', el('span', null, status.lastCycleAt ? stamp(status.lastCycleAt) : 'Jamais exécuté')));
   wrap.append(definition('Disjoncteurs', circuitBreakersValue(status.circuitBreakers)));
   if (status.paused) {
     wrap.append(el('p', 'banner', 'Agent en pause : aucune analyse n’est exécutée.'));

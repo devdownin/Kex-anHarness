@@ -7,6 +7,37 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
 
 ### Corrigé
 
+- Un rendu périmé n'écrase plus un rendu récent : `render()` ignorait l'ordre des réponses, si bien
+  qu'un sondage de fond parti avant une navigation ou un filtre pouvait, en arrivant après, remettre
+  le bloc dans son état ancien jusqu'au sondage suivant. Plusieurs vérifications navigateur en
+  échouaient par intermittence, sur `main` aussi.
+- Mise en route : « 3/6 » devient « 3 étapes faites sur 6 », les étapes faites restent listées sous
+  « Déjà fait », et « Connecter Kafka » dit par où passe la lecture.
+- Conversation : plus de tiret seul à la place de l'identifiant, « Flux » devient « Réponse en
+  direct » avec son explication, la saisie prend la police du texte, et les amorces occupent la
+  zone vide d'une conversation qui n'a pas commencé.
+- Agent : la politique se résume en actions (« 2 sous validation · 3 interdites sur 5 actions »),
+  l'identifiant brut suit la préférence d'affichage des identifiants ; « Dernier cycle » dit
+  « Jamais exécuté » au lieu d'un tiret.
+- Une action principale désactivée perd l'accent : « Exécuter maintenant », inutilisable, restait
+  l'élément le plus voyant de l'en-tête.
+
+- « Lancer une analyse » sur une page vide (Cockpit incident, Décisions, Activité, À traiter, dernier
+  cycle) n'était qu'un lien vers la Vue d'ensemble, même quand aucun cycle ne pouvait aboutir. Le
+  bouton lance désormais le cycle sur place, ou, tant qu'un blocage tient, le nomme et mène à sa
+  levée (« Joindre un serveur MCP », « Fournir la clé du modèle », « Préparer un processus ») — le
+  même calcul que « Exécuter maintenant ».
+- Pages vides : « Élargissez la période ou choisissez tous les processus » s'affichait sur une
+  installation jamais analysée, filtres déjà sur « Tous ». Décisions, Activité, Alertes et Audit
+  distinguent maintenant « aucun cycle exécuté », « rien dans ce filtre » (nommé, avec « Afficher
+  toute la période ») et « rien du tout ».
+- Les en-têtes triables des tableaux offrent une cible de 24 px (WCAG 2.5.8) au lieu de 14 px.
+- Intégrations sans serveur : un seul état vide et un seul libellé, « Ajouter un serveur », au lieu
+  de deux encadrés empilés et trois boutons pour le même geste ; la recherche n'apparaît qu'une fois
+  un serveur déclaré.
+- Vue d'ensemble : les filtres « Instance courante » passent sous les « Premiers pas », sur la même
+  ligne que « Personnaliser le tableau de bord ».
+
 - Système : « Jetons consommés » affichait le **double** des jetons réellement consommés —
   Spring AI incrémente `input`, `output` et `total`, et l'endpoint sans filtre les additionnait. La
   tuile lit désormais la seule série `total`, écrit « 0 depuis le démarrage » quand aucun appel n'a

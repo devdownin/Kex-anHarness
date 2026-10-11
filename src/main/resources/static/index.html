@@ -818,7 +818,7 @@
           <div class="panel-head">
             <h1>Conversation</h1>
             <div class="panel-actions">
-              <code class="conv-id technical-id" id="conversation-id" title="Identifiant de conversation">—</code>
+              <code class="conv-id technical-id" id="conversation-id" title="Identifiant de conversation" hidden></code>
               <button type="button" class="ghost" id="open-history">Conversations</button>
               <button type="button" class="ghost danger" id="clear-conversation" disabled>Purger</button>
             </div>
@@ -856,7 +856,7 @@
             <label class="sr-only" for="prompt">Message</label>
             <textarea id="prompt" rows="1" placeholder="Interroger l'agent… (Entrée pour envoyer, Maj+Entrée pour un saut de ligne)" required></textarea>
             <div class="composer-side">
-              <label class="switch"><input type="checkbox" id="stream-mode" checked> <span>Flux</span></label>
+              <label class="switch" title="La réponse s’affiche au fil de son écriture ; décochée, elle arrive d’un bloc, une fois terminée."><input type="checkbox" id="stream-mode" checked> <span>Réponse en direct</span></label>
               <button type="submit" class="primary" id="send">Envoyer</button>
               <button type="button" class="ghost danger" id="abort" hidden>Arrêter</button>
             </div>
