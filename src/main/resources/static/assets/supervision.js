@@ -1725,7 +1725,7 @@ export async function agent() {
   try {
     const [status, loaded] = await Promise.all([api(`${BASE}/status`), api(`${BASE}/policy`)]);
     policy = loaded;
-    summary.replaceChildren(agentSummary(status));
+    summary.replaceChildren(agentSummary(status, loaded));
     fillAgentForm(loaded);
     $('#capability-matrix').replaceChildren(capabilityMatrix(loaded));
   } catch (error) {
@@ -1837,14 +1837,31 @@ function perfGroup(title, rows) {
   return group;
 }
 
-function agentSummary(status) {
+/**
+ * Ce que la politique autorise, plutôt que son identifiant : « policy-v1 » ne disait rien de ce que
+ * l'agent peut faire seul. L'identifiant reste à côté, masqué avec les autres identifiants techniques.
+ */
+function policySummary(status, loaded) {
+  const counts = { AUTOMATIC: 0, SUPERVISED: 0, FORBIDDEN: 0 };
+  Object.keys(CAPABILITIES).forEach((capability) =>
+    counts[effectiveAutonomy(loaded?.mode || status.mode, loaded?.autonomy?.[capability] || 'FORBIDDEN')] += 1);
+  const words = [[counts.AUTOMATIC, 'automatique', 'automatiques'], [counts.SUPERVISED, 'sous validation', 'sous validation'],
+    [counts.FORBIDDEN, 'interdite', 'interdites']].filter(([count]) => count)
+    .map(([count, one, many]) => `${count} ${count === 1 ? one : many}`);
+  const node = el('span', null, loaded ? `${words.join(' · ')} sur ${Object.keys(CAPABILITIES).length} actions` : '');
+  if (status.policyVersion) node.append(' ', el('code', 'technical-id muted', status.policyVersion));
+  return node;
+}
+
+function agentSummary(status, loaded) {
   const wrap = el('div', 'summary');
   wrap.append(definition('État', stateTag(agentState(status.state).tag, agentState(status.state).label)));
   const mode = el('span', null, MODES[status.mode] || status.mode);
   mode.title = status.mode;
   wrap.append(definition('Mode', mode));
-  wrap.append(definition('Politique', el('span', null, status.policyVersion)));
-  wrap.append(definition('Dernier cycle', el('span', null, stamp(status.lastCycleAt))));
+  wrap.append(definition('Politique', policySummary(status, loaded)));
+  // Un tiret ne disait pas pourquoi la valeur manque ; avant le premier cycle, elle n'existe pas.
+  wrap.append(definition('Dernier cycle', el('span', null, status.lastCycleAt ? stamp(status.lastCycleAt) : 'Jamais exécuté')));
   wrap.append(definition('Disjoncteurs', circuitBreakersValue(status.circuitBreakers)));
   if (status.paused) {
     wrap.append(el('p', 'banner', 'Agent en pause : aucune analyse n’est exécutée.'));

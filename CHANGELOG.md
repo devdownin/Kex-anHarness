@@ -7,6 +7,21 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
 
 ### Corrigé
 
+- Un rendu périmé n'écrase plus un rendu récent : `render()` ignorait l'ordre des réponses, si bien
+  qu'un sondage de fond parti avant une navigation ou un filtre pouvait, en arrivant après, remettre
+  le bloc dans son état ancien jusqu'au sondage suivant. Plusieurs vérifications navigateur en
+  échouaient par intermittence, sur `main` aussi.
+- Mise en route : « 3/6 » devient « 3 étapes faites sur 6 », les étapes faites restent listées sous
+  « Déjà fait », et « Connecter Kafka » dit par où passe la lecture.
+- Conversation : plus de tiret seul à la place de l'identifiant, « Flux » devient « Réponse en
+  direct » avec son explication, la saisie prend la police du texte, et les amorces occupent la
+  zone vide d'une conversation qui n'a pas commencé.
+- Agent : la politique se résume en actions (« 2 sous validation · 3 interdites sur 5 actions »),
+  l'identifiant brut suit la préférence d'affichage des identifiants ; « Dernier cycle » dit
+  « Jamais exécuté » au lieu d'un tiret.
+- Une action principale désactivée perd l'accent : « Exécuter maintenant », inutilisable, restait
+  l'élément le plus voyant de l'en-tête.
+
 - « Lancer une analyse » sur une page vide (Cockpit incident, Décisions, Activité, À traiter, dernier
   cycle) n'était qu'un lien vers la Vue d'ensemble, même quand aucun cycle ne pouvait aboutir. Le
   bouton lance désormais le cycle sur place, ou, tant qu'un blocage tient, le nomme et mène à sa

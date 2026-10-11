@@ -71,7 +71,7 @@ onCredentialChange(() => {
   workspaceTransfer = null;
   conversationId = null;
   $('#transcript')?.replaceChildren();
-  if ($('#conversation-id')) $('#conversation-id').textContent = '—';
+  if ($('#conversation-id')) Object.assign($('#conversation-id'), { textContent: '', hidden: true });
 });
 
 try {
@@ -82,7 +82,8 @@ try {
 
 function setConversation(id) {
   conversationId = id || null;
-  $('#conversation-id').textContent = id || '—';
+  // Sans conversation, un tiret seul flottait dans l'en-tête : l'identifiant n'apparaît qu'une fois tiré.
+  Object.assign($('#conversation-id'), { textContent: id || '', hidden: !id });
   $('#clear-conversation').disabled = !id;
   if (workspaceTransfer) return;
   try {

@@ -497,6 +497,15 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 .primary:hover:not(:disabled) { filter: brightness(1.06); box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 24%, transparent); }
+/* Désactivée, l'action principale ne garde pas l'accent : un vert délavé restait l'élément le plus
+   voyant de l'en-tête alors qu'il ne pouvait rien faire. Le motif reste dans son infobulle. */
+.primary:disabled {
+  background: var(--surface-2);
+  border-color: var(--line);
+  color: var(--ink-3);
+  box-shadow: none;
+  opacity: 1;
+}
 .danger { color: var(--danger); }
 
 :where(button, a, input, textarea, select, summary, tr.clickable):focus-visible {
@@ -579,6 +588,10 @@ kbd {
 .onboarding { border-color: color-mix(in srgb, var(--accent) 28%, var(--line)); }
 .onboarding-progress { color: var(--ink-3); font-size: 12px; }
 .onboarding-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.onboarding-done { grid-column: 1 / -1; font-size: 12px; color: var(--ink-3); }
+.onboarding-done summary { cursor: pointer; width: max-content; min-height: 24px; display: flex; align-items: center; }
+.onboarding-done ul { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 6px 0 0; padding: 0; list-style: none; }
+.onboarding-done li { color: var(--ok); }
 .onboarding-step {
   display: flex;
   min-width: 0;
@@ -1306,6 +1319,21 @@ table.grid tr.just-changed td, .compact-card.just-changed { animation: change-ar
 .chat-main .transcript { flex: 1 1 auto; }
 .conv-id { font-size: 11px; color: var(--ink-3); }
 .chat-starters { padding-top: 12px; border-top: 1px solid var(--line-soft); }
+/* Conversation vide : les amorces occupent la place de la transcription au lieu de laisser une moitié
+   d'écran blanche au-dessus d'elles. Dès le premier message, elles reprennent leur place sous le fil. */
+/* Hauteur nulle plutôt que `display: none` : une région `aria-live` masquée à l'insertion du
+   premier message ne l'annoncerait pas. */
+.chat-main .transcript:empty { flex: 0 0 0; min-height: 0; }
+.chat-main .transcript:empty + .chat-starters {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border-top: 0;
+}
+.chat-main .transcript:empty + .chat-starters .chat-starter-list { justify-content: center; }
 .chat-starters h2 { font-size: 14px; margin: 0 0 4px; }
 .chat-starters .hint { margin: 0 0 10px; }
 .chat-starter-list { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -1433,7 +1461,8 @@ table.grid tr.just-changed td, .compact-card.just-changed { animation: change-ar
   padding-top: 12px;
   margin-top: 12px;
 }
-#prompt { max-height: 200px; font: 13px var(--mono); }
+/* La police du texte, pas celle du code : on y écrit une question, pas une commande. */
+#prompt { max-height: 200px; }
 /* La zone de saisie restait sous la ligne de flottaison : le panneau réservait la hauteur de
    l'écran moins l'en-tête, sans compter la barre « Instance courante » au-dessus. Collée au bas de
    la zone qui défile, elle reste visible quelle que soit la longueur de la transcription. */

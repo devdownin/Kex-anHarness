@@ -418,15 +418,20 @@ async function renderOnboarding(data) {
       detail: 'Sans processus, un cycle n’a rien à analyser.', href: '#/chat?creation=process' },
     { done: Boolean(data.agent?.lastCycleAt), label: 'Exécuter le premier cycle', action: runCycle,
       blocked: cycleBlocker },
-    { done: capabilities.kafka.ready, label: 'Connecter Kafka', href: '#/integrations' },
+    { done: capabilities.kafka.ready, label: 'Connecter Kafka',
+      detail: 'Topics et lag se lisent par le serveur MCP de Kafka SQL Explorer.', href: '#/integrations' },
     ...(capabilities.automations.supported
-      ? [{ done: capabilities.automations.ready, label: 'Créer une première automatisation', href: '#/agent' }]
+      ? [{ done: capabilities.automations.ready, label: 'Créer une première automatisation',
+        detail: 'Une règle qui agit d’elle-même sur un signal récurrent.', href: '#/agent' }]
       : []),
   ];
   const incomplete = steps.filter((step) => !step.done);
   host.hidden = incomplete.length === 0;
   if (host.hidden) return;
-  $('#onboarding-progress').textContent = `${steps.length - incomplete.length}/${steps.length}`;
+  // « 3/6 » se lisait aussi bien « trois faites » que « trois restantes » au-dessus des trois étapes
+  // affichées ; et les étapes faites disparaissaient sans trace.
+  const done = steps.filter((step) => step.done);
+  $('#onboarding-progress').textContent = `${done.length} ${done.length > 1 ? 'étapes faites' : 'étape faite'} sur ${steps.length}`;
   const list = $('#onboarding-steps');
   list.replaceChildren(...incomplete.map((step, index) => {
     const item = el('div', 'onboarding-step');
@@ -445,6 +450,14 @@ async function renderOnboarding(data) {
     item.append(action);
     return item;
   }));
+  if (done.length) {
+    const recap = el('details', 'onboarding-done');
+    recap.append(el('summary', null, `Déjà fait (${done.length})`));
+    const list = el('ul');
+    done.forEach((step) => list.append(el('li', null, `✓ ${step.label}`)));
+    recap.append(list);
+    $('#onboarding-steps').append(recap);
+  }
 }
 
 function badge(selector, count) {

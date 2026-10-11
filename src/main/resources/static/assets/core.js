@@ -232,14 +232,23 @@ export function errorState(error, retry) {
  * un flash qui donnait l'impression que le bloc n'occupait plus toute la largeur disponible.
  * L'état de chargement ne s'affiche donc qu'au tout premier rendu, quand l'hôte est encore vide.
  */
+// Dernier rendu demandé pour chaque bloc. Sans ce repère, la réponse lente d'un sondage de fond
+// parti plus tôt écrasait celle, plus récente, d'une navigation ou d'un filtre : le bloc revenait à
+// un état périmé jusqu'au sondage suivant, quinze secondes plus tard.
+const renderGenerations = new WeakMap();
+
 export async function render(host, load, draw) {
+  const generation = (renderGenerations.get(host) || 0) + 1;
+  renderGenerations.set(host, generation);
+  const current = () => renderGenerations.get(host) === generation;
   if (!host.firstChild) host.replaceChildren(skeleton(host.dataset.skeleton || 'list'));
   try {
     const data = await load();
+    if (!current()) return;
     const drawn = draw(data);
     host.replaceChildren(drawn ?? empty('Rien à afficher.'));
   } catch (error) {
-    host.replaceChildren(errorState(error, () => render(host, load, draw)));
+    if (current()) host.replaceChildren(errorState(error, () => render(host, load, draw)));
   }
 }
 

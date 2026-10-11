@@ -353,7 +353,8 @@ await check('les en-têtes triables offrent une cible de 24 px', async () => {
   const { context, page } = await open(desktop, 'processes');
   await page.locator('#processes-table th button.sort').first().waitFor();
   const sizes = await page.$$eval('#processes-table th button.sort', (nodes) => nodes.map((node) => node.getBoundingClientRect().height));
-  assert.ok(sizes.length && sizes.every((height) => height >= 24), `cibles de ${sizes.join(', ')} px`);
+  // Arrondi : la mise en page en sous-pixels rend 23,99997 px pour une hauteur minimale de 24.
+  assert.ok(sizes.length && sizes.every((height) => Math.round(height) >= 24), `cibles de ${sizes.join(', ')} px`);
   await context.close();
 });
 
@@ -380,6 +381,86 @@ await check('Vue d’ensemble : la mise en route d’abord, les filtres ensuite,
   ]);
   assert.ok(onboarding.y + onboarding.height <= filters.y, 'les filtres passent au-dessus des « Premiers pas »');
   assert.ok(Math.abs((customize.y + customize.height / 2) - (filters.y + filters.height / 2)) < 20, '« Personnaliser » occupe sa propre ligne');
+  await context.close();
+});
+
+await check('la mise en route dit ce qui est fait, garde la trace des étapes faites, et explique Kafka', async () => {
+  const { context, page } = await open(desktop, 'overview');
+  await page.locator('#onboarding:not([hidden])').waitFor();
+  await page.waitForFunction(() => /\S/.test(document.querySelector('#onboarding-progress').textContent));
+  const progress = await page.textContent('#onboarding-progress');
+  assert.match(progress, /^\d+ étapes? faites? sur \d+$/, `progression ambiguë : « ${progress} »`);
+  const done = page.locator('#onboarding-steps .onboarding-done');
+  assert.equal(await done.locator('summary').innerText(), `Déjà fait (${progress.match(/^\d+/)[0]})`);
+  // Le jeton est posé avant l'ouverture : l'étape faite se retrouve dans le récapitulatif, cochée.
+  assert.match(await done.locator('li').allTextContents().then((items) => items.join('|')), /✓ Connecter le jeton API/);
+  assert.equal(await done.locator('ul').isVisible(), false, 'le récapitulatif se déplie à la demande');
+  const kafka = page.locator('#onboarding-steps .onboarding-step', { hasText: 'Connecter Kafka' });
+  assert.match(await kafka.innerText(), /Kafka SQL Explorer/);
+  await context.close();
+});
+
+await check('Conversation vide : pas de tiret orphelin, amorces au centre, case lisible, police du texte', async () => {
+  const { context, page } = await open(desktop, 'chat');
+  await page.evaluate(() => sessionStorage.removeItem('kex.agent.conversation'));
+  await page.locator('#prompt').waitFor();
+  assert.equal(await page.locator('#conversation-id').isVisible(), false);
+  const label = page.locator('label.switch', { has: page.locator('#stream-mode') });
+  assert.equal((await label.innerText()).trim(), 'Réponse en direct');
+  assert.match(await label.getAttribute('title'), /au fil de son écriture/);
+  const [prompt, body] = await Promise.all([
+    page.locator('#prompt').evaluate((node) => getComputedStyle(node).fontFamily),
+    page.evaluate(() => getComputedStyle(document.body).fontFamily),
+  ]);
+  assert.equal(prompt, body, 'la saisie garde la police du code');
+  // Les amorces prennent la place de la transcription vide au lieu de rester collées au-dessus de la saisie.
+  const [starters, composer] = await Promise.all([
+    page.locator('.chat-starters').boundingBox(), page.locator('#composer').boundingBox(),
+  ]);
+  const head = await page.locator('.chat-main > .panel-head').boundingBox();
+  assert.ok(starters.y - (head.y + head.height) < 60, `${Math.round(starters.y - head.y - head.height)} px vides au-dessus des amorces`);
+  assert.ok(composer.y >= starters.y + starters.height - 1);
+  await context.close();
+});
+
+await check('fiche Agent : la politique se résume en actions, le dernier cycle se dit jamais exécuté', async () => {
+  const { context, page } = await open(desktop, 'agent');
+  const summary = page.locator('#agent-summary');
+  await summary.getByText('Dernier cycle').waitFor();
+  const text = await summary.innerText();
+  assert.match(text, /Jamais exécuté/);
+  assert.match(text, /\d+ (automatiques?|sous validation|interdites?).* sur 5 actions/);
+  await page.evaluate(() => { document.documentElement.dataset.identifiers = 'hidden'; });
+  assert.doesNotMatch(await summary.innerText(), /policy-v1/, 'l’identifiant brut reste affiché');
+  await context.close();
+});
+
+await check('« Exécuter maintenant » désactivé ne garde pas l’accent', async () => {
+  const { context, page } = await open(desktop, 'overview');
+  await page.waitForFunction(() => document.querySelector('#run-cycle').disabled);
+  // Le fond est animé (transition de 0,2 s) : la lecture attend la fin du changement.
+  await page.waitForTimeout(400);
+  const [run, notifications] = await Promise.all([
+    page.locator('#run-cycle').evaluate((node) => getComputedStyle(node).backgroundColor),
+    page.locator('#open-notifications').evaluate((node) => getComputedStyle(node).backgroundColor),
+  ]);
+  assert.equal(run, notifications, 'le bouton inactif reste le plus voyant de l’en-tête');
+  await context.close();
+});
+
+await check('une réponse lente ne remplace pas un rendu plus récent du même bloc', async () => {
+  const { context, page } = await open(desktop, 'system');
+  const text = await page.evaluate(async () => {
+    const { render } = await import('/assets/core.js');
+    const host = document.createElement('div');
+    document.body.append(host);
+    const slow = render(host, () => new Promise((resolve) => setTimeout(() => resolve('ancien'), 300)),
+      (value) => Object.assign(document.createElement('p'), { textContent: value }));
+    const fast = render(host, async () => 'récent', (value) => Object.assign(document.createElement('p'), { textContent: value }));
+    await Promise.all([slow, fast]);
+    return host.textContent;
+  });
+  assert.equal(text, 'récent', 'le sondage parti plus tôt a écrasé le rendu le plus récent');
   await context.close();
 });
 
