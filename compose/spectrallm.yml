@@ -1,0 +1,28 @@
+# Serveur MCP de SpectraLLM, en surcouche de docker-compose.yml.
+#
+#   SPECTRALLM_URL=http://host.docker.internal:8082 SPECTRA_API_KEY=... \
+#     docker compose -f docker-compose.yml -f compose/spectrallm.yml up -d
+#
+# L'agent gagne les outils spectra_* — recherche de passages, réponse RAG sourcée, documents
+# indexés, état des services — à côté des kex_* de Kafka Explorer. Tous en lecture seule.
+#
+# SpectraLLM n'est pas démarré ici : il tourne ailleurs, en 0.10.0 au moins, avec
+# SPECTRA_MCP_ENABLED=true et une SPECTRA_API_KEY (sans clé, son /mcp répond 503). Depuis
+# Kafka Explorer, compose/spectra-hub.yml + compose/spectra-hub.mcp.yml en fournissent un.
+#
+# ATTENTION AU PORT : cette pile et celle de Kafka Explorer publient toutes deux 8081 sur l'hôte
+# (l'agent ici, l'API Spectra là-bas). Sur une même machine, déplacer l'un des deux —
+# SPECTRA_API_PORT=8082 côté Kafka Explorer, par exemple — et viser ce port ici.
+services:
+  agent:
+    environment:
+      SPECTRALLM_URL: ${SPECTRALLM_URL:?requis, URL de l'API SpectraLLM vue depuis le conteneur}
+      SPECTRA_API_KEY: ${SPECTRA_API_KEY:?requis, la cle API de SpectraLLM}
+      # La connexion MCP, par liaison souple de Spring : spring.ai.mcp.client.streamable-http
+      # .connections.spectrallm. Ajoutée ici plutôt que dans application.yml, pour qu'une
+      # installation sans SpectraLLM n'ait pas un serveur injoignable dans sa liste.
+      SPRING_AI_MCP_CLIENT_STREAMABLEHTTP_CONNECTIONS_SPECTRALLM_URL: ${SPECTRALLM_URL}
+      SPRING_AI_MCP_CLIENT_STREAMABLEHTTP_CONNECTIONS_SPECTRALLM_ENDPOINT: /mcp
+    # host.docker.internal n'existe pas d'office sous Linux.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

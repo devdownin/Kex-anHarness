@@ -7,6 +7,11 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
 
 ### Ajouté
 
+- Serveur MCP de SpectraLLM (0.10.0+) : surcouche `compose/spectrallm.yml` qui ajoute la
+  connexion `spectrallm` et ses outils `spectra_*` en lecture seule. Les entrées
+  `kex.mcp.bearer-tokens` acceptent un `header` : SpectraLLM lit sa clé dans `X-API-Key`, pas
+  dans un porteur.
+
 - Associations TimesFM persistées depuis le wizard et les fiches processus (ADMIN), avec
   validation du catalogue, diagnostic des prérequis et aperçu daté des risques/qualité.
   Stockage fichier en mono-instance et migration PostgreSQL V3 pour les répliques partagées.

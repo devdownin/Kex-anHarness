@@ -121,6 +121,42 @@ kex:
 C'est délibéré : un customizer s'applique à toutes les connexions HTTP, et sans ce filtre le jeton
 d'un serveur partirait aussi vers les autres.
 
+Un serveur qui n'attend pas de porteur nomme son en-tête avec `header` ; le jeton y part tel quel :
+
+```yaml
+      - url-prefix: ${SPECTRALLM_URL:}
+        token: ${SPECTRA_API_KEY:}
+        header: X-API-Key
+```
+
+### SpectraLLM
+
+[SpectraLLM](https://github.com/devdownin/SpectraLLM) expose depuis la 0.10.0 un serveur MCP en
+lecture seule : `spectra_search` (passages et scores, sans appel au LLM), `spectra_ask` (réponse
+RAG avec ses sources), `spectra_list_documents`, `spectra_preview_document`, `spectra_status`.
+À côté des outils de Kafka Explorer, l'agent peut suivre un enregistrement dans le cluster et le
+retrouver dans la documentation indexée.
+
+Côté SpectraLLM : `SPECTRA_MCP_ENABLED=true` et une `SPECTRA_API_KEY` — sans clé, son `/mcp`
+répond 503. Depuis le dépôt Kafka Explorer, `compose/spectra-hub.yml` + `compose/spectra-hub.mcp.yml`
+en démarrent un.
+
+Côté agent :
+
+```bash
+SPECTRALLM_URL=http://host.docker.internal:8082 SPECTRA_API_KEY=… \
+  docker compose -f docker-compose.yml -f compose/spectrallm.yml up -d
+```
+
+La surcouche ajoute la connexion `spectrallm` par variables d'environnement plutôt que dans
+`application.yml`, pour qu'une installation sans SpectraLLM n'ait pas un serveur injoignable dans
+sa liste. La clé part en `X-API-Key` (entrée déjà déclarée dans `application.yml`, inerte tant
+que `SPECTRALLM_URL` est vide) : SpectraLLM ne lit pas `Authorization`. Hors Docker, déclarer la
+connexion comme celle de Kafka Explorer ci-dessus, avec la clé `spectrallm`.
+
+Les deux piles publient le port 8081 sur l'hôte (l'agent ici, l'API Spectra là-bas) : sur une
+même machine, déplacer l'un des deux, par exemple `SPECTRA_API_PORT=8082` côté Kafka Explorer.
+
 ### Administrer les serveurs depuis la console
 
 La vue **Technique → Serveurs MCP** ajoute des connexions sans redémarrer. L'assistant teste le
