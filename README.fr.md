@@ -231,6 +231,24 @@ stdio, permissions par outil, diagnostics, activation et import/export. Définis
 `KEX_MCP_STORAGE_KEY` pour chiffrer et conserver ces connexions ; et, pour stdio, autorisez
 explicitement les exécutables avec `KEX_MCP_STDIO_ALLOWED_COMMANDS=npx,uvx`.
 
+### Exemple complet : un second serveur, SpectraLLM
+
+[SpectraLLM](https://github.com/devdownin/SpectraLLM) (0.10.0+) sert un serveur MCP en lecture
+seule sur son corpus documentaire indexé (`spectra_search`, `spectra_ask`, …). Brancher l'agent sur
+lui en plus de Kafka SQL Explorer permet à une même question de traverser les deux : suivre un
+enregistrement dans le cluster avec les outils `kex_*`, puis retrouver la procédure qui l'explique
+avec les outils `spectra_*`.
+
+```bash
+SPECTRALLM_URL=http://host.docker.internal:8082 SPECTRA_API_KEY=… \
+  docker compose -f docker-compose.yml -f compose/spectrallm.yml up -d
+```
+
+Deux leçons valables pour tout serveur : l'identifiant n'est pas toujours un porteur (SpectraLLM
+lit `X-API-Key`, d'où `header: X-API-Key` sur son entrée `kex.mcp.bearer-tokens`), et la connexion
+s'ajoute par la surcouche plutôt que par défaut, car un serveur déclaré mais non lancé serait
+signalé en panne par l'agent. Le détail est dans [`docs/MCP.md`](docs/MCP.md#spectrallm).
+
 ## 🔭 API
 
 | Méthode | Route | Rôle |

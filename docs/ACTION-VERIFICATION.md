@@ -53,19 +53,28 @@ Le vérificateur doit retourner un objet `structuredContent`, par exemple :
   "measured": true,
   "observedAt": "2026-10-04T06:00:00Z",
   "coverage": {
-    "complete": true,
     "stopReason": "EXHAUSTED",
-    "topicsNotReached": [],
-    "notReached": []
+    "topicsNotReached": []
   }
 }
 ```
+
+C'est la forme que Kafka SQL Explorer envoie réellement : son enveloppe ne porte **pas** de champ
+`complete` (voir [Lire l'enveloppe `coverage`](MCP.md#lire-lenveloppe-coverage-de-kafka-sql-explorer)).
 
 `observedAt` doit dater la mesure effective après l'acceptation de l'action, ne pas être dans le futur et respecter `max-age` (5 minutes par défaut). Synchroniser les horloges de l'agent et du serveur de mesure. Un cache ancien ne constitue pas une preuve après action.
 
 `result-pointer` et `observed-at-pointer` sont des JSON Pointers explicites. `expected-value` est un scalaire YAML typé : booléen, nombre ou chaîne. Les types doivent correspondre ; la chaîne `"true"` ne vaut pas le booléen `true`. Les nombres sont comparés par valeur. Les objets, tableaux, `null`, valeurs absentes et dates invalides rendent la vérification indéterminée.
 
-`measured-pointer` est facultatif ; lorsqu'il est renseigné, il doit désigner le booléen `true`. Si une enveloppe `coverage` est présente, elle doit déclarer `complete: true` et `stopReason: EXHAUSTED`. Les listes `topicsNotReached` et `notReached`, lorsqu'elles sont présentes, doivent être des tableaux vides. Une réponse textuelle affirmant que l'action a réussi ne remplace jamais les données structurées.
+`measured-pointer` est facultatif ; lorsqu'il est renseigné, il doit désigner le booléen `true`. Si une enveloppe `coverage` est présente, elle doit prouver que la mesure a tout lu :
+
+| Champ | Exigence | Pourquoi |
+|---|---|---|
+| `stopReason` | `EXHAUSTED` | C'est le seul motif d'arrêt qui dise « rien n'a été laissé de côté » |
+| `complete` | absent, ou le booléen `true` | Kafka SQL Explorer ne l'émet pas ; un autre serveur qui l'émet à `false` (ou en chaîne `"true"`) retire la preuve |
+| `topicsNotReached`, `notReached` | absents, ou listes vides | Un topic non atteint est peut-être celui où la panne persiste |
+
+Une enveloppe qui échoue à l'une de ces règles rend la décision `VERIFICATION_UNKNOWN`, jamais `VERIFIED` ni `FAILED` : on ne sait pas, et on le dit. Une réponse textuelle affirmant que l'action a réussi ne remplace jamais les données structurées.
 
 Les arguments fixes du vérificateur reçoivent `processId` et `decisionId`, imposés par l'agent pour conserver la corrélation avec la décision. Les champs de preuve et le résultat de vérification apparaissent dans le résultat de décision et l'audit. La réception du webhook reste explicitement non vérifiée : elle ne prouve pas qu'un destinataire a traité la notification.
 

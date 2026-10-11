@@ -21,6 +21,17 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
   si bien qu'aucune postcondition mesurée par lui ne pouvait confirmer une action ou une tâche.
   `EXHAUSTED` suffit désormais ; un `complete` présent doit valoir `true`.
 
+### Documentation
+
+- `docs/MCP.md` : interroger un serveur MCP à la main (la session d'abord, et ce que disent
+  `401`/`426`/`400`/`404`), lire l'enveloppe `coverage` de Kafka SQL Explorer, vérifier pas à pas
+  la connexion SpectraLLM.
+- `docs/FORECAST-STACK.md` : lire le diagnostic ligne par ligne, et que faire quand l'une est
+  bloquée.
+- `docs/ACTION-VERIFICATION.md`, `docs/DURABLE-TASKS.md` : la règle de complétude réelle, sans
+  `complete` obligatoire ; `docs/ARCHITECTURE.md` : enveloppe d'outil contre enveloppe du modèle.
+- `README.md` / `README.fr.md` : SpectraLLM en exemple complet de second serveur MCP.
+
 ### Ajouté
 
 - Serveur MCP de SpectraLLM (0.10.0+) : surcouche `compose/spectrallm.yml` qui ajoute la
