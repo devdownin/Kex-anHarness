@@ -12,6 +12,10 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
   l'Explorer refuse en `400` — le diagnostic restait `BLOQUÉ` sur une pile saine. Elle passe
   désormais par `initialize`, et un blocage de la connexion MCP de l'agent nomme le contrôle
   en échec au lieu d'une consigne générique.
+- Lectures de prévisions : l'agent exigeait un booléen `coverage.complete` que KafkaExplorer
+  n'émet pas (c'est une méthode de son record `Coverage`, seul `stopReason` est sérialisé). Toute
+  réponse réelle était refusée comme « enveloppe de couverture invalide » ; la complétude se
+  déduit désormais de `stopReason == EXHAUSTED`.
 
 ### Ajouté
 

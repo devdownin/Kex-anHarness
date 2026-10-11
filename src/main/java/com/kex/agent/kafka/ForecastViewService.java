@@ -12,6 +12,7 @@ import com.kex.agent.mcp.UnknownMcpServerException;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 /** Lectures des résultats autorisés par KafkaExplorer, sans SQL, inférence ni activation. */
 @Service
@@ -111,8 +112,9 @@ public class ForecastViewService {
             if (payload == null || !payload.isObject() || !payload.hasNonNull("data")) {
                 return Read.failed(tool + " : réponse invalide");
             }
-            if (!payload.path("coverage").isObject()
-                    || !payload.path("coverage").path("complete").isBoolean()
+            JsonNode coverage = payload.path("coverage");
+            if (!coverage.isObject() || !coverage.path("stopReason").isTextual()
+                    || (coverage.has("complete") && !coverage.path("complete").isBoolean())
                     || !payload.path("warnings").isArray() || !payload.path("truncated").isBoolean()) {
                 return Read.failed(tool + " : enveloppe de couverture invalide");
             }
@@ -134,7 +136,7 @@ public class ForecastViewService {
                     return Read.failed(tool + " : prévision invalide ou provenance incohérente");
                 }
             }
-            return new Read(data, payload.path("coverage"), payload.path("warnings"),
+            return new Read(data, withCompleteness(coverage), payload.path("warnings"),
                     payload.path("truncated").asBoolean(false), null);
         }
         catch (UnknownMcpServerException ex) {
@@ -155,6 +157,18 @@ public class ForecastViewService {
             return Read.failed(diagnose(tool, tool + " : Erreur de récupération sur « " + properties.connection()
                     + " », lecture indisponible. Vérifiez les diagnostics MCP puis réessayez."));
         }
+    }
+
+    /**
+     * KafkaExplorer n'émet pas {@code complete} : c'est une méthode de son record {@code Coverage},
+     * pas un composant, donc absente du JSON — seul {@code stopReason} part sur le fil. Exiger le
+     * drapeau refusait toute réponse réelle comme « enveloppe invalide ». La complétude se dérive
+     * donc de {@code EXHAUSTED}, et un drapeau présent à {@code false} la retire quand même.
+     */
+    private static JsonNode withCompleteness(JsonNode coverage) {
+        boolean complete = "EXHAUSTED".equals(coverage.path("stopReason").asText())
+                && coverage.path("complete").asBoolean(true);
+        return ((ObjectNode) coverage.deepCopy()).put("complete", complete);
     }
 
     private String diagnose(String tool, String fallback) {

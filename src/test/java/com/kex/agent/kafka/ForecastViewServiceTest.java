@@ -29,6 +29,8 @@ class ForecastViewServiceTest {
     private final ForecastViewService service = new ForecastViewService(catalog,
             new KafkaProperties("kafka-explorer", "topics", "lag", 200));
     private static final String ID = "approved-series";
+    // L'enveloppe telle que KafkaExplorer la sérialise : `complete` n'y figure pas.
+    private static final Map<String, Object> EXHAUSTED = Map.of("stopReason", "EXHAUSTED");
 
     @BeforeEach
     void outil_annonce_par_defaut() {
@@ -52,6 +54,14 @@ class ForecastViewServiceTest {
     }
 
     @Test
+    void la_completude_se_deduit_du_motif_d_arret_que_kafka_explorer_emet() {
+        respond("kex_list_forecastable_metrics", List.of());
+        var metrics = service.metrics();
+        assertThat(metrics.unavailable()).isNull();
+        assertThat(metrics.coverage().path("complete").asBoolean()).isTrue();
+    }
+
+    @Test
     void refuse_une_serie_inconnue_avant_toute_lecture() {
         respond("kex_list_forecastable_metrics", List.of(metric()));
         assertThat(service.detail("other").forecast().unavailable()).contains("absente");
@@ -61,8 +71,9 @@ class ForecastViewServiceTest {
     @Test
     void refuse_un_catalogue_incomplet_ou_tronque() {
         for (Map<String, Object> payload : List.of(
-                Map.of("data", List.of(metric()), "coverage", Map.of("complete", false), "warnings", List.of(), "truncated", false),
-                Map.of("data", List.of(metric()), "coverage", Map.of("complete", true), "warnings", List.of(), "truncated", true))) {
+                Map.of("data", List.of(metric()), "coverage", Map.of("stopReason", "TIME_BUDGET"), "warnings", List.of(), "truncated", false),
+                Map.of("data", List.of(metric()), "coverage", Map.of("stopReason", "EXHAUSTED", "complete", false), "warnings", List.of(), "truncated", false),
+                Map.of("data", List.of(metric()), "coverage", EXHAUSTED, "warnings", List.of(), "truncated", true))) {
             result("kex_list_forecastable_metrics", new McpToolResult("kafka-explorer", "catalog", false, List.of(), payload));
             assertThat(service.detail(ID).history().unavailable()).contains("complet");
         }
@@ -122,7 +133,8 @@ class ForecastViewServiceTest {
     @Test
     void enveloppe_invalide_et_erreur_mcp_restent_indisponibles() {
         for (Object payload : List.of(Map.of(), List.of(), Map.of("data", List.of(metric())),
-                Map.of("data", List.of(metric()), "coverage", Map.of(), "warnings", List.of(), "truncated", false))) {
+                Map.of("data", List.of(metric()), "coverage", Map.of(), "warnings", List.of(), "truncated", false),
+                Map.of("data", List.of(metric()), "coverage", Map.of("stopReason", "EXHAUSTED", "complete", "oui"), "warnings", List.of(), "truncated", false))) {
             result("kex_list_forecastable_metrics", new McpToolResult("c", "t", false, List.of(), payload));
             assertThat(service.metrics().unavailable()).contains("invalide");
         }
@@ -132,7 +144,7 @@ class ForecastViewServiceTest {
 
     @Test
     void accepte_json_texte_et_ignore_les_blocs_non_json() {
-        String json = "{\"data\":[],\"coverage\":{\"complete\":true},\"warnings\":[],\"truncated\":false}";
+        String json = "{\"data\":[],\"coverage\":{\"stopReason\":\"EXHAUSTED\"},\"warnings\":[],\"truncated\":false}";
         result("kex_list_forecastable_metrics", new McpToolResult("c", "t", false,
                 List.of("x".repeat(2_000_001), "note", "null", "[]", json), null));
         assertThat(service.metrics().data().isEmpty()).isTrue();
@@ -261,7 +273,7 @@ class ForecastViewServiceTest {
 
     private void respond(String tool, Object data) {
         result(tool, new McpToolResult("kafka-explorer", tool, false, List.of(),
-                Map.of("data", data, "coverage", Map.of("complete", true), "warnings", List.of(), "truncated", false)));
+                Map.of("data", data, "coverage", EXHAUSTED, "warnings", List.of(), "truncated", false)));
     }
 
     private void result(String tool, McpToolResult result) {
