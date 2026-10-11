@@ -113,11 +113,13 @@
         <span class="status-mark" aria-hidden="true">●</span>
         <span id="agent-status-label">EN ATTENTE D’ANALYSE</span>
       </span>
-      <button type="button" class="ghost command-trigger" id="open-command" aria-keyshortcuts="Control+K Meta+K">
-        Rechercher <kbd>⌘K</kbd>
+      <button type="button" class="ghost command-trigger" id="open-command" aria-label="Rechercher" aria-keyshortcuts="Control+K Meta+K">
+        <svg class="topbar-ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.2-4.2"/></svg>
+        <span class="topbar-label">Rechercher</span> <kbd>⌘K</kbd>
       </button>
       <button type="button" class="ghost notification-trigger" id="open-notifications" aria-label="Ouvrir les notifications">
-        Notifications <span class="badge" id="notification-count" hidden>0</span>
+        <svg class="topbar-ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>
+        <span class="topbar-label">Notifications</span> <span class="badge" id="notification-count" hidden>0</span>
       </button>
       <button type="button" class="primary" id="run-cycle">Exécuter maintenant</button>
       <details class="action-menu">
@@ -174,12 +176,13 @@
     <section class="view" id="view-forecasts" hidden>
       <div class="workspace-heading">
         <div><h1>Prévisions des métriques</h1><p class="hint">Anticiper les évolutions à partir des résultats calculés par KafkaExplorer.</p></div>
-        <button type="button" class="ghost" id="refresh-forecasts">Actualiser les résultats</button>
+        <div class="panel-actions">
+          <button type="button" class="ghost" id="check-forecast-readiness">Vérifier la préparation MCP</button>
+          <button type="button" class="ghost" id="refresh-forecasts">Actualiser les résultats</button>
+        </div>
       </div>
-      <p class="banner">Une prévision est une estimation, pas un incident constaté. Les quantiles ne garantissent pas une probabilité de dépassement. L’activation se gère dans KafkaExplorer.</p>
       <label class="forecast-refresh-option"><input type="checkbox" id="forecast-auto-refresh"> Actualiser automatiquement (60 s)</label>
       <p class="hint" id="forecast-refresh-status" role="status">Actualisation automatique désactivée · dernière lecture : aucune</p>
-      <button type="button" class="ghost" id="check-forecast-readiness">Vérifier la préparation MCP</button>
       <details class="panel" id="forecast-first-run">
         <summary>Créer ma première prévision</summary>
         <ol>
@@ -193,6 +196,9 @@
       </details>
       <div id="forecast-readiness" aria-live="polite"></div>
       <div id="forecast-content" aria-live="polite"></div>
+      <!-- Une mise en garde sur les quantiles n'a de sens qu'à côté d'un résultat : en bandeau orange
+           au-dessus d'une page vide, elle criait plus fort que le seul problème réel, l'indisponibilité. -->
+      <p class="hint forecast-caveat">Une prévision est une estimation, pas un incident constaté. Les quantiles ne garantissent pas une probabilité de dépassement. L’activation se gère dans KafkaExplorer.</p>
     </section>
     <section class="view" id="view-overview" hidden>
       <div class="overview-customizer">
@@ -211,13 +217,9 @@
             <span id="overview-cycle-label">En attente du premier cycle</span>
           </div>
         </div>
-        <div class="hero-health" id="overview-health" data-state="UNKNOWN">
-          <span class="hero-health-mark" aria-hidden="true">?</span>
-          <span>
-            <small>État global</small>
-            <strong id="overview-health-label">Non mesuré</strong>
-          </span>
-        </div>
+        <!-- Pas de second « État global » ici : la pastille de l'en-tête le porte déjà sur chaque
+             écran, et trois occurrences du même « EN ATTENTE D'ANALYSE » diluaient la seule phrase
+             qui compte sur cet écran, la mise en route. -->
       </section>
       <div class="kpis" id="kpis" data-dashboard-block="kpis"></div>
       <section class="panel" data-dashboard-block="forecasts" aria-labelledby="forecast-dashboard-title">
@@ -470,7 +472,7 @@
           <div class="filters" role="group" aria-label="Filtrer par état">
             <button type="button" class="chip-toggle" data-filter="ALL" aria-pressed="true">Tous</button>
             <button type="button" class="chip-toggle" data-filter="OK" aria-pressed="false">OK</button>
-            <button type="button" class="chip-toggle" data-filter="WARNING" aria-pressed="false">Warning</button>
+            <button type="button" class="chip-toggle" data-filter="WARNING" aria-pressed="false">Attention</button>
             <button type="button" class="chip-toggle" data-filter="ERROR" aria-pressed="false">Erreur</button>
             <button type="button" class="chip-toggle" data-filter="ATTENTION" aria-pressed="false">Intervention requise</button>
             <button type="button" class="chip-toggle" data-filter="FAVORITES" aria-pressed="false">★ Favoris</button>
@@ -530,10 +532,20 @@
         </div>
         <p class="hint">Inspecter ce que Kex expose en tant que serveur aux clients MCP. Cet espace est distinct des connexions MCP externes utilisées par l’agent.</p>
         <div id="mcp-server-freshness" class="freshness-slot" aria-live="polite"></div>
+        <!-- Éteint par défaut : ce n'est pas une panne. Une pastille « Indisponible », six compteurs
+             vides et un toast « MCP HTTP 404 » faisaient chercher un incident là où il n'y a qu'une
+             propriété à changer. -->
+        <div class="state empty" id="mcp-server-disabled" data-empty-state="true" hidden>
+          <p>Le serveur MCP Kex est désactivé.</p>
+          <p class="hint">C’est le réglage par défaut : Kex n’expose rien aux clients MCP. Pour l’exposer,
+            définir <code>KEX_MCP_SERVER_ENABLED=true</code> (propriété <code>kex.mcp.server.enabled</code>)
+            puis redémarrer l’agent.</p>
+        </div>
+        <div id="mcp-server-body">
         <nav class="local-nav mcp-tabs" aria-label="Vues du serveur MCP">
           <button type="button" class="active" data-mcp-tab="overview">Vue d’ensemble</button>
           <button type="button" data-mcp-tab="catalog">Catalogue</button>
-          <button type="button" data-mcp-tab="playground">Playground</button>
+          <button type="button" data-mcp-tab="playground">Essais</button>
         </nav>
         <div data-mcp-panel="overview">
           <div class="mcp-metrics" id="mcp-metrics">
@@ -570,6 +582,7 @@
             </form>
             <div class="subpanel"><span class="panel-kicker">Résultat</span><h2>Réponse MCP</h2><h3>Données structurées</h3><pre id="mcp-playground-structured" tabindex="0">Aucune requête exécutée.</pre><h3>Contenu texte</h3><pre id="mcp-playground-text" tabindex="0">—</pre><div class="panel-head"><h3>JSON-RPC brut</h3><button type="button" class="ghost" id="mcp-playground-copy">Copier</button></div><pre id="mcp-playground-result" tabindex="0">Aucune requête exécutée.</pre></div>
           </div>
+        </div>
         </div>
       </section>
       <section class="panel" id="settings-preferences">
@@ -772,7 +785,11 @@
         <div class="panel-head"><h2>Santé de l'instance</h2></div>
         <div id="system-freshness" class="freshness-slot" aria-live="polite"></div>
         <div class="tiles" id="metric-tiles"></div>
-        <pre class="dump" id="health-dump">—</pre>
+        <p class="health-summary" id="health-summary" role="status">Vérification…</p>
+        <details class="health-raw">
+          <summary>Réponse brute de /actuator/health</summary>
+          <pre class="dump" id="health-dump">—</pre>
+        </details>
       </section>
     </section>
 

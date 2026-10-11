@@ -232,8 +232,14 @@ body {
   text-align: center;
 }
 
-.rail-foot { margin-top: auto; display: flex; gap: 8px; }
-.rail-foot > * { flex: 1; text-align: center; text-decoration: none; }
+.rail-foot { margin-top: auto; display: flex; gap: 8px; min-width: 0; }
+.rail-foot > * { text-decoration: none; }
+/* Deux moitiés égales ne tenaient pas : « Espace utilisateur » passait sur deux lignes et
+   « Replier » débordait du rail sur le contenu. Le lien prend la place, la bascule reste une icône —
+   son nom est porté par aria-label et title. */
+.rail-foot > .nav-item { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rail-foot > .rail-toggle { flex: 0 0 42px; padding-left: 0; padding-right: 0; }
+.rail-foot .rail-toggle-label { display: none; }
 .rail-foot .ghost { color: var(--rail-ink); background: var(--rail-surface); border-color: var(--line); }
 
 .topbar {
@@ -269,6 +275,7 @@ body {
 }
 
 .topbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.topbar-ico { display: none; width: 18px; height: 18px; flex: none; }
 
 .action-menu { position: relative; }
 .action-menu > summary { list-style: none; user-select: none; }
@@ -397,28 +404,6 @@ main:focus { outline: none; }
 .hero-cycle.is-running .hero-cycle-dot { animation: live-pulse 1.6s ease-out infinite; }
 .hero-cycle.is-running::after { content: ""; width: 45px; height: 3px; border-radius: 4px; background: linear-gradient(90deg, var(--accent) 0 30%, var(--line) 30%); background-size: 45px 100%; animation: cycle-track 1.2s linear infinite; }
 @keyframes cycle-track { to { background-position: 45px 0; } }
-.hero-health {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 170px;
-  padding: 13px 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-  backdrop-filter: blur(8px);
-}
-.hero-health-mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--surface-2); font: 700 15px var(--mono); }
-.hero-health span:last-child { display: flex; flex-direction: column; }
-.hero-health small { color: var(--ink-2); font-size: 10px; letter-spacing: .07em; text-transform: uppercase; }
-.hero-health strong { font-size: 12px; letter-spacing: .03em; }
-.hero-health[data-state="OK"] .hero-health-mark { color: var(--ok); background: var(--ok-soft); }
-.hero-health[data-state="WARNING"] .hero-health-mark { color: var(--warn); background: var(--warn-soft); }
-.hero-health[data-state="ERROR"] .hero-health-mark { color: var(--danger); background: var(--danger-soft); }
-.hero-health[data-state="RUNNING"] .hero-health-mark { color: var(--accent); background: var(--accent-soft); }
-.hero-health.just-changed { animation: state-arrived .5s ease-out; }
-@keyframes state-arrived { 45% { box-shadow: 0 0 0 6px rgb(255 255 255 / 17%); } }
 
 /* ── Primitives ─────────────────────────────────────────────────────── */
 
@@ -619,7 +604,10 @@ kbd {
 .onboarding-step.done .onboarding-mark { background: var(--ok-soft); color: var(--ok); }
 .onboarding-step strong { display: block; font-size: 12px; }
 .onboarding-step .hint { margin: 2px 0 0; }
-.onboarding-step button { margin-left: auto; }
+.onboarding-step > button, .onboarding-step > a { margin-left: auto; flex: 0 0 auto; }
+/* Le détail dit pourquoi l'étape n'est pas faite ; il prend la place disponible et passe à la ligne. */
+.onboarding-text { display: grid; flex: 1 1 auto; min-width: 0; gap: 2px; }
+.onboarding-text .hint { overflow-wrap: anywhere; }
 .decision-filters { margin-bottom: 14px; }
 
 /* Les squelettes conservent l’encombrement du contenu final et évitent les sauts de mise en page. */
@@ -1321,7 +1309,8 @@ table.grid tr.just-changed td, .compact-card.just-changed { animation: change-ar
 /* ── Conversation ────────────────────────────────────────────────────── */
 
 .chat-layout { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 16px; align-items: start; }
-.chat-main { display: flex; flex-direction: column; min-height: calc(100dvh - 160px); }
+.chat-main { display: flex; flex-direction: column; min-height: calc(100dvh - 300px); }
+.chat-main .transcript { flex: 1 1 auto; }
 .conv-id { font-size: 11px; color: var(--ink-3); }
 .chat-starters { padding-top: 12px; border-top: 1px solid var(--line-soft); }
 .chat-starters h2 { font-size: 14px; margin: 0 0 4px; }
@@ -1452,6 +1441,17 @@ table.grid tr.just-changed td, .compact-card.just-changed { animation: change-ar
   margin-top: 12px;
 }
 #prompt { max-height: 200px; font: 13px var(--mono); }
+/* La zone de saisie restait sous la ligne de flottaison : le panneau réservait la hauteur de
+   l'écran moins l'en-tête, sans compter la barre « Instance courante » au-dessus. Collée au bas de
+   la zone qui défile, elle reste visible quelle que soit la longueur de la transcription. */
+.chat-main .composer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-bottom: -20px;
+  padding-bottom: 20px;
+  background: var(--surface);
+}
 .composer-side { display: flex; align-items: center; gap: 8px; }
 .switch { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); white-space: nowrap; }
 
@@ -1579,7 +1579,7 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
 @media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
 @media (prefers-reduced-motion: reduce) {
   .view:not([hidden]) > *, .live-pulse, .hero-cycle.is-running .hero-cycle-dot,
-  .hero-cycle.is-running::after, .hero-health.just-changed, .kpi-change.just-changed,
+  .hero-cycle.is-running::after, .kpi-change.just-changed,
   table.grid tr.just-changed td, .compact-card.just-changed,
   .process-wizard #process-wizard-question { animation: none; }
   html { scroll-behavior: auto; }
@@ -1661,7 +1661,6 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
      devient une feuille fixe, comme sur mobile étroit, et reste entièrement cliquable. */
   .action-menu-popover { position: fixed; top: auto; right: 14px; left: 14px; }
   .overview-hero { align-items: flex-start; flex-direction: column; padding: 24px; }
-  .hero-health { min-width: 0; }
   main { padding: 14px; }
   .drawer { width: 100vw; border-left: 0; }
   .context-chat { width: 100vw; border-left: 0; }
@@ -1685,6 +1684,10 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
   #view-overview { display: flex; flex-direction: column; }
   #view-overview .split { display: contents; }
   #view-overview .split > .panel:last-child { order: -1; }
+  /* La mise en route passe avant la décision : tant qu'elle n'est pas faite, aucune décision ne
+     peut naître, et « Piloter l'agent » envoyait vers un cycle qui ne pouvait pas aboutir. L'ordre
+     du tableau de bord est posé en ligne par applyDashboardLayout, d'où !important. */
+  #view-overview #onboarding { order: -3 !important; }
   .kpis-grid { display: flex; flex-direction: column; }
   .kpi:nth-child(3) { order: -2; }
   .kpi:nth-child(4) { order: -1; }
@@ -1927,7 +1930,8 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
     font-size: 9px;
     line-height: 16px;
   }
-  :root[data-rail="collapsed"] .rail-foot { justify-content: center; }
+  /* 72 px de rail : deux boutons de 42 px côte à côte n'y tiennent pas, ils s'empilent. */
+  :root[data-rail="collapsed"] .rail-foot { flex-direction: column; align-items: center; }
   :root[data-rail="collapsed"] .rail-foot > * { flex: none; width: 42px; }
   :root[data-rail="collapsed"] .rail-toggle svg { transform: rotate(180deg); }
 }
@@ -2140,6 +2144,10 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
 .forecast-risk-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 1rem; }
 .forecast-risk-card { min-width: 0; border: 1px solid var(--line-soft); border-radius: 10px; padding: 1rem; overflow-wrap: anywhere; }
 .forecast-help { margin: 1rem 0; }
+.readiness-checks { display: grid; gap: 8px; padding: 0; list-style: none; }
+.readiness-checks li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+.readiness-checks li .hint { flex-basis: 100%; margin: 0; }
+.forecast-caveat { margin-top: 4px; }
 .forecast-help summary { cursor: pointer; }
 .forecast-help dt { font-weight: 600; margin-top: .8rem; }
 .forecast-help dd { margin: .3rem 0; color: var(--muted); }
@@ -2153,4 +2161,65 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
 @media (max-width: 640px) {
   .forecast-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
   .forecast-details .primary { white-space: normal; text-align: center; padding: .8rem; }
+}
+
+
+/* ── Mobile étroit : en-tête compact, navigation basse lisible ───────── */
+@media (max-width: 600px) {
+  /* L'en-tête collé occupait près d'un quart de l'écran (état, quatre boutons sur trois lignes)
+     avant le moindre contenu. Une ligne d'actions : la recherche et les notifications passent en
+     icônes — leur nom reste porté par aria-label —, le raccourci clavier n'a pas de sens au doigt. */
+  .topbar { gap: 6px; padding-top: 8px; padding-bottom: 8px; }
+  .topbar-right { flex-wrap: nowrap; gap: 6px; }
+  /* L'état reste lu en entier — glyphe et libellé, jamais la teinte ou un « ? » seuls : il quitte la
+     ligne d'actions pour le coin de la ligne du titre, où la place est libre. */
+  .topbar-id { padding-right: 150px; }
+  .topbar-right .status {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    max-width: 142px;
+    padding: 5px 8px;
+    font-size: 10px;
+    white-space: normal;
+    text-align: left;
+    line-height: 1.15;
+  }
+  /* Le menu garde son nom accessible (aria-label) ; trois points suffisent à l'œil. */
+  .action-menu > summary { font-size: 0; padding-left: 12px; padding-right: 12px; }
+  .action-menu > summary::after { content: "⋯"; margin: 0; font-size: 18px; line-height: 1; color: var(--ink-2); }
+  /* Les rangées de boutons d'en-tête de panneau passent à la ligne au lieu de sortir du cadre. */
+  .panel-actions { flex-wrap: wrap; }
+  .topbar-label, .command-trigger kbd { display: none; }
+  .topbar-ico { display: block; }
+  .command-trigger, .notification-trigger { position: relative; flex: 0 0 auto; padding: 8px; min-width: 40px; }
+  .notification-trigger .badge { position: absolute; top: -4px; right: -4px; }
+  .topbar-right .primary { margin-left: auto; padding-left: 12px; padding-right: 12px; white-space: nowrap; }
+  .action-menu > summary { padding-left: 10px; padding-right: 10px; }
+
+  /* « À traiter » sortait coupé au bord droit sans rien qui dise que la barre défile. Icône sur
+     libellé, cibles de taille égale, et une ombre peinte avec le contenu au bord qui défile — elle
+     ne dépend d'aucune barre de défilement, cachée ici. */
+  .rail nav {
+    gap: 2px;
+    scroll-snap-type: x proximity;
+    background:
+      linear-gradient(to right, var(--rail-bg, var(--surface)) 30%, transparent) left / 24px 100% no-repeat local,
+      linear-gradient(to left, var(--rail-bg, var(--surface)) 30%, transparent) right / 24px 100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%, rgb(0 0 0 / .16), transparent) left / 10px 100% no-repeat scroll,
+      radial-gradient(farthest-side at 100% 50%, rgb(0 0 0 / .16), transparent) right / 10px 100% no-repeat scroll;
+  }
+  .rail nav .nav-item {
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 68px;
+    padding: 7px 6px;
+    font-size: 10.5px;
+    text-align: center;
+    scroll-snap-align: start;
+  }
+  .rail nav .nav-item[aria-current="page"] { box-shadow: inset 0 -3px var(--accent); }
+  .rail nav .nav-item .badge { position: absolute; transform: translate(14px, -6px); }
+  .rail nav .nav-item { position: relative; }
 }

@@ -24,7 +24,11 @@ async function rpc(method, params = {}) {
     body: JSON.stringify({ jsonrpc: '2.0', id: ++id, method, params }),
   });
   session = response.headers.get('Mcp-Session-Id') || session;
-  if (!response.ok) throw new Error(`MCP HTTP ${response.status}`);
+  if (!response.ok) {
+    const error = new Error(`MCP HTTP ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
   const payload = await response.json();
   if (payload.error) {
     const error = new Error(payload.error.message || 'Erreur MCP');
@@ -42,11 +46,16 @@ async function initialize() {
   })).result;
 }
 
-function setStatus(ok, label) {
+function setStatus(ok, label, state = ok ? 'ok' : 'error') {
   const node = $('#mcp-server-status');
-  node.dataset.state = ok ? 'ok' : 'error';
-  node.querySelector('.status-mark').textContent = ok ? '●' : '×';
+  node.dataset.state = state;
+  node.querySelector('.status-mark').textContent = state === 'ok' ? '●' : state === 'off' ? '○' : '×';
   $('#mcp-server-status-label').textContent = label;
+}
+
+function showDisabled(disabled) {
+  $('#mcp-server-disabled').hidden = !disabled;
+  $('#mcp-server-body').hidden = disabled;
 }
 
 function card(item, kind) {
@@ -276,6 +285,7 @@ function openSessionDetails(item, updateUrl = true) {
 export async function view() {
   try {
     const init = await initialize();
+    showDisabled(false);
     const [tools, resources, templates, prompts] = await Promise.all([
       rpc('tools/list'), rpc('resources/list'), rpc('resources/templates/list'), rpc('prompts/list'),
     ]);
@@ -351,6 +361,13 @@ export async function view() {
     renderCatalog();
     playgroundTargets();
   } catch (error) {
+    // La route n'existe que sous `kex.mcp.server.enabled` : 404 veut dire « éteint », pas « en panne ».
+    if (error.status === 404) {
+      setStatus(false, 'Désactivé', 'off');
+      showDisabled(true);
+      return;
+    }
+    showDisabled(false);
     setStatus(false, 'Indisponible');
     report(error);
   }

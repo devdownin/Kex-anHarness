@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Kex Agent AI Contributors
-import { $, ago, api, el, empty, errorState, onCredentialChange, stamp } from './core.js';
+import { $, ago, api, el, empty, errorState, onCredentialChange, stamp, stateTag } from './core.js';
 
 const BASE = '/api/agent/forecasts';
 let selection = '';
@@ -161,8 +161,16 @@ export async function dashboard() {
   } catch (error) { if (ticket === dashboardGeneration) host.replaceChildren(errorState(error, dashboard)); }
 }
 
+// Les motifs de l'agent nomment la connexion en cause entre guillemets français : c'est elle que
+// la page Intégrations doit ouvrir, plutôt que de laisser chercher une « page MCP » qui n'existe pas.
+export function integrationsLink(reason) {
+  const connection = /« ([^»]+?) »/.exec(reason || '')?.[1];
+  if (!connection) return null;
+  return { label: `Ouvrir ${connection} dans Intégrations`, href: `#/integrations?q=${encodeURIComponent(connection)}` };
+}
+
 function note(read) {
-  if (read?.unavailable) return empty('Lecture indisponible.', read.unavailable);
+  if (read?.unavailable) return empty('Lecture indisponible.', read.unavailable, integrationsLink(read.unavailable));
   if (!read || read.truncated || read.coverage?.complete !== true) {
     return empty('Lecture incomplète.', 'La couverture de cette réponse ne permet pas de conclure.');
   }
@@ -366,6 +374,17 @@ function details(data, metric, breaches, resources) {
   return wrap;
 }
 
+// Les contrôles arrivent sous leurs identifiants techniques (`visible-series`, `READY`) : lisibles
+// pour l'agent, pas pour la personne qui doit savoir quoi corriger. L'identifiant reste en infobulle.
+const CHECK_STATES = {
+  READY: ['OK', 'Prêt'], BLOCKED: ['ERROR', 'Bloqué'], MISSING: ['ERROR', 'Absent'], NOT_CHECKED: ['UNKNOWN', 'Non vérifié'],
+};
+function checkName(id) {
+  if (id === 'connection') return 'Connexion à KafkaExplorer';
+  if (id === 'visible-series') return 'Séries autorisées visibles';
+  return `Outil ${id}`;
+}
+
 export async function diagnoseReadiness() {
   readinessRequest?.abort();
   const controller = new AbortController(); readinessRequest = controller;
@@ -379,14 +398,23 @@ export async function diagnoseReadiness() {
     if (!Array.isArray(data.checks) || !numeric(data.checkedAt)) throw new Error('Diagnostic invalide');
     const panel = section(data.ready ? 'Préparation MCP vérifiée' : 'Préparation MCP bloquée');
     panel.append(el('p', 'hint', `Connexion : ${data.connection} · vérifié le ${time(data.checkedAt)}`));
-    const list = el('ul');
+    const list = el('ul', 'readiness-checks');
     for (const check of data.checks) {
       const item = el('li');
-      item.append(el('strong', null, `${check.id} · ${check.state} : `), el('span', null, check.detail));
+      const [state, label] = CHECK_STATES[check.state] || ['UNKNOWN', check.state];
+      const tag = stateTag(state, label); tag.title = check.state;
+      const name = el('strong', null, checkName(check.id)); name.title = check.id;
+      item.append(tag, name, el('span', null, check.detail));
       if (check.action) item.append(el('p', 'hint', check.action));
       list.append(item);
     }
-    panel.append(list); host.replaceChildren(panel);
+    panel.append(list);
+    if (data.checks.some((check) => check.id === 'connection' && check.state !== 'READY')) {
+      const link = el('a', 'ghost', `Ouvrir ${data.connection} dans Intégrations`);
+      link.href = `#/integrations?q=${encodeURIComponent(data.connection)}`;
+      panel.append(link);
+    }
+    host.replaceChildren(panel);
   } catch (error) {
     if (controller === readinessRequest && active) host.replaceChildren(errorState(error, diagnoseReadiness));
   } finally {
@@ -408,7 +436,13 @@ export async function view() {
     if (ticket !== generation) return;
     completed = true;
     const problem = note(catalog);
-    if (problem) { host.replaceChildren(problem); return; }
+    if (problem) {
+      host.replaceChildren(problem);
+      // Une lecture impossible appelle le diagnostic : sans lui, la page s'arrêtait sur une phrase
+      // et laissait chercher le bouton qui dit lequel des contrôles bloque.
+      if (catalog?.unavailable && !$('#forecast-readiness')?.childElementCount) diagnoseReadiness();
+      return;
+    }
     if (!Array.isArray(catalog.data) || !catalog.data.length) {
       host.replaceChildren(empty('Aucune métrique autorisée.', 'Enrôlez les séries et leurs sources dans KafkaExplorer, puis autorisez les cinq outils sur la connexion MCP.')); return;
     }

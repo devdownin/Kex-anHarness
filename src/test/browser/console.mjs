@@ -856,12 +856,18 @@ await check('la mise à jour de politique montre un diff avant/après, pas seule
   await page.check(`input[name="mode"][value="${other}"]`);
   await page.click('#agent-form button[type=submit]');
   await page.waitForSelector('#confirm[open]');
-  const body = await page.$eval('#confirm-body', (node) => node.textContent);
-  assert.match(body, /→/, 'le diff doit montrer un avant → après, pas seulement le nouvel état');
-  assert.ok(body.includes(before) && body.includes(other),
-    `attendu ${before} et ${other} dans le diff, vu : ${body}`);
-  // Annulé : ce cas ne doit pas laisser la politique du reste de la suite dans un état différent.
-  await page.click('#confirm button[value=cancel]');
+  try {
+    const body = await page.$eval('#confirm-body', (node) => node.textContent);
+    assert.match(body, /→/, 'le diff doit montrer un avant → après, pas seulement le nouvel état');
+    // Le diff parle la langue de l'écran, pas celle de l'énumération Java.
+    const labels = { AUTOMATIC: 'Automatique', SUPERVISED: 'Supervisé', MANUAL: 'Manuel' };
+    assert.ok(body.includes(`${labels[before]} → ${labels[other]}`),
+      `attendu ${labels[before]} → ${labels[other]} dans le diff, vu : ${body}`);
+  } finally {
+    // Annulé même en échec : un dialogue resté ouvert bloquait tous les cas suivants de la suite,
+    // et la politique ne doit pas rester dans un état différent pour eux.
+    await page.click('#confirm button[value=cancel]');
+  }
 });
 
 await check('un échange retrouvé dans l’historique se réaffiche sans rejouer l’appel au modèle',

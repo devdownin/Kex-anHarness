@@ -42,6 +42,12 @@ const CAPABILITIES = {
   MODIFY_CONFIGURATION: 'Modifier une configuration',
 };
 
+const MODES = {
+  AUTOMATIC: 'Automatique',
+  SUPERVISED: 'Supervisé',
+  MANUAL: 'Manuel',
+};
+
 const AUTONOMY = {
   AUTOMATIC: 'Automatique',
   SUPERVISED: 'Validation humaine',
@@ -106,7 +112,6 @@ let snapshot = null;
 let previousCycle = null;
 let comparedCycle = null;
 let animateCycleChanges = false;
-let lastHeroState = null;
 const watchers = new Set();
 
 export const onSnapshot = (watcher) => watchers.add(watcher);
@@ -608,26 +613,18 @@ function processAttentionCard(process) {
 }
 
 function renderOverviewHero(data) {
-  const agent = agentState(data.agent?.state);
   const total = data.processesMonitored || 0;
   const healthy = data.processesOk || 0;
   const attention = (data.processesWarning || 0) + (data.processesError || 0);
-  const summary = total
-    ? `${healthy} processus opérationnel${healthy === 1 ? '' : 's'} sur ${total}`
-      + (attention ? ` · ${attention} nécessite${attention > 1 ? 'nt' : ''} votre attention` : ' · aucune intervention requise')
-    : 'Aucun processus n’est encore déclaré pour la supervision.';
+  // Avant toute analyse, « 0 opérationnel sur 1 · aucune intervention requise » affirmait qu'il n'y
+  // avait rien à faire au sujet de processus dont on ne sait encore rien.
+  const summary = !total
+    ? 'Aucun processus n’est encore déclaré pour la supervision.'
+    : !data.agent?.lastCycleAt
+      ? `${total} processus déclaré${total === 1 ? '' : 's'} · pas encore analysé${total === 1 ? '' : 's'}`
+      : `${healthy} processus opérationnel${healthy === 1 ? '' : 's'} sur ${total}`
+        + (attention ? ` · ${attention} nécessite${attention > 1 ? 'nt' : ''} votre attention` : ' · aucune intervention requise');
   $('#overview-summary').textContent = summary;
-  const health = $('#overview-health');
-  health.dataset.state = agent.tag;
-  health.querySelector('.hero-health-mark').textContent = agent.mark;
-  $('#overview-health-label').textContent = agent.label;
-  if (lastHeroState && lastHeroState !== agent.tag) {
-    health.classList.remove('just-changed');
-    // Relancer l'animation seulement après un changement d'état mesuré.
-    void health.offsetWidth;
-    health.classList.add('just-changed');
-  }
-  lastHeroState = agent.tag;
   const running = Boolean(data.agent?.analysing);
   $('#overview-cycle').classList.toggle('is-running', running);
   $('#overview-cycle-label').textContent = running ? 'Analyse en cours'
@@ -1794,7 +1791,9 @@ function perfGroup(title, rows) {
 function agentSummary(status) {
   const wrap = el('div', 'summary');
   wrap.append(definition('État', stateTag(agentState(status.state).tag, agentState(status.state).label)));
-  wrap.append(definition('Mode', el('span', null, status.mode)));
+  const mode = el('span', null, MODES[status.mode] || status.mode);
+  mode.title = status.mode;
+  wrap.append(definition('Mode', mode));
   wrap.append(definition('Politique', el('span', null, status.policyVersion)));
   wrap.append(definition('Dernier cycle', el('span', null, stamp(status.lastCycleAt))));
   wrap.append(definition('Disjoncteurs', circuitBreakersValue(status.circuitBreakers)));
@@ -2255,7 +2254,7 @@ export function wire() {
 function policyDiff(before, after) {
   if (!before) return [];
   const lines = [];
-  if (before.mode !== after.mode) lines.push(['Mode', `${before.mode} → ${after.mode}`]);
+  if (before.mode !== after.mode) lines.push(['Mode', `${MODES[before.mode] || before.mode} → ${MODES[after.mode] || after.mode}`]);
   if (Math.round(before.confidenceThreshold * 100) !== Math.round(after.confidenceThreshold * 100)) {
     lines.push(['Plancher global',
       `${Math.round(before.confidenceThreshold * 100)} % → ${Math.round(after.confidenceThreshold * 100)} %`]);

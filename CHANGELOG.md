@@ -7,6 +7,34 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
 
 ### Corrigé
 
+- Console, premier démarrage : la mise en route passe en tête de la Vue d'ensemble (desktop et
+  mobile), compte une connexion MCP comme faite seulement si elle est **joignable**, ajoute la clé
+  du modèle, et dit pour chaque étape ce qui manque. « Exécuter maintenant » est désactivé tant
+  qu'un cycle ne peut pas aboutir (pas de clé, aucun serveur MCP joignable, aucun processus), avec
+  la raison en infobulle et au clic depuis la palette de commandes.
+- Les messages « lecture indisponible » renvoyaient à une « page MCP » inexistante : ils nomment
+  Intégrations et portent un lien direct vers la fiche de la connexion en cause.
+- Mise en page : « Replier » ne déborde plus du rail, la zone de saisie de la conversation reste
+  visible, l'en-tête mobile tient sur deux lignes sans perdre l'état de l'agent, la navigation
+  basse montre l'entrée courante et signale qu'elle défile. `src/test/browser/first-run.mjs`
+  verrouille chacun de ces points.
+- Vocabulaire : les disjoncteurs se lisent « Normal », « Coupé après trop d'échecs », « En test
+  après coupure » au lieu de `CLOSED`/`OPEN`/`HALF_OPEN` — `OPEN` se lisait « disponible ». Le mode
+  d'exécution s'affiche « Supervisé », y compris dans le diff de politique ; un serveur MCP jamais
+  contacté dit « Jamais joint » plutôt que « Pas de handshake ». La valeur brute reste en infobulle.
+- Prévisions : quand la lecture est indisponible, le diagnostic s'ouvre seul et liste ses contrôles
+  en clair (« Connexion à KafkaExplorer · Bloqué »), avec un lien vers la connexion ; la mise en
+  garde sur les quantiles quitte le bandeau orange pour suivre les résultats.
+- Vue d'ensemble : l'état de l'agent n'est plus répété dans le bandeau d'accueil (la pastille de
+  l'en-tête le porte), et le résumé ne dit plus « aucune intervention requise » avant le premier
+  cycle — il dit « pas encore analysé ».
+- Serveur MCP Kex éteint (le défaut) : la page dit « Désactivé » et la variable à poser, au lieu
+  d'une pastille « Indisponible », de six compteurs vides et d'un toast rouge « MCP HTTP 404 ».
+- Mise en route : « Déclarer les processus surveillés » ouvre l'assistant guidé
+  (`#/chat?creation=process`), et non plus la page Configuration où aucun processus ne se déclare.
+- Libellés : « Attention » au lieu de « Warning » (filtres et pastilles), « Essais » au lieu de
+  « Playground » ; la santé de l'instance se lit « En service · sondes : vivacité, disponibilité »,
+  la réponse brute d'Actuator restant dépliable.
 - Pile prévisions, étape démo : `POST /api/metrics` de KafkaExplorer répond `200` sans corps, et
   `scripts/forecast-stack.py` décodait toute réponse en JSON — la démo s'interrompait juste après
   avoir créé sa métrique, sur un « Diagnostic interrompu » sans cause. Une réponse vide vaut
