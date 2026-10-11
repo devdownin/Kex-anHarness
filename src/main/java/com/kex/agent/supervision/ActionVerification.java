@@ -63,9 +63,11 @@ final class ActionVerification {
                 }
             }
             // An explicitly incomplete diagnostic cannot establish success even if a field matches.
+            // KafkaExplorer ne sérialise pas `complete` (méthode de son record Coverage) : seul
+            // `EXHAUSTED` l'établit, et un drapeau présent doit valoir `true`.
             JsonNode coverage = evidence.path("coverage");
             if (!coverage.isMissingNode() && (!coverage.isObject()
-                    || !coverage.path("complete").isBoolean() || !coverage.path("complete").booleanValue()
+                    || (coverage.has("complete") && !coverage.path("complete").booleanValue())
                     || !"EXHAUSTED".equals(coverage.path("stopReason").asText())
                     || (!coverage.path("topicsNotReached").isMissingNode()
                         && (!coverage.path("topicsNotReached").isArray()

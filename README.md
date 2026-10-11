@@ -263,6 +263,24 @@ expire after 30 minutes of inactivity by default.
 Set `KEX_MCP_STORAGE_KEY` to encrypt and retain these connections; for stdio, explicitly allow
 executables with `KEX_MCP_STDIO_ALLOWED_COMMANDS=npx,uvx`.
 
+### Worked example: a second server, SpectraLLM
+
+[SpectraLLM](https://github.com/devdownin/SpectraLLM) (0.10.0+) serves a read-only MCP server over
+its indexed document corpus (`spectra_search`, `spectra_ask`, …). Pointing the agent at it as well
+as at Kafka SQL Explorer lets one question cross both: trace a record through the cluster with
+`kex_*`, then look up the runbook that explains it with `spectra_*`.
+
+```bash
+SPECTRALLM_URL=http://host.docker.internal:8082 SPECTRA_API_KEY=… \
+  docker compose -f docker-compose.yml -f compose/spectrallm.yml up -d
+```
+
+Two things this example teaches about any server: the credential is not always a bearer token
+(SpectraLLM reads `X-API-Key`, hence `header: X-API-Key` on its `kex.mcp.bearer-tokens` entry),
+and a connection is added by the overlay rather than by default, because a declared server that is
+not running would make the agent report it as down. Details in
+[`docs/MCP.md`](docs/MCP.md#spectrallm).
+
 ## 🔭 API
 
 | Method | Route | What it does |

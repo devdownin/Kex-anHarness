@@ -56,7 +56,7 @@ class TaskServiceTest {
     }
     private McpToolResult observed(boolean healthy) {
         return new McpToolResult("mcp", "read", false, List.of(), Map.of("healthy", healthy,
-                "measured", true, "observedAt", now.toString(), "coverage", Map.of("complete", true, "stopReason", "EXHAUSTED")));
+                "measured", true, "observedAt", now.toString(), "coverage", Map.of("stopReason", "EXHAUSTED", "topicsNotReached", List.of())));
     }
     private DurableTask approved(TaskService service, String binding, TaskPlan.Expectation expectation) {
         var draft = service.create("team", "operator", plan(binding, expectation));

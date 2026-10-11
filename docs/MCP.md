@@ -157,6 +157,20 @@ connexion comme celle de Kafka Explorer ci-dessus, avec la clé `spectrallm`.
 Les deux piles publient le port 8081 sur l'hôte (l'agent ici, l'API Spectra là-bas) : sur une
 même machine, déplacer l'un des deux, par exemple `SPECTRA_API_PORT=8082` côté Kafka Explorer.
 
+Pour vérifier, dans l'ordre où les choses peuvent casser :
+
+1. **SpectraLLM sert-il `/mcp` ?** Depuis le dépôt Kafka Explorer,
+   `docker compose -f compose/spectra-hub.yml -f compose/spectra-hub.mcp.yml --profile probe run --rm spectra-mcp-probe`
+   ouvre une session et liste les cinq outils. Un `404` y signifie une image antérieure à 0.10.0.
+2. **L'agent le voit-il ?** `GET /api/agent/mcp/servers` doit lister une connexion `spectrallm`
+   avec `initialized: true` et les outils `spectra_*`. Absente : la surcouche n'est pas appliquée.
+   Présente mais vide : l'URL n'est pas joignable depuis le conteneur de l'agent
+   (`host.docker.internal` désigne l'hôte, pas un autre conteneur).
+3. **Un `401` côté SpectraLLM** : la clé envoyée diffère de la sienne, ou `SPECTRALLM_URL` ne
+   correspond pas au préfixe de l'URL réellement appelée — la clé n'est posée que sur les
+   requêtes dont l'origine et le chemin commencent par ce préfixe, pour ne jamais fuiter vers un
+   autre serveur.
+
 ### Administrer les serveurs depuis la console
 
 La vue **Technique → Serveurs MCP** ajoute des connexions sans redémarrer. L'assistant teste le
@@ -310,6 +324,89 @@ sequenceDiagram
 
 `tools/list` est rejoué à chaque requête : un serveur qui publie un nouvel outil est pris en compte
 sans redémarrer l'agent.
+
+### Interroger un serveur à la main : la session d'abord
+
+Le diagramme ci-dessus n'est pas une formalité : en streamable-HTTP, `initialize` **ouvre une
+session**. Le serveur répond avec un en-tête `Mcp-Session-Id`, et toute requête suivante doit le
+renvoyer. Une requête `tools/list` envoyée d'emblée, sans cet en-tête, est refusée en
+**`400 Bad Request`** — pas en `401`, et pas avec une liste vide. Le client Spring AI de l'agent
+fait ces trois pas tout seul ; un `curl` ou un script de diagnostic doit les faire lui-même.
+
+```bash
+URL=http://localhost:8080/mcp
+H=(-H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream'
+   -H "Authorization: Bearer $EXPLORER_MCP_AUTH_TOKEN")
+
+# 1. Ouvrir la session et récupérer son identifiant dans les en-têtes de réponse
+SESSION=$(curl -s -D - -o /dev/null "${H[@]}" "$URL" -d '{"jsonrpc":"2.0","id":0,"method":"initialize",
+  "params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"1"}}}' \
+  | awk -F': ' 'tolower($1)=="mcp-session-id"{print $2}' | tr -d '\r')
+
+# 2. Confirmer l'initialisation (notification : pas d'id, réponse 202 sans corps)
+curl -s "${H[@]}" -H "Mcp-Session-Id: $SESSION" "$URL" -d '{"jsonrpc":"2.0","method":"notifications/initialized"}'
+
+# 3. Enfin, la vraie question
+curl -s "${H[@]}" -H "Mcp-Session-Id: $SESSION" "$URL" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+Lire les codes de retour dans cet ordre évite de chercher au mauvais endroit :
+
+| Réponse | Ce qu'elle veut dire |
+|---|---|
+| `401` | Le jeton manque ou est faux — le filtre d'authentification passe **avant** le transport |
+| `426` | Le serveur exige TLS (`EXPLORER_MCP_REQUIRETLS`) et la requête est en clair |
+| `400` | Authentification acceptée, mais requête hors session : `initialize` n'a pas été fait, ou son `Mcp-Session-Id` n'a pas été renvoyé |
+| `404` | Rien n'est servi sur ce chemin : mauvaise URL, ou serveur MCP éteint |
+
+`scripts/forecast-stack.py` suit exactement cette séquence ; il envoyait autrefois `tools/list`
+directement, et le diagnostic de la pile prévisions affichait `HTTP 400` sur une pile pourtant
+saine.
+
+## Lire l'enveloppe `coverage` de Kafka SQL Explorer
+
+Chaque outil de Kafka SQL Explorer répond avec la même enveloppe :
+
+```json
+{
+  "data": [ ... ],
+  "coverage": {
+    "topicsRequested": 3, "topicsScanned": 3, "topicsNotReached": [],
+    "recordsScanned": 1200, "elapsedMs": 84,
+    "stopReason": "EXHAUSTED",
+    "windowStart": null, "windowEnd": null, "resumeToken": null
+  },
+  "warnings": [],
+  "truncated": false
+}
+```
+
+Elle répond à une question qu'une liste seule ne peut pas trancher : **une réponse vide veut-elle
+dire « rien n'existe » ou « rien dans ce que j'ai regardé » ?** Le champ qui décide est
+`stopReason` :
+
+| `stopReason` | Le relevé… | Un résultat vide prouve… |
+|---|---|---|
+| `EXHAUSTED` | a lu tout ce qu'il devait lire | une absence |
+| `TIME_BUDGET`, `TOPIC_LIMIT`, `RECORD_LIMIT`, `CANCELLED` | s'est arrêté avant la fin | rien : le manque est peut-être dans la part non lue (`topicsNotReached` la nomme) |
+
+**Piège : il n'y a pas de champ `complete` sur le fil.** Côté Explorer, `complete()` est une
+*méthode* du record Java `Coverage` (elle vaut `stopReason == EXHAUSTED`), pas un composant du
+record ; Jackson ne la sérialise donc pas. Un client qui exige un booléen `coverage.complete`
+refuse toutes les réponses réelles — c'est arrivé à trois endroits de l'agent, qui jugeaient
+chaque réponse « enveloppe invalide » ou « preuve incomplète ». La règle appliquée désormais :
+
+1. `stopReason` doit valoir `EXHAUSTED` — c'est lui qui établit la complétude ;
+2. si un champ `complete` est présent (un autre serveur, ou une enveloppe écrite par le modèle), il
+   doit valoir le booléen `true` : il peut retirer la complétude, jamais l'accorder seul ;
+3. `topicsNotReached` / `notReached`, s'ils sont présents, doivent être des listes vides.
+
+Elle s'applique aux lectures de prévisions (`ForecastViewService`), à la vérification d'une action
+([ACTION-VERIFICATION.md](ACTION-VERIFICATION.md)) et aux postconditions des tâches durables
+([DURABLE-TASKS.md](DURABLE-TASKS.md)). L'analyse du cycle de supervision lit, elle, l'enveloppe
+que le **modèle** rend : son schéma impose `complete`, et la règle « drapeau **et** `EXHAUSTED` »
+y reste — voir « Un relevé partiel prouve une présence, jamais une absence » dans
+[ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Exposer Kex comme serveur MCP
 

@@ -97,8 +97,12 @@ les dépendances et les postconditions configurées.
 - `CANCELLED` : arrêt des étapes suivantes ; aucun effet déjà lancé n'est annulé.
 
 Les postconditions utilisent un objet `structuredContent`, un pointeur JSON et une valeur
-scalaire, sans jugement LLM. Une enveloppe `coverage` présente doit annoncer `complete:true`,
-`stopReason:EXHAUSTED` et aucune ressource non atteinte. Une preuve manquante n'est pas un échec
+scalaire, sans jugement LLM. Une enveloppe `coverage` présente doit annoncer
+`stopReason:EXHAUSTED` et aucune ressource non atteinte ; un champ `complete`, s'il existe, doit
+valoir `true` — Kafka SQL Explorer ne l'émet pas, et c'est `stopReason` qui fait foi (voir
+[Lire l'enveloppe `coverage`](MCP.md#lire-lenveloppe-coverage-de-kafka-sql-explorer)). Une
+couverture partielle rend le résultat indéterminé — `PAUSED` après une lecture,
+`NEEDS_RECONCILIATION` après une mutation — plutôt que `VERIFIED` ou `FAILED`. Une preuve manquante n'est pas un échec
 métier mesuré. Pour une action, la preuve doit être datée après son acceptation et avant l'heure
 courante ; un drapeau de mesure peut être exigé. Cette vérification constate l'état obtenu,
 elle ne démontre pas à elle seule la causalité de l'action.

@@ -181,7 +181,7 @@ exigeraient une clé, et un `EmbeddingModel` apparu sans qu'on le demande satisf
 base de connaissance, qui doit rester un choix explicite. `LlmProviderTest` verrouille les deux
 comportements plutôt que la documentation seule.
 
-Ce que la bascule coûte est dit dans [CONFIGURATION.md](CONFIGURATION.md#choisir-le-fournisseur-de-modele) :
+Ce que la bascule coûte est dit dans [CONFIGURATION.md](CONFIGURATION.md#choisir-le-fournisseur-de-modèle) :
 une passerelle hébergée voit passer les prompts et les résultats d'outils, l'appel d'outils — dont
 cet agent ne peut pas se passer — dépend du modèle choisi, et la sortie structurée du cycle de
 supervision aussi.
@@ -955,6 +955,25 @@ Côté lecture, `CycleAnalysis.concluded` applique l'asymétrie qui compte :
 
 Un `complete: true` sans `stopReason: EXHAUSTED` n'est pas retenu : le drapeau est une opinion du
 modèle, le motif d'arrêt est ce que l'outil a réellement rendu.
+
+Deux enveloppes portent le même nom et ne se lisent pas pareil, et les confondre a coûté cher :
+
+- **l'enveloppe rendue par le modèle** dans son analyse de cycle : son schéma impose `complete`,
+  et il faut le drapeau **et** `EXHAUSTED` — le drapeau seul est une affirmation invérifiable ;
+- **l'enveloppe rendue par un outil** de Kafka SQL Explorer : elle ne contient **pas** de champ
+  `complete`. Côté Explorer, `complete()` est une méthode du record Java `Coverage`, pas un de ses
+  composants, et Jackson ne sérialise que les composants. Seul `stopReason` part sur le fil.
+
+Trois lecteurs d'enveloppes d'outil — les prévisions (`ForecastViewService`), la vérification
+d'action (`ActionVerification`) et les postconditions de tâches (`TaskService`) — exigeaient
+pourtant ce booléen. Le résultat n'était pas une erreur bruyante mais une prudence universelle :
+chaque réponse réelle était « enveloppe invalide » ou « preuve incomplète », aucune action ne
+pouvait jamais être confirmée par une mesure de l'Explorer, et les tests passaient parce que leurs
+fixtures avaient été écrites avec le champ imaginaire. Ces lecteurs déduisent désormais la
+complétude de `stopReason == EXHAUSTED` ; un `complete` présent doit valoir `true`, ce qui garde
+la porte fermée aux serveurs qui l'émettent à `false`. Leçon : une fixture de test se recopie
+depuis une réponse réelle du serveur, pas depuis l'idée qu'on s'en fait. Le détail du contrat est
+dans [MCP.md](MCP.md#lire-lenveloppe-coverage-de-kafka-sql-explorer).
 
 Comme un relevé partiel donne `UNKNOWN`, il fait basculer l'agent en `DEGRADED` par le chemin qui
 existait déjà — un processus dont on ne sait rien ne ressemble pas à un processus sain.

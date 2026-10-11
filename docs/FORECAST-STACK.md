@@ -77,11 +77,64 @@ métrique, mais ne valide pas les sources et ne fabrique pas d'historique.
 
 Le démarrage indique quatre étapes : validation, construction, démarrage/préchargement,
 puis vérification des services et de MCP. Compose affiche le téléchargement du modèle.
-Le diagnostic vérifie les conteneurs, PostgreSQL avec authentification, TimesFM prêt,
-le refus MCP sans token, les cinq outils MCP et la connexion de l'agent. Il retourne
-un code non nul pour une panne. Un catalogue vide est signalé « À CONFIGURER » :
-l'infrastructure peut être saine sans prévision disponible. Aucun secret n'est affiché.
-Les ports personnalisés sont lus dans la configuration Compose effective.
+
+## Lire le diagnostic
+
+`bin/forecast-diagnose.sh` (et l'attente de `bin/forecast-stack.sh`, qui le rejoue toutes les
+cinq secondes) contrôle la pile **de bas en haut** : chaque ligne suppose que les précédentes
+tiennent. Lire donc de haut en bas et corriger le **premier** `BLOQUÉ` — les suivants en sont
+souvent la conséquence. Une pile saine, avant toute approbation, ressemble à ceci :
+
+```text
+OK · kafka · healthy
+OK · forecast-postgres · healthy
+OK · forecast-model-prefetch · exited
+OK · timesfm · healthy
+OK · explorer · healthy
+OK · agent · healthy
+OK · PostgreSQL
+OK · TimesFM prêt
+OK · Authentification et cinq outils MCP
+OK · Connexion MCP de l’agent
+À CONFIGURER · Séries autorisées · ouvrir Metrics Forecast, approuver et exporter les sources.
+```
+
+| Ligne | Ce qui est réellement vérifié |
+|---|---|
+| `kafka` … `agent` | L'état Compose de chaque conteneur ; `forecast-model-prefetch` doit être **terminé** avec le code 0 (il ne sert qu'à télécharger le modèle) |
+| `PostgreSQL` | Une vraie requête `SELECT 1` authentifiée, pas seulement le port ouvert |
+| `TimesFM prêt` | `/health/ready` depuis l'intérieur du conteneur : le modèle est chargé, pas seulement le processus lancé |
+| `Authentification et cinq outils MCP` | Deux preuves sur `/mcp` de l'Explorer : sans jeton il **refuse** (`401`), avec le jeton il ouvre une session MCP (`initialize`) puis annonce les cinq outils de prévision |
+| `Connexion MCP de l’agent` | Le point de vue de l'agent (`/api/agent/forecasts/readiness`) : il joint l'Explorer, voit les cinq outils, a le droit de les appeler et lit un catalogue **complet** |
+| `Séries autorisées` | Combien de séries approuvées l'agent voit. `À CONFIGURER` n'est pas une panne : l'infrastructure est saine, il reste à approuver des sources |
+
+Le code de retour est non nul dès qu'une ligne est `BLOQUÉ` ; `À CONFIGURER` ne le rend pas non
+nul. Aucun secret n'est affiché, et les ports personnalisés sont lus dans la configuration Compose
+effective.
+
+### Quand une ligne est bloquée
+
+| Symptôme | Cause probable | Que faire |
+|---|---|---|
+| Un service `BLOQUÉ · … · starting` qui dure | Démarrage encore en cours (le premier téléchargement du modèle est long) | Attendre ; suivre `docker compose … logs -f timesfm` |
+| `forecast-model-prefetch` en échec | Pas d'accès Internet, disque plein, empreinte du modèle refusée | Lire ses logs ; libérer de l'espace ; relancer |
+| `HTTP 426` sur la ligne MCP | L'Explorer exige TLS alors que la pile parle HTTP | Vérifier `EXPLORER_MCP_REQUIRETLS=false` (voir les noms de variables plus bas) |
+| `HTTP 401` sur la ligne MCP | Le jeton envoyé n'est pas celui de l'Explorer | Les deux services doivent lire le même `EXPLORER_MCP_AUTH_TOKEN` de `.forecast-stack/.env` |
+| `HTTP 400` sur la ligne MCP | Requête MCP hors session | Ne doit plus arriver avec le script actuel ; un appel fait à la main doit commencer par `initialize` (voir [MCP.md](MCP.md#interroger-un-serveur-à-la-main--la-session-dabord)) |
+| `Forecast MCP tool catalogue incomplete` | L'Explorer construit n'expose pas les cinq outils | Vérifier la révision épinglée et `EXPLORER_FORECASTING_PILOT_ENABLED=true` |
+| `BLOQUÉ · Connexion MCP de l’agent` | Voir la ou les lignes indentées qui suivent : elles nomment le contrôle en échec (`connection`, un outil, `visible-series`) et le motif | Traiter le contrôle nommé ; `Découverte MCP indisponible` renvoie à l'URL et au jeton, un outil `BLOCKED` à la politique d'outils de l'agent |
+
+Un exemple de ligne détaillée, et ce qu'il faut en lire :
+
+```text
+BLOQUÉ · Connexion MCP de l’agent · vérifier les permissions et le token.
+  visible-series · BLOCKED · kex_list_forecastable_metrics : enveloppe de couverture invalide
+```
+
+L'agent joint l'Explorer et voit les outils (sinon `connection` serait la ligne en échec) ; c'est
+la **lecture** du catalogue qu'il refuse. C'est ce que produisait l'agent tant qu'il exigeait un
+champ `coverage.complete` que l'Explorer n'émet pas — expliqué dans
+[Lire l'enveloppe `coverage`](MCP.md#lire-lenveloppe-coverage-de-kafka-sql-explorer).
 
 La page **Prévisions** de l'agent présente un parcours dépliable « Créer ma première
 prévision ». La progression réelle des 512 points reste visible dans Metrics Forecast

@@ -16,6 +16,21 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
   n'émet pas (c'est une méthode de son record `Coverage`, seul `stopReason` est sérialisé). Toute
   réponse réelle était refusée comme « enveloppe de couverture invalide » ; la complétude se
   déduit désormais de `stopReason == EXHAUSTED`.
+- Vérification des actions (`ActionVerification`) et des tâches durables (`TaskService`) : même
+  défaut, une preuve de KafkaExplorer n'était jamais jugée complète faute de `coverage.complete`,
+  si bien qu'aucune postcondition mesurée par lui ne pouvait confirmer une action ou une tâche.
+  `EXHAUSTED` suffit désormais ; un `complete` présent doit valoir `true`.
+
+### Documentation
+
+- `docs/MCP.md` : interroger un serveur MCP à la main (la session d'abord, et ce que disent
+  `401`/`426`/`400`/`404`), lire l'enveloppe `coverage` de Kafka SQL Explorer, vérifier pas à pas
+  la connexion SpectraLLM.
+- `docs/FORECAST-STACK.md` : lire le diagnostic ligne par ligne, et que faire quand l'une est
+  bloquée.
+- `docs/ACTION-VERIFICATION.md`, `docs/DURABLE-TASKS.md` : la règle de complétude réelle, sans
+  `complete` obligatoire ; `docs/ARCHITECTURE.md` : enveloppe d'outil contre enveloppe du modèle.
+- `README.md` / `README.fr.md` : SpectraLLM en exemple complet de second serveur MCP.
 
 ### Ajouté
 

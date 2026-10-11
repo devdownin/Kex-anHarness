@@ -271,7 +271,9 @@ public class TaskService {
         if (!node.isObject()) return null;
         JsonNode coverage = node.path("coverage");
         if (!coverage.isMissingNode()) {
-            if (!coverage.isObject() || !coverage.path("complete").isBoolean() || !coverage.path("complete").asBoolean()
+            // KafkaExplorer ne sérialise pas `complete` (méthode de son record Coverage) : seul
+            // `EXHAUSTED` l'établit, et un drapeau présent doit valoir `true`.
+            if (!coverage.isObject() || (coverage.has("complete") && !coverage.path("complete").booleanValue())
                     || !"EXHAUSTED".equals(coverage.path("stopReason").asText())) return null;
             for (String field : List.of("topicsNotReached", "notReached")) {
                 JsonNode missed = coverage.path(field);

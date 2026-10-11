@@ -944,8 +944,8 @@ class SupervisionServiceTest {
     void confirme_l_objectif_uniquement_apres_une_mesure_independante() {
         SupervisionService service = verificationService();
         verificationReturns(Map.of("healthy", true, "measured", true, "observedAt", clock.instant().toString(),
-                "coverage", Map.of("complete", true, "stopReason", "EXHAUSTED",
-                        "topicsNotReached", List.of(), "notReached", List.of())));
+                // L'enveloppe telle que KafkaExplorer la sérialise : sans `complete`.
+                "coverage", Map.of("stopReason", "EXHAUSTED", "topicsNotReached", List.of())));
 
         service.runCycle("test");
 
@@ -1069,9 +1069,7 @@ class SupervisionServiceTest {
                 Map.of("healthy", true, "measured", true, "observedAt", clock.instant().toString(),
                         "coverage", Map.of("complete", "true", "stopReason", "EXHAUSTED")),
                 Map.of("healthy", true, "measured", true, "observedAt", clock.instant().toString(),
-                        "coverage", Map.of("complete", true, "stopReason", "EXHAUSTED", "notReached", "orders")),
-                Map.of("healthy", true, "measured", true, "observedAt", clock.instant().toString(),
-                        "coverage", Map.of("stopReason", "EXHAUSTED")));
+                        "coverage", Map.of("complete", true, "stopReason", "EXHAUSTED", "notReached", "orders")));
         for (Map<String, Object> evidence : invalidEvidence) {
             SupervisionService service = verificationService();
             verificationReturns(evidence);

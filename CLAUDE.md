@@ -394,4 +394,17 @@ JDK 25 requis. La CI construit aussi l'image Docker et monte la stack de fumée.
   soumission, jamais à l'affichage. `[a-zA-Z0-9._\-]` (tiret échappé) compile sous les deux modes,
   sans changer ce que la classe matche.
 
+- **Un appel MCP fait à la main commence par `initialize`.** En streamable-HTTP, toute requête
+  hors `initialize` sans l'en-tête `Mcp-Session-Id` que celui-ci renvoie est refusée en `400` —
+  pas en `401`. Le client Spring AI le fait seul ; un script de diagnostic non :
+  `scripts/forecast-stack.py` envoyait `tools/list` d'emblée et déclarait `BLOQUÉ` une pile
+  saine. Son serveur factice de test refuse désormais une requête hors session, comme le vrai.
+
+- **L'enveloppe `coverage` de Kafka SQL Explorer n'a pas de champ `complete`.** C'est une
+  méthode de son record Java, pas un composant : Jackson ne la sérialise pas, seul `stopReason`
+  part sur le fil. Exiger le booléen faisait refuser toute réponse réelle — prévisions, preuve
+  d'action, postcondition de tâche — sans un test rouge, les fixtures portant le champ imaginaire.
+  Pour une enveloppe d'**outil** : `EXHAUSTED` établit la complétude, un `complete` présent doit
+  valoir `true`. Une fixture se recopie d'une réponse réelle, jamais de l'idée qu'on s'en fait.
+
 Le détail et les raisons sont dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
