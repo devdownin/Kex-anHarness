@@ -21,3 +21,7 @@ jobs:
       # à la main dans un seul, elle dérive des deux autres.
       - name: Ecosystem section matches the shared definition
         run: python3 scripts/check-ecosystem.py
+      # L'épinglage de l'Explorer est écrit à la main dans trois fichiers ; ils doivent dire la
+      # même version. Le retard sur Docker Hub, lui, se demande sur planification (ecosystem.yml).
+      - name: Explorer pin is the same in every file
+        run: python3 scripts/check-explorer-pin.py

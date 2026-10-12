@@ -21,9 +21,10 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * Run with KAFKA_EXPLORER_MCP_URL=http://localhost:8080 and
  * ./mvnw -Dtest=KafkaExplorerLiveContractTest test. A missing URL skips the test.
  *
- * <p>The stage names its consumer group. Explorer 2.3.0 — the image docker-compose.yml pins —
- * publishes a schema in which every stage component is required, and its MCP server refuses a
- * stage without one before the tool runs; the group is optional again in the following release.
+ * <p>The process stage deliberately names no consumer group: the group is optional in the
+ * contract, and Explorer 2.3.0 refused such a stage before the tool ran — its schema marked
+ * every stage component required. The CI job {@code explorer-contract} runs this against the
+ * image docker-compose.yml pins, so a regression of that kind fails a pull request here.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @ActiveProfiles("mcp-it")
@@ -47,7 +48,7 @@ class KafkaExplorerLiveContractTest {
         try {
             var server = catalog.register(registration);
             assertThat(server.tools()).extracting(McpToolInfo::name).containsAll(TOOLS);
-            var stages = List.of(Map.of("name", "input", "topic", topic, "consumerGroupId", group));
+            var stages = List.of(Map.of("name", "input", "topic", topic));
             Map<String, Object> process = Map.of("process", "contract-demo", "stages", stages);
             JsonNode health = call("kex_process_health", process);
             String measurementId = health.path("data").path("measurementId").asText();
