@@ -1,0 +1,35 @@
+name: Ecosystem
+
+# Ce qui dérive en silence entre les trois projets, demandé sur une minuterie plutôt que par la
+# prochaine pull request venue :
+#   - l'image de Kafka SQL Explorer que la stack tire, face à ce que Docker Hub sert ;
+#   - scripts/check-ecosystem.py, le même fichier dans les trois dépôts, face à ses deux copies.
+# Ni l'un ni l'autre ne tourne sur une pull request : une publication de l'Explorer ne doit pas
+# faire échouer une PR qui n'y touche pas, et un changement du script partagé arrive en trois PR,
+# dont la première fusionnée ferait sinon échouer les deux autres.
+on:
+  schedule:
+    # Hebdomadaire, jeudi 06:47 UTC : hors de l'heure pile et des jours déjà pris.
+    - cron: '47 6 * * 4'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+
+      # Un registre injoignable est un ::warning:: dans le script, pas un échec.
+      - name: Is the Explorer pin still the published release?
+        run: python3 scripts/check-explorer-pin.py --published
+
+      - name: Is the shared ecosystem script identical across the three repositories?
+        run: python3 scripts/check-ecosystem.py --siblings

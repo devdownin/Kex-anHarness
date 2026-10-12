@@ -324,3 +324,74 @@ jobs:
       - name: Tear the smoke stack down
         if: always()
         run: docker compose -f compose/smoke.yml down -v || true
+
+  # Le contrat réel avec Kafka SQL Explorer, contre l'image que docker-compose.yml épingle.
+  # Il est resté opt-in tant que personne ne le lançait : c'est pourtant lui qui a trouvé que
+  # la 2.3.0 refusait une étape sans groupe de consommateurs, ce qu'aucun serveur factice ne
+  # pouvait dire. L'image vient de GHCR, miroir exact de Docker Hub, pour ne pas dépendre du
+  # quota anonyme de Docker Hub par IP — la raison pour laquelle la stack de fumée ci-dessus
+  # utilise un serveur factice.
+  explorer-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EXPLORER_IMAGE_NAMESPACE: ghcr.io/devdownin
+      EXPLORER_MCP_AUTH_TOKEN: contract-token
+      KEX_AGENT_API_KEY: contract-secret
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Bring Kafka and the pinned Explorer up
+        run: |
+          set -euo pipefail
+          docker compose up -d kafka explorer
+          for _ in $(seq 1 60); do
+            curl -fsS http://localhost:8080/actuator/health/liveness 2>/dev/null | grep -q UP && break
+            sleep 3
+          done
+          curl -fsS http://localhost:8080/actuator/health/liveness
+          docker compose images explorer
+
+      # Le topic et le groupe que le test lit par défaut : un topic semé, un groupe qui l'a lu.
+      - name: Seed the contract topic
+        run: |
+          set -euo pipefail
+          docker compose exec -T kafka bash -c '
+            bin=/opt/kafka/bin
+            $bin/kafka-topics.sh --bootstrap-server localhost:9092 --create --if-not-exists \
+              --topic demo.orders.1.received --partitions 1 --replication-factor 1
+            for i in $(seq 1 20); do echo "{\"orderId\":\"o$i\",\"status\":\"RECEIVED\"}"; done \
+              | $bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic demo.orders.1.received
+            $bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic demo.orders.1.received \
+              --group demo-orders --from-beginning --max-messages 5 --timeout-ms 20000 >/dev/null'
+
+      - name: Run the live contract
+        env:
+          KAFKA_EXPLORER_MCP_URL: http://localhost:8080
+          KAFKA_EXPLORER_MCP_TOKEN: contract-token
+        run: |
+          ./mvnw -B --no-transfer-progress -Dtest=KafkaExplorerLiveContractTest \
+            -Dsurefire.failIfNoSpecifiedTests=false test
+
+      # Un test qui se saute passe au vert : la sortie le dit, ce pas l'interdit.
+      - name: The contract must have run, not been skipped
+        run: |
+          set -euo pipefail
+          report=target/surefire-reports/com.kex.agent.mcp.KafkaExplorerLiveContractTest.txt
+          cat "$report"
+          grep -q 'Tests run: 1, Failures: 0, Errors: 0, Skipped: 0' "$report"
+
+      - name: Explorer logs on failure
+        if: failure()
+        run: docker compose logs explorer || true
+
+      - name: Tear the stack down
+        if: always()
+        run: docker compose down -v || true

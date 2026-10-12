@@ -5,6 +5,19 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
 
 ## [Non publié]
 
+### CI
+
+- **Contrat réel avec Kafka SQL Explorer à chaque pull request** : le job `explorer-contract`
+  démarre Kafka et l'image Explorer épinglée (tirée de GHCR, pour ne pas dépendre du quota anonyme
+  de Docker Hub), sème un topic et lance `KafkaExplorerLiveContractTest`, qui doit avoir tourné et
+  non s'être sauté. Le test restait opt-in alors que c'est lui qui a trouvé le défaut de la 2.3.0.
+- **Explorer épinglé en 2.3.1**, la version qui rend de nouveau facultatif le groupe d'une étape ;
+  l'étape du contrat n'en nomme plus, comme le permet le contrat.
+- `scripts/check-explorer-pin.py` : l'épinglage est le même dans les trois fichiers qui le portent
+  (sur chaque PR) et, avec `--published`, n'est pas en retard sur Docker Hub (planification
+  hebdomadaire `ecosystem.yml`, avec `check-ecosystem.py --siblings`, qui compare le script partagé
+  à ses copies dans les deux autres dépôts).
+
 ### Documentation
 
 - **Écosystème** : la section qui présente Kafka SQL Explorer, SpectraLLM et Kex-anHarness est
