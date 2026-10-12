@@ -16,3 +16,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
       - name: Reject obsolete agent repository URLs
         run: python3 scripts/check-repository-links.py
+      # La section Écosystème des README et de DOCKERHUB.md est générée par ce script, le même
+      # fichier dans les trois dépôts (Kafka SQL Explorer, SpectraLLM, Kex-anHarness) : retouchée
+      # à la main dans un seul, elle dérive des deux autres.
+      - name: Ecosystem section matches the shared definition
+        run: python3 scripts/check-ecosystem.py

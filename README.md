@@ -16,7 +16,7 @@
 [![Docker Hub](https://img.shields.io/docker/v/compagnonsdudev/kex-agent-ai?logo=docker&logoColor=white&label=Docker%20Hub&sort=semver)](https://hub.docker.com/r/compagnonsdudev/kex-agent-ai)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
-[Why Kex-anHarness](#-why-kex-anharness) · [Highlights](#-highlights) · [Quick start](#-quick-start) · [What you can ask it](#-what-you-can-ask-it) · [How it works](#-how-it-works) · [Docs](#-documentation) · [Ecosystem](#-ecosystem) · [🇫🇷 Français](README.fr.md)
+[Website](https://devdownin.github.io/Kex-anHarness/) · [Why Kex-anHarness](#-why-kex-anharness) · [Highlights](#-highlights) · [Quick start](#-quick-start) · [What you can ask it](#-what-you-can-ask-it) · [How it works](#-how-it-works) · [Docs](#-documentation) · [Ecosystem](#-ecosystem) · [🇫🇷 Français](README.fr.md)
 
 </div>
 
@@ -210,39 +210,29 @@ More prompts — durable memory across conversations, structured output, how a r
 and the refusals that are the real demo — are in [`docs/EXEMPLES.md`](docs/EXEMPLES.md), together
 with the capabilities that are *not* prompts at all.
 
-## 🧩 How it works
+<!-- ecosystem:start -->
+## 🧩 Ecosystem
 
-```mermaid
-flowchart LR
-    U([Client]) -->|Bearer + JSON| A
-    subgraph A["Kex-anHarness :8081"]
-        C[ChatClient] --- M[(Conversation<br/>memory)]
-        C --- T[MCP tool<br/>callbacks]
-    end
-    C -->|Messages API| AN([Claude])
-    T -->|streamable-HTTP<br/>+ Bearer| E
-    T -.->|stdio / SSE| O([Any other<br/>MCP server])
-    subgraph E["Kafka SQL Explorer :8080"]
-        G[Guards: read-only,<br/>deny-list, rate limit, audit]
-        K[kex_* tools]
-    end
-    E --> KA([Kafka cluster])
+Three open-source projects, published under the same Docker Hub namespace, each usable on its own and wired to the others through MCP:
+
+| Project | What it does | Image | License |
+|---|---|---|---|
+| [Kafka SQL Explorer](https://github.com/devdownin/Kafkaexplorer) | Explore Kafka, query it in Flink SQL, audit it with AI — and serve it to agents as a read-only MCP server | [`compagnonsdudev/kafkaexplorer`](https://hub.docker.com/r/compagnonsdudev/kafkaexplorer) | AGPL-3.0-or-later |
+| [SpectraLLM](https://github.com/devdownin/SpectraLLM) | Turn your documents into a private, fine-tuned AI — local RAG, fine-tuning, and an MCP server over the corpus | [`compagnonsdudev/spectrallm`](https://hub.docker.com/r/compagnonsdudev/spectrallm) | AGPL-3.0-or-later |
+| **Kex-anHarness** *(this project)* | A governed AI agent that works through MCP tools — supervision, human approvals, audit trail | [`compagnonsdudev/kex-agent-ai`](https://hub.docker.com/r/compagnonsdudev/kex-agent-ai) | GPL-3.0-or-later |
+
+How they fit: Kex-anHarness reads Kafka through Kafka SQL Explorer's MCP server and searches documents through SpectraLLM's; Kafka SQL Explorer can use SpectraLLM as its private LLM provider.
+
+**All three together**, from published images — nothing is built:
+
+```bash
+git clone https://github.com/devdownin/Kafkaexplorer.git && cd Kafkaexplorer
+docker compose -f compose/spectra-hub.yml -f compose/spectra-hub.mcp.yml \
+  -f compose/ecosystem.yml up -d
 ```
 
-One request, end to end:
-
-1. The client posts a message with its bearer token. Anything under `/api/**` is authenticated —
-   the agent spends money and executes tools, so it is closed by default.
-2. The `ChatClient` replays the conversation window, then asks Claude with **every MCP tool attached**.
-   The tool list is re-read from the MCP clients on each request, so a server that publishes a new
-   tool is picked up without a restart.
-3. Claude answers, or asks for a tool. Spring AI runs the call over MCP, feeds the result back, and
-   loops — capped at 20 tool calls per exchange so a confused model cannot run up a bill.
-4. The answer comes back, and the exchange is appended to that conversation's memory.
-
-**The details that matter are the boring ones**, and they are written down: why MCP clients are
-initialized lazily, why servers are addressed by connection key, why the tool-call endpoint is a
-loaded gun. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Ports, one plan for the three: **8080** Kafka SQL Explorer · **8081** Kex-anHarness · **8088** / **8089** SpectraLLM UI / API · **9092** Kafka. SpectraLLM's own stack keeps 80 / 8080 when it runs alone; `SPECTRA_UI_PORT=8088 SPECTRA_API_PORT=8089` puts it beside the other two.
+<!-- ecosystem:end -->
 
 ## 🔌 Plug in your own MCP server
 
@@ -299,7 +289,7 @@ diagnostic for operators. Both come back with `KEX_SPECTRA_ASK_DENIED=false` /
 knowledge base — rights, freshness, provenance — is in [`docs/CONNAISSANCE.md`](docs/CONNAISSANCE.md#et-spectrallm-).
 
 ```bash
-SPECTRALLM_URL=http://host.docker.internal:8082 SPECTRA_API_KEY=… \
+SPECTRALLM_URL=http://host.docker.internal:8089 SPECTRA_API_KEY=… \
   docker compose -f docker-compose.yml -f compose/spectrallm.yml up -d
 ```
 

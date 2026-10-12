@@ -155,7 +155,7 @@ en démarrent un.
 Côté agent :
 
 ```bash
-SPECTRALLM_URL=http://host.docker.internal:8082 SPECTRA_API_KEY=… \
+SPECTRALLM_URL=http://host.docker.internal:8089 SPECTRA_API_KEY=… \
   docker compose -f docker-compose.yml -f compose/spectrallm.yml up -d
 ```
 
@@ -165,8 +165,11 @@ sa liste. La clé part en `X-API-Key` (entrée déjà déclarée dans `applicati
 que `SPECTRALLM_URL` est vide) : SpectraLLM ne lit pas `Authorization`. Hors Docker, déclarer la
 connexion comme celle de Kafka SQL Explorer ci-dessus, avec la clé `spectrallm`.
 
-Les deux piles publient le port 8081 sur l'hôte (l'agent ici, l'API Spectra là-bas) : sur une
-même machine, déplacer l'un des deux, par exemple `SPECTRA_API_PORT=8082` côté Kafka SQL Explorer.
+Les trois projets partagent un plan de ports — 8080 Kafka SQL Explorer, 8081 l'agent, 8088/8089
+interface/API SpectraLLM, 9092 Kafka — si bien que cette pile et celle de Kafka SQL Explorer
+tournent côte à côte sans réglage : l'API Spectra y est publiée sur 8089. Pour les trois dans une
+seule pile, `compose/ecosystem.yml` du dépôt Kafka SQL Explorer (voir la section Écosystème du
+README).
 
 Pour vérifier, dans l'ordre où les choses peuvent casser :
 
