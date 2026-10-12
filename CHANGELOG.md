@@ -5,6 +5,15 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
 
 ## [Non publié]
 
+### Modifié
+
+- SpectraLLM : l'agent ne propose plus au modèle que `spectra_search`, `spectra_list_documents` et
+  `spectra_preview_document`. `spectra_ask` faisait rédiger la réponse par le LLM de SpectraLLM —
+  deux modèles en série, un coût doublé, des sources que l'agent ne fixe plus — et `spectra_status`
+  ne sert qu'au diagnostic. Les deux sont refusés par une règle `kex.agent.tools.rules`, réversible
+  par `KEX_SPECTRA_ASK_DENIED=false` / `KEX_SPECTRA_STATUS_DENIED=false`. `docs/CONNAISSANCE.md`
+  compare la base interne et SpectraLLM et dit quoi mettre où.
+
 ### Corrigé
 
 - Tâches désactivées : le message nomme la propriété à changer (`KEX_AGENT_TASKS_ENABLED=true`) ;

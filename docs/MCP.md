@@ -137,6 +137,17 @@ RAG avec ses sources), `spectra_list_documents`, `spectra_preview_document`, `sp
 À côté des outils de Kafka Explorer, l'agent peut suivre un enregistrement dans le cluster et le
 retrouver dans la documentation indexée.
 
+**L'agent n'en garde que trois** : `spectra_search`, `spectra_list_documents` et
+`spectra_preview_document`. `spectra_ask` est refusé par défaut, parce qu'il fait rédiger la réponse
+par le LLM de SpectraLLM. On aurait alors deux modèles en série, un coût doublé, et des sources que
+l'agent ne fixe plus lui-même. `spectra_search` rend les mêmes passages sans appel de modèle.
+`spectra_status` est refusé aussi : il sert au diagnostic d'un opérateur (`spectra-mcp-probe`
+ci-dessous), pas à une réponse.
+
+Le refus est une règle `kex.agent.tools.rules` (voir [TOOL-CONTROLS.md](TOOL-CONTROLS.md)). Il
+s'applique au modèle comme aux appels directs de la console. Pour le lever :
+`KEX_SPECTRA_ASK_DENIED=false` ou `KEX_SPECTRA_STATUS_DENIED=false`.
+
 Côté SpectraLLM : `SPECTRA_MCP_ENABLED=true` et une `SPECTRA_API_KEY` — sans clé, son `/mcp`
 répond 503. Depuis le dépôt Kafka Explorer, `compose/spectra-hub.yml` + `compose/spectra-hub.mcp.yml`
 en démarrent un.
@@ -163,7 +174,9 @@ Pour vérifier, dans l'ordre où les choses peuvent casser :
    `docker compose -f compose/spectra-hub.yml -f compose/spectra-hub.mcp.yml --profile probe run --rm spectra-mcp-probe`
    ouvre une session et liste les cinq outils. Un `404` y signifie une image antérieure à 0.10.0.
 2. **L'agent le voit-il ?** `GET /api/agent/mcp/servers` doit lister une connexion `spectrallm`
-   avec `initialized: true` et les outils `spectra_*`. Absente : la surcouche n'est pas appliquée.
+   avec `initialized: true` et les outils `spectra_*`. Les cinq y figurent, puisque le serveur les
+   annonce tous ; seuls les trois autorisés sont proposés au modèle. Absente : la surcouche n'est
+   pas appliquée.
    Présente mais vide : l'URL n'est pas joignable depuis le conteneur de l'agent
    (`host.docker.internal` désigne l'hôte, pas un autre conteneur).
 3. **Un `401` côté SpectraLLM** : la clé envoyée diffère de la sienne, ou `SPECTRALLM_URL` ne

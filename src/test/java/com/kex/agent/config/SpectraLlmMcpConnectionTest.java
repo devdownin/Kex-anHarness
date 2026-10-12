@@ -5,6 +5,9 @@ package com.kex.agent.config;
 import java.io.IOException;
 import java.util.Map;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kex.agent.tools.ToolControlProperties;
+import com.kex.agent.tools.ToolInvocationPolicy;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.mcp.client.common.autoconfigure.properties.McpStreamableHttpClientProperties;
 import org.springframework.boot.context.properties.bind.Binder;
@@ -53,6 +56,32 @@ class SpectraLlmMcpConnectionTest {
             assertThat(token.token()).isEqualTo("cle");
             assertThat(token.header()).isEqualTo("X-API-Key");
         });
+    }
+
+    private static ToolInvocationPolicy policy(Binder binder) {
+        return new ToolInvocationPolicy(binder.bind("kex.agent.tools", ToolControlProperties.class)
+                .orElseGet(ToolControlProperties::defaults), new ObjectMapper());
+    }
+
+    @Test
+    void l_agent_garde_la_recherche_de_spectrallm_et_perd_la_reponse_redigee_par_son_llm() throws IOException {
+        ToolInvocationPolicy policy = policy(binder(Map.of()));
+
+        assertThat(policy.isDenied("spectra_ask")).isTrue();
+        assertThat(policy.isDenied("spectrallm__spectra_ask")).isTrue();
+        assertThat(policy.isDenied("spectrallm__spectra_status")).isTrue();
+        assertThat(policy.isDenied("spectrallm__spectra_search")).isFalse();
+        assertThat(policy.isDenied("spectrallm__spectra_list_documents")).isFalse();
+        assertThat(policy.isDenied("spectrallm__spectra_preview_document")).isFalse();
+        assertThat(policy.isDenied("kafka-explorer__kex_list_topics")).isFalse();
+    }
+
+    @Test
+    void un_exploitant_peut_rendre_spectra_ask_a_l_agent_par_variable_d_environnement() throws IOException {
+        ToolInvocationPolicy policy = policy(binder(Map.of("KEX_SPECTRA_ASK_DENIED", "false")));
+
+        assertThat(policy.isDenied("spectrallm__spectra_ask")).isFalse();
+        assertThat(policy.isDenied("spectrallm__spectra_status")).isTrue();
     }
 
     @Test

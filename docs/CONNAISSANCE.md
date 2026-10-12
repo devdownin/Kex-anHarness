@@ -42,6 +42,24 @@ Exemple de métadonnées :
  "observedAt":"2026-10-04T06:00:00Z","validUntil":"2026-10-11T06:00:00Z"}
 ```
 
+## Et SpectraLLM ?
+
+[SpectraLLM](MCP.md#spectrallm) peut aussi servir de base documentaire, par ses outils MCP. Les deux
+ne garantissent pas la même chose, et le choix se fait selon ce que contient le document :
+
+| | Cette base | SpectraLLM |
+|---|---|---|
+| Droits | Filtrés par locataire, `readRole` et environnement *avant* la recherche | Une seule clé pour l'agent : tout utilisateur voit tout l'index |
+| Fraîcheur | `observedAt`, `validUntil`, `max-age` excluent ce qui est périmé | Non appliquée |
+| Sources | Fixées par le serveur, événement `sources` | Recopiées par le modèle depuis le résultat de l'outil |
+| Déclenchement | Avant chaque échange | Quand le modèle décide d'appeler `spectra_search` |
+| Infrastructure | Un modèle d'embeddings dans l'agent | Aucune côté agent |
+
+Les runbooks d'équipe, les documents sensibles et les preuves datées vont donc dans cette base. La
+documentation large et non sensible (guides, spécifications, documentation produit) peut rester dans
+SpectraLLM. Seul `spectra_search` y est utilisé pour répondre : `spectra_ask` ferait rédiger la
+réponse par un second modèle, et il est refusé par défaut.
+
 ## Pourquoi c'est éteint par défaut
 
 Un RAG a besoin d'un modèle d'embeddings, donc d'une infrastructure : une clé d'API chez un
