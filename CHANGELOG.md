@@ -7,6 +7,16 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
 
 ### Documentation
 
+- **Écosystème** : la section qui présente Kafka SQL Explorer, SpectraLLM et Kex-anHarness est
+  générée par `scripts/check-ecosystem.py`, le même fichier dans les trois dépôts, et vérifiée par
+  le job `repository-links`. Elle donne la commande qui lance les trois ensemble
+  (`compose/ecosystem.yml` côté Kafka SQL Explorer) et le plan de ports commun : 8080 Explorer,
+  8081 l'agent, 8088/8089 interface/API SpectraLLM, 9092 Kafka. L'API SpectraLLM que les exemples
+  visent passe de 8082 à 8089, et `compose/spectrallm.yml` ne met plus en garde contre une
+  collision sur 8081 : la pile spectra-hub ne publie plus ce port.
+- **Site** : `site/` est publié sur GitHub Pages par `pages.yml` — page de présentation en anglais,
+  captures de la Control Center réelle branchée sur Kafka SQL Explorer.
+
 - README (anglais et français) et page Docker Hub alignés sur la console actuelle : les seize écrans
   dans l'ordre de la navigation (l'écran « Technique » n'existe plus, ses connexions MCP sont dans
   **Intégrations**), la mise en route d'une installation neuve, « Exécuter maintenant » désactivé
@@ -22,6 +32,13 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
   Période, fonctionnalité désactivée, réponse en direct, documentation SpectraLLM.
 
 ### Modifié
+
+- **Kafka SQL Explorer épinglé en 2.3.0** (au lieu de 2.0.3), dans `docker-compose.yml`,
+  `.env.example` et `docs/CONFIGURATION.md`. La 2.0.3 ne portait ni les étapes typées ni le
+  `measurementId` dont parlent les consignes de supervision ; le contrat réel
+  (`KafkaExplorerLiveContractTest`) passe contre l'image 2.3.0. Une étape y nomme son groupe de
+  consommateurs : la 2.3.0 l'exige à tort, l'Explorer le rend de nouveau facultatif à sa version
+  suivante.
 
 - SpectraLLM : l'agent ne propose plus au modèle que `spectra_search`, `spectra_list_documents` et
   `spectra_preview_document`. `spectra_ask` faisait rédiger la réponse par le LLM de SpectraLLM —

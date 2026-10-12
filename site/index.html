@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kex-anHarness | A Governed AI Agent with Real Tools</title>
+    <meta name="description" content="Kex-anHarness: a governed AI agent that works through MCP tools — supervision, human approvals, audit trail. Java 21, Spring Boot 4, Spring AI 2.">
+    <link rel="icon" href="img/logo.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#6ee7c8",
+                        secondary: "#a78bfa",
+                        surface: "#0f1716",
+                        "surface-light": "#17211f",
+                        border: "#2a3a37",
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        .glass-effect {
+            background: rgba(15, 23, 22, 0.8);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(42, 58, 55, 0.6);
+        }
+        .hero-pattern {
+            background-image: radial-gradient(#2a3a37 0.5px, transparent 0.5px);
+            background-size: 24px 24px;
+        }
+        .hero-glow {
+            background: radial-gradient(circle at 50% 40%, rgba(110, 231, 200, 0.12) 0%, transparent 55%);
+        }
+    </style>
+</head>
+<body class="bg-surface text-slate-200 font-sans selection:bg-primary/30 selection:text-primary">
+
+    <nav class="fixed top-0 left-0 right-0 z-50 glass-effect border-b border-border">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+            <a href="#" class="flex items-center gap-2 shrink-0">
+                <img src="img/logo.png" alt="" class="h-8 w-8">
+                <span class="text-lg font-bold text-white tracking-tight">Kex-anHarness</span>
+            </a>
+            <div class="hidden md:flex items-center gap-8 text-sm font-medium">
+                <a href="#screens" class="hover:text-primary transition-colors">Screens</a>
+                <a href="#governance" class="hover:text-primary transition-colors">Governance</a>
+                <a href="#ecosystem" class="hover:text-primary transition-colors">Ecosystem</a>
+                <a href="#quickstart" class="px-4 py-2 bg-primary text-surface font-bold rounded hover:bg-white transition-all">Get Started</a>
+            </div>
+            <a href="#quickstart" class="md:hidden px-3 py-2 bg-primary text-surface text-sm font-bold rounded">Get Started</a>
+        </div>
+    </nav>
+
+    <header class="relative pt-32 pb-20 overflow-hidden hero-pattern">
+        <div class="absolute inset-0 hero-glow pointer-events-none"></div>
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-bold mb-6 tracking-wider uppercase">
+                Java 21 · Spring Boot 4 · Spring AI 2 · MCP
+            </div>
+            <h1 class="text-4xl sm:text-5xl md:text-6xl font-extrabold text-white mb-6 tracking-tight">
+                Stop asking AI to guess.<br>
+                <span class="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">Give it real tools.</span>
+            </h1>
+            <p class="text-lg sm:text-xl text-slate-400 max-w-3xl mx-auto mb-10 leading-relaxed">
+                A governed AI agent that works through MCP tools. It discovers them at runtime, calls them
+                on real systems, explains what it did — and keeps humans in control of anything that acts.
+            </p>
+            <div class="flex flex-col sm:flex-row justify-center gap-4">
+                <a href="#quickstart" class="px-8 py-4 bg-primary text-surface font-bold rounded-lg text-lg hover:bg-white transition-all">Start in one command</a>
+                <a href="https://github.com/devdownin/Kex-anHarness" class="px-8 py-4 glass-effect text-white font-bold rounded-lg text-lg hover:border-primary transition-all">View Source</a>
+            </div>
+        </div>
+    </header>
+
+    <section id="screens" class="py-20">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-primary font-bold tracking-widest text-sm uppercase mb-4">Screens</h2>
+                <h3 class="text-3xl sm:text-4xl font-bold text-white">The Control Center the agent serves itself.</h3>
+                <p class="text-slate-400 max-w-2xl mx-auto mt-4">Sixteen screens to observe, understand, decide, act and verify — in French, from the same container on port 8081.</p>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <figure class="glass-effect rounded-2xl p-3">
+                    <img src="img/overview.png" alt="The Overview screen: first-run checklist, supervised processes, alerts and pending actions" class="rounded-xl w-full h-auto" loading="lazy">
+                    <figcaption class="text-sm text-slate-400 px-2 pt-3"><span class="text-white font-semibold">Overview</span> — what is supervised, what was analysed, what waits for a human, and what is still missing to get there.</figcaption>
+                </figure>
+                <figure class="glass-effect rounded-2xl p-3">
+                    <img src="img/integrations.png" alt="The Integrations screen: the Kafka SQL Explorer MCP connection and its tools" class="rounded-xl w-full h-auto" loading="lazy">
+                    <figcaption class="text-sm text-slate-400 px-2 pt-3"><span class="text-white font-semibold">Integrations</span> — the MCP servers the agent consumes, their tools, health and calls; here Kafka SQL Explorer's read-only server.</figcaption>
+                </figure>
+            </div>
+        </div>
+    </section>
+
+    <section id="governance" class="py-20 bg-surface-light/40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-primary font-bold tracking-widest text-sm uppercase mb-4">Governance</h2>
+                <h3 class="text-3xl sm:text-4xl font-bold text-white">Every capability explicit. Every action traced.</h3>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="glass-effect p-6 rounded-2xl">
+                    <h4 class="text-lg font-bold text-white mb-2">Runtime MCP</h4>
+                    <p class="text-sm text-slate-400">Add and test HTTP, SSE or stdio servers from the console; decide which tools each connection may expose to the model.</p>
+                </div>
+                <div class="glass-effect p-6 rounded-2xl">
+                    <h4 class="text-lg font-bold text-white mb-2">Autonomy per capability</h4>
+                    <p class="text-sm text-slate-400">Each capability declares how far it may act. An execution mode can only narrow it, and an unlisted capability is forbidden.</p>
+                </div>
+                <div class="glass-effect p-6 rounded-2xl">
+                    <h4 class="text-lg font-bold text-white mb-2">Human approvals</h4>
+                    <p class="text-sm text-slate-400">Anything below the confidence floor goes back to a person — from the console, or from Slack, with signed callbacks.</p>
+                </div>
+                <div class="glass-effect p-6 rounded-2xl">
+                    <h4 class="text-lg font-bold text-white mb-2">Audit trail</h4>
+                    <p class="text-sm text-slate-400">What the agent saw, decided and did, with the tool calls behind it — a decision can be read back, not just believed.</p>
+                </div>
+                <div class="glass-effect p-6 rounded-2xl">
+                    <h4 class="text-lg font-bold text-white mb-2">Honest states</h4>
+                    <p class="text-sm text-slate-400">A missing measurement is never zero, an unreadable state is UNKNOWN, never OK — a dashboard that looks green has to be green.</p>
+                </div>
+                <div class="glass-effect p-6 rounded-2xl">
+                    <h4 class="text-lg font-bold text-white mb-2">Secure by default</h4>
+                    <p class="text-sm text-slate-400">Bearer authentication, encrypted MCP configuration, explicit stdio allowlists, an SBOM and a vulnerability scan before every image is pushed.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="ecosystem" class="py-20">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-primary font-bold tracking-widest text-sm uppercase mb-4">Ecosystem</h2>
+                <h3 class="text-3xl sm:text-4xl font-bold text-white">Three projects, one MCP wiring</h3>
+                <p class="text-slate-400 max-w-2xl mx-auto mt-4">Each one runs on its own; all three are published under the same Docker Hub namespace and plug into each other through MCP.</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <a href="https://github.com/devdownin/Kafkaexplorer" class="glass-effect p-6 rounded-2xl hover:border-primary transition-all block">
+                    <h4 class="text-lg font-bold text-white mb-2">Kafka SQL Explorer</h4>
+                    <p class="text-sm text-slate-400 mb-4">Explore Kafka, query it in Flink SQL, audit it with AI — and serve it to agents as a read-only MCP server. The agent reads the cluster through it.</p>
+                    <p class="text-xs text-slate-500 font-mono">compagnonsdudev/kafkaexplorer · AGPL-3.0</p>
+                </a>
+                <a href="https://github.com/devdownin/SpectraLLM" class="glass-effect p-6 rounded-2xl hover:border-primary transition-all block">
+                    <h4 class="text-lg font-bold text-white mb-2">SpectraLLM</h4>
+                    <p class="text-sm text-slate-400 mb-4">Turn your documents into a private, fine-tuned AI — local RAG, fine-tuning, and an MCP server over the corpus. The agent searches your runbooks through it.</p>
+                    <p class="text-xs text-slate-500 font-mono">compagnonsdudev/spectrallm · AGPL-3.0</p>
+                </a>
+                <div class="glass-effect p-6 rounded-2xl border-primary/40">
+                    <h4 class="text-lg font-bold text-white mb-2">Kex-anHarness <span class="text-xs text-primary align-middle">· this project</span></h4>
+                    <p class="text-sm text-slate-400 mb-4">A governed AI agent that works through MCP tools — supervision, human approvals, audit trail.</p>
+                    <p class="text-xs text-slate-500 font-mono">compagnonsdudev/kex-agent-ai · GPL-3.0</p>
+                </div>
+            </div>
+            <div class="mt-12 max-w-4xl mx-auto">
+                <p class="text-slate-300 mb-4"><span class="font-bold text-white">All three together</span>, from published images — nothing is built:</p>
+                <pre class="bg-black/60 rounded-lg p-4 border border-border overflow-x-auto text-sm"><code class="text-primary font-mono">git clone https://github.com/devdownin/Kafkaexplorer.git &amp;&amp; cd Kafkaexplorer
+docker compose -f compose/spectra-hub.yml -f compose/spectra-hub.mcp.yml \
+  -f compose/ecosystem.yml up -d</code></pre>
+                <p class="text-sm text-slate-400 mt-4">One port plan for the three: <span class="font-mono text-slate-300">8080</span> Kafka SQL Explorer · <span class="font-mono text-slate-300">8081</span> Kex-anHarness · <span class="font-mono text-slate-300">8088 / 8089</span> SpectraLLM UI / API · <span class="font-mono text-slate-300">9092</span> Kafka.</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="quickstart" class="py-20 bg-surface-light/40">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-10">
+                <h2 class="text-primary font-bold tracking-widest text-sm uppercase mb-4">Get started</h2>
+                <h3 class="text-3xl sm:text-4xl font-bold text-white">The agent alone, against an Explorer you already run</h3>
+            </div>
+            <pre class="bg-black/60 rounded-lg p-4 border border-border overflow-x-auto text-sm"><code class="text-primary font-mono">docker run --rm -p 8081:8081 \
+  -e ANTHROPIC_API_KEY=sk-ant-... -e KEX_AGENT_API_KEY=secret \
+  -e KAFKA_EXPLORER_URL=http://host.docker.internal:8080 \
+  compagnonsdudev/kex-agent-ai:latest</code></pre>
+            <p class="text-slate-400 mt-6">Then open <span class="font-mono text-slate-200">http://localhost:8081</span> and paste the same bearer once. With no Explorer yet, the repository's <span class="font-mono text-slate-200">docker compose up</span> starts a broker, Kafka SQL Explorer and the agent together.</p>
+            <div class="flex flex-wrap gap-4 mt-8">
+                <a href="https://github.com/devdownin/Kex-anHarness#readme" class="px-5 py-3 glass-effect rounded-lg text-white font-semibold hover:border-primary transition-all">README</a>
+                <a href="https://hub.docker.com/r/compagnonsdudev/kex-agent-ai" class="px-5 py-3 glass-effect rounded-lg text-white font-semibold hover:border-primary transition-all">Docker Hub</a>
+                <a href="https://github.com/devdownin/Kex-anHarness/blob/main/docs/MCP.md" class="px-5 py-3 glass-effect rounded-lg text-white font-semibold hover:border-primary transition-all">MCP guide (FR)</a>
+            </div>
+        </div>
+    </section>
+
+    <footer class="py-10 border-t border-border">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-slate-500">
+            <span class="font-bold text-white">Kex-anHarness</span>
+            <span>&copy; 2026 Kex-anHarness contributors. Released under <a href="https://github.com/devdownin/Kex-anHarness/blob/main/LICENSE" class="text-slate-400 hover:text-primary underline">GPL-3.0-or-later</a>.</span>
+            <div class="flex gap-6">
+                <a href="https://github.com/devdownin/Kex-anHarness" class="hover:text-white">GitHub</a>
+                <a href="https://hub.docker.com/r/compagnonsdudev/kex-agent-ai" class="hover:text-white">Docker Hub</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

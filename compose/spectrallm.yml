@@ -1,9 +1,9 @@
 # Serveur MCP de SpectraLLM, en surcouche de docker-compose.yml.
 #
-#   SPECTRALLM_URL=http://host.docker.internal:8082 SPECTRA_API_KEY=... \
+#   SPECTRALLM_URL=http://host.docker.internal:8089 SPECTRA_API_KEY=... \
 #     docker compose -f docker-compose.yml -f compose/spectrallm.yml up -d
 #
-# L'agent gagne les outils spectra_* à côté des kex_* de Kafka Explorer, tous en lecture seule. Il
+# L'agent gagne les outils spectra_* à côté des kex_* de Kafka SQL Explorer, tous en lecture seule. Il
 # n'en propose que trois au modèle : spectra_search, spectra_list_documents et
 # spectra_preview_document. spectra_ask, qui fait rédiger la réponse par le LLM de SpectraLLM, et
 # spectra_status, réservé au diagnostic, sont refusés par application.yml. Pour les rendre :
@@ -11,11 +11,11 @@
 #
 # SpectraLLM n'est pas démarré ici : il tourne ailleurs, en 0.10.0 au moins, avec
 # SPECTRA_MCP_ENABLED=true et une SPECTRA_API_KEY (sans clé, son /mcp répond 503). Depuis
-# Kafka Explorer, compose/spectra-hub.yml + compose/spectra-hub.mcp.yml en fournissent un.
+# Kafka SQL Explorer, compose/spectra-hub.yml + compose/spectra-hub.mcp.yml en fournissent un.
 #
-# ATTENTION AU PORT : cette pile et celle de Kafka Explorer publient toutes deux 8081 sur l'hôte
-# (l'agent ici, l'API Spectra là-bas). Sur une même machine, déplacer l'un des deux —
-# SPECTRA_API_PORT=8082 côté Kafka Explorer, par exemple — et viser ce port ici.
+# Ports : un plan commun aux trois projets — 8080 Kafka SQL Explorer, 8081 cet agent, 8088/8089
+# interface/API SpectraLLM, 9092 Kafka. La pile spectra-hub de Kafka SQL Explorer publie donc
+# l'API Spectra sur 8089, et les deux piles tournent côte à côte sans réglage.
 services:
   agent:
     environment:

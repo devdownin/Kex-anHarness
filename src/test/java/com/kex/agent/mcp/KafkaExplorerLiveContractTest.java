@@ -17,9 +17,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
- * Opt-in contract against a running KafkaExplorer /mcp and a seeded demo topic.
+ * Opt-in contract against a running Kafka SQL Explorer /mcp and a seeded demo topic.
  * Run with KAFKA_EXPLORER_MCP_URL=http://localhost:8080 and
  * ./mvnw -Dtest=KafkaExplorerLiveContractTest test. A missing URL skips the test.
+ *
+ * <p>The stage names its consumer group. Explorer 2.3.0 — the image docker-compose.yml pins —
+ * publishes a schema in which every stage component is required, and its MCP server refuses a
+ * stage without one before the tool runs; the group is optional again in the following release.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @ActiveProfiles("mcp-it")
@@ -43,7 +47,7 @@ class KafkaExplorerLiveContractTest {
         try {
             var server = catalog.register(registration);
             assertThat(server.tools()).extracting(McpToolInfo::name).containsAll(TOOLS);
-            var stages = List.of(Map.of("name", "input", "topic", topic));
+            var stages = List.of(Map.of("name", "input", "topic", topic, "consumerGroupId", group));
             Map<String, Object> process = Map.of("process", "contract-demo", "stages", stages);
             JsonNode health = call("kex_process_health", process);
             String measurementId = health.path("data").path("measurementId").asText();
