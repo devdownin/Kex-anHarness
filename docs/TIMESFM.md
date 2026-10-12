@@ -1,10 +1,10 @@
 # Prévisions TimesFM dans Kex-anHarness
 
-La vue **Pilotage → Prévisions** consulte les résultats déjà calculés par KafkaExplorer.
+La vue **Pilotage → Prévisions** consulte les résultats déjà calculés par Kafka SQL Explorer.
 L’agent peut les expliquer dans une conversation et les rapprocher des mesures actuelles.
 Kex ne charge pas le modèle, ne collecte pas de nouvelles données et n’active aucune série.
 
-## Préparer KafkaExplorer
+## Préparer Kafka SQL Explorer
 
 ### Si la page affiche un outil absent
 
@@ -15,12 +15,12 @@ dans **Intégrations** et son catalogue d'outils — le message d'indisponibilit
 direct vers sa fiche.
 
 Si le serveur répond mais n'annonce pas `kex_list_forecastable_metrics`, vérifier sa version
-et activer `explorer.forecasting.pilot.enabled=true` dans **KafkaExplorer**. Les outils de
+et activer `explorer.forecasting.pilot.enabled=true` dans **Kafka SQL Explorer**. Les outils de
 prévision sont conditionnés à cette propriété. Les versions récentes l’activent par défaut
 lorsque MCP est activé ; un catalogue vide est alors normal avant l’approbation de séries.
 Les séries approuvées exigent `explorer.forecasting.history.enabled=true`,
 `explorer.forecasting.inference.enabled=true` et une configuration PostgreSQL ; suivre la
-préparation ci-dessous avant de redémarrer KafkaExplorer puis d’actualiser son catalogue MCP.
+préparation ci-dessous avant de redémarrer Kafka SQL Explorer puis d’actualiser son catalogue MCP.
 
 Un accès refusé demande une vérification des permissions ; un serveur indisponible demande
 une vérification de l'URL et du jeton. Un catalogue accessible mais vide demande l'enrôlement
@@ -35,26 +35,26 @@ globale et la liste d’outils de la connexion, puis la lecture du catalogue aut
 Chaque blocage comporte une vérification à effectuer. Une découverte interrompue
 laisse les outils **NOT_CHECKED** : elle ne prouve jamais leur absence.
 Un catalogue complet mais vide reste bloquant ; vérifier à la fois l’approbation des
-séries et le périmètre des environnements, topics et groupes côté KafkaExplorer.
+séries et le périmètre des environnements, topics et groupes côté Kafka SQL Explorer.
 La préparation MCP ne certifie ni la qualité d’une prévision ni l’accès à chaque source :
 les contrôles du serveur s’appliquent à chaque lecture. Aucun calcul ni activation n’est lancé.
 
 ### Prérequis
 
 Utiliser une version contenant le pilote TimesFM et les cinq outils canoniques de la
-[PR KafkaExplorer #454](https://github.com/devdownin/Kafkaexplorer/pull/454).
-Cette évolution est fusionnée dans KafkaExplorer depuis le 3 octobre 2026.
-Activer l’historique, l’inférence et le pilote côté KafkaExplorer, configurer PostgreSQL,
+[PR Kafka SQL Explorer #454](https://github.com/devdownin/Kafkaexplorer/pull/454).
+Cette évolution est fusionnée dans Kafka SQL Explorer depuis le 3 octobre 2026.
+Activer l’historique, l’inférence et le pilote côté Kafka SQL Explorer, configurer PostgreSQL,
 puis enrôler les séries avec leur environnement et leurs sources approuvées.
 Le premier résultat exige un historique admissible ; sa qualité réalisée reste non mesurée
 jusqu’à l’évaluation de prévisions arrivées à échéance.
 
 Autoriser explicitement les environnements, topics et groupes dans le périmètre MCP de
-KafkaExplorer. Une série hors périmètre n’apparaît pas dans son catalogue.
+Kafka SQL Explorer. Une série hors périmètre n’apparaît pas dans son catalogue.
 
 ## Connecter Kex
 
-Réutiliser la connexion MCP KafkaExplorer dans **Intégrations**. Sa clé doit correspondre à
+Réutiliser la connexion MCP Kafka SQL Explorer dans **Intégrations**. Sa clé doit correspondre à
 `kex.agent.kafka.connection` (par défaut `kafka-explorer`). Si elle utilise une liste d’outils
 autorisés, ajouter ces cinq noms sans élargir les autres permissions :
 
@@ -69,7 +69,7 @@ autorisés, ajouter ces cinq noms sans élargir les autres permissions :
 Les lectures ne déclenchent ni SQL, ni inférence, ni alerte. Le jeton MCP reste côté serveur.
 Les opérateurs et administrateurs Kex accèdent à la vue ; le rôle CHAT seul n’accède pas à ses API.
 Les opérateurs de cette instance partagent le périmètre de la connexion configurée : ces lectures
-ne délèguent pas l’identité utilisateur à KafkaExplorer. Utiliser des connexions/instances distinctes
+ne délèguent pas l’identité utilisateur à Kafka SQL Explorer. Utiliser des connexions/instances distinctes
 pour des périmètres qui doivent rester séparés.
 
 ## Parcours opérateur
@@ -110,18 +110,18 @@ et causes ne doivent pas être inventées ; aucune action n’est lancée par le
 lecture en cours, et se suspend lorsque la vue est quittée ou l’onglet masqué. Le retour visible
 reprend au prochain intervalle ; le changement de jeton arrête l’option et annule les requêtes.
 La date de dernière lecture reste distincte de la date de calcul de la prévision. L’activation
-des séries reste dans KafkaExplorer et sa gouvernance opérateur.
+des séries reste dans Kafka SQL Explorer et sa gouvernance opérateur.
 
 ## Ressources et processus liés
 
 Le catalogue MCP peut ajouter `sources` : `definitionVersion`, `topics`, `groups`, `complete`.
-Cet enrichissement est fourni par [KafkaExplorer #456](https://github.com/devdownin/Kafkaexplorer/pull/456).
-KafkaExplorer n’annonce que les sources de séries autorisées. Les identifiants masqués par la DLP
+Cet enrichissement est fourni par [Kafka SQL Explorer #456](https://github.com/devdownin/Kafkaexplorer/pull/456).
+Kafka SQL Explorer n’annonce que les sources de séries autorisées. Les identifiants masqués par la DLP
 ne deviennent pas des liens ; une provenance incomplète ou absente désactive ce panneau sans
 masquer les courbes. Les sources ne sont pas reconstruites depuis le nom de métrique.
 
 Le panneau **Ressources et processus liés** ouvre les groupes/lag du topic sur la même connexion
-KafkaExplorer. Un lien de groupe prépare un diagnostic en lecture seule dans le chat, que
+Kafka SQL Explorer. Un lien de groupe prépare un diagnostic en lecture seule dans le chat, que
 l’opérateur choisit d’envoyer. Les processus sont des associations explicites configurées ou persistées dans Kex,
 par série et environnement exacts ; seuls les processus actuellement définis sont affichés :
 
@@ -140,7 +140,7 @@ refuse une définition de source différente du contexte affiché. La route GET
 `/api/agent/forecasts/series/{seriesId}/resources` exige le catalogue courant complet et refuse
 les identifiants non autorisés ; aucun lien n’est conservé au changement de jeton. Limites :
 128 topics/groupes par série et 50 associations de processus rendues. Le catalogue d’anciennes
-versions de KafkaExplorer reste compatible : le panneau explique que la provenance est absente.
+versions de Kafka SQL Explorer reste compatible : le panneau explique que la provenance est absente.
 
 ## Interpréter les états
 
@@ -160,7 +160,7 @@ LLM, pas d’un nouveau moteur déterministe d’alertes prédictives.
 
 API GET authentifiées : `/api/agent/forecasts/metrics`, `/api/agent/forecasts/breaches`,
 `/api/agent/forecasts/series/{seriesId}`. Pas de POST, activation ou inférence via ces routes.
-Chaque détail exige l’appartenance au catalogue autorisé complet, puis KafkaExplorer vérifie
+Chaque détail exige l’appartenance au catalogue autorisé complet, puis Kafka SQL Explorer vérifie
 à nouveau les ressources sur chacun des trois outils. Aucun résultat n’est mis en cache côté Kex.
 
 Les enveloppes incomplètes restent explicitement inexploitables. Les catalogues et listes sont
@@ -189,7 +189,7 @@ PLAYWRIGHT_MODULE=/chemin/playwright/index.mjs node src/test/browser/forecasts.m
 
 Le test navigateur utilise les vrais modules statiques et un serveur HTTP de fixtures, sans
 Kafka, LLM ou TimesFM. Il est inclus dans le job navigateur de la CI. La vérification avec une
-instance KafkaExplorer déployée demeure nécessaire pour le périmètre MCP de votre installation.
+instance Kafka SQL Explorer déployée demeure nécessaire pour le périmètre MCP de votre installation.
 
 
 ## Assistant et associations persistées
@@ -233,5 +233,5 @@ Les associations devenues inaccessibles ne divulguent pas leurs identifiants au 
 | `GET /api/agent/forecasts/processes/{id}` | OPERATOR/ADMIN ; aperçu borné des résultats et risques persistés |
 
 Les liens YAML existants restent pris en compte pour les processus sans remplacement persistant.
-L’administration des séries, leur activation et les calculs restent dans KafkaExplorer.
+L’administration des séries, leur activation et les calculs restent dans Kafka SQL Explorer.
 Voir les [prompts et la démonstration](EXEMPLES.md#timesfm--démonstration-et-prompts-opérationnels).

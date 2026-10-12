@@ -4,13 +4,13 @@
 
 Pour une demande portant sur la configuration des topics, le lag ou les DLQ, l'agent
 dispose de procédures de lecture intégrées. Elles s'appuient sur les outils de
-KafkaExplorer `kex_topic_configuration`, `kex_topic_policy_review`,
+Kafka SQL Explorer `kex_topic_configuration`, `kex_topic_policy_review`,
 `kex_consumer_lag_trend` et `kex_dlq_review`
 en complément des diagnostics déjà présents. La configuration et les réplicas se
 lisent avec les exigences du cluster concerné ; un topic sans groupe consommateur
 n'est pas automatiquement orphelin. Une politique de topic n'est appliquée que si
 elle est configurée pour l'environnement demandé. Le premier relevé de lag n'a pas
-de tendance ; un volume partagé configuré dans KafkaExplorer permet de retrouver
+de tendance ; un volume partagé configuré dans Kafka SQL Explorer permet de retrouver
 le relevé sur une autre instance ou après redémarrage. Une DLQ est échantillonnée,
 sans retraitement automatique ; ses liens source, retry, surveillance et runbook
 sont déclarés par l'opérateur et doivent être vérifiés dans les systèmes concernés.
@@ -134,7 +134,7 @@ Un serveur qui n'attend pas de porteur nomme son en-tête avec `header` ; le jet
 [SpectraLLM](https://github.com/devdownin/SpectraLLM) expose depuis la 0.10.0 un serveur MCP en
 lecture seule : `spectra_search` (passages et scores, sans appel au LLM), `spectra_ask` (réponse
 RAG avec ses sources), `spectra_list_documents`, `spectra_preview_document`, `spectra_status`.
-À côté des outils de Kafka Explorer, l'agent peut suivre un enregistrement dans le cluster et le
+À côté des outils de Kafka SQL Explorer, l'agent peut suivre un enregistrement dans le cluster et le
 retrouver dans la documentation indexée.
 
 **L'agent n'en garde que trois** : `spectra_search`, `spectra_list_documents` et
@@ -149,7 +149,7 @@ s'applique au modèle comme aux appels directs de la console. Pour le lever :
 `KEX_SPECTRA_ASK_DENIED=false` ou `KEX_SPECTRA_STATUS_DENIED=false`.
 
 Côté SpectraLLM : `SPECTRA_MCP_ENABLED=true` et une `SPECTRA_API_KEY` — sans clé, son `/mcp`
-répond 503. Depuis le dépôt Kafka Explorer, `compose/spectra-hub.yml` + `compose/spectra-hub.mcp.yml`
+répond 503. Depuis le dépôt Kafka SQL Explorer, `compose/spectra-hub.yml` + `compose/spectra-hub.mcp.yml`
 en démarrent un.
 
 Côté agent :
@@ -163,14 +163,14 @@ La surcouche ajoute la connexion `spectrallm` par variables d'environnement plut
 `application.yml`, pour qu'une installation sans SpectraLLM n'ait pas un serveur injoignable dans
 sa liste. La clé part en `X-API-Key` (entrée déjà déclarée dans `application.yml`, inerte tant
 que `SPECTRALLM_URL` est vide) : SpectraLLM ne lit pas `Authorization`. Hors Docker, déclarer la
-connexion comme celle de Kafka Explorer ci-dessus, avec la clé `spectrallm`.
+connexion comme celle de Kafka SQL Explorer ci-dessus, avec la clé `spectrallm`.
 
 Les deux piles publient le port 8081 sur l'hôte (l'agent ici, l'API Spectra là-bas) : sur une
-même machine, déplacer l'un des deux, par exemple `SPECTRA_API_PORT=8082` côté Kafka Explorer.
+même machine, déplacer l'un des deux, par exemple `SPECTRA_API_PORT=8082` côté Kafka SQL Explorer.
 
 Pour vérifier, dans l'ordre où les choses peuvent casser :
 
-1. **SpectraLLM sert-il `/mcp` ?** Depuis le dépôt Kafka Explorer,
+1. **SpectraLLM sert-il `/mcp` ?** Depuis le dépôt Kafka SQL Explorer,
    `docker compose -f compose/spectra-hub.yml -f compose/spectra-hub.mcp.yml --profile probe run --rm spectra-mcp-probe`
    ouvre une session et liste les cinq outils. Un `404` y signifie une image antérieure à 0.10.0.
 2. **L'agent le voit-il ?** `GET /api/agent/mcp/servers` doit lister une connexion `spectrallm`
@@ -186,7 +186,7 @@ Pour vérifier, dans l'ordre où les choses peuvent casser :
 
 ### Administrer les serveurs depuis la console
 
-La vue **Technique → Serveurs MCP** ajoute des connexions sans redémarrer. L'assistant teste le
+La vue **Intégrations** de la console ajoute des connexions sans redémarrer. L'assistant teste le
 handshake et découvre les outils avant tout enregistrement. Il permet ensuite de désactiver,
 modifier, rafraîchir, diagnostiquer ou retirer le serveur, de limiter les outils présentés au
 modèle, et de les associer à des capacités métier.
@@ -533,7 +533,7 @@ negotiation and discovery. Unknown protocol versions are rejected at the transpo
 
 ## Lectures TimesFM
 
-La connexion KafkaExplorer fournit cinq outils canoniques : `kex_list_forecastable_metrics`,
+La connexion Kafka SQL Explorer fournit cinq outils canoniques : `kex_list_forecastable_metrics`,
 `kex_metric_history`, `kex_forecast_metric`, `kex_list_predicted_threshold_breaches` et
 `kex_get_forecast_quality`. Ils lisent des résultats persistés sans lancer d’inférence.
 Les ajouter à une éventuelle liste d’outils autorisés de la connexion configurée par

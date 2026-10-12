@@ -83,9 +83,9 @@ Le cycle de supervision privilégie alors `kex_process_health`, `kex_topic_activ
 `kex_diagnose_consumer` et `kex_flow_health`. S'il détecte une anomalie, il peut consolider
 les faits avec `kex_incident_evidence`. Après une action, `kex_compare_process_state` ne sert
 qu'avec une baseline explicite : conserver le `measurementId` rendu par la mesure « avant » et le
-transmettre en `beforeMeasurementId` avec les mêmes stages et la même fenêtre. KafkaExplorer vérifie
+transmettre en `beforeMeasurementId` avec les mêmes stages et la même fenêtre. Kafka SQL Explorer vérifie
 que la mesure « après » porte sur une fenêtre postérieure. La comparaison doit viser la même instance
-KafkaExplorer (snapshots temporaires en mémoire) ; un résultat `UNKNOWN` ne confirme pas la résolution.
+Kafka SQL Explorer (snapshots temporaires en mémoire) ; un résultat `UNKNOWN` ne confirme pas la résolution.
 
 Pour une DLQ, déclarer la relation dans le hint au lieu de laisser l'agent l'inférer :
 
@@ -216,13 +216,13 @@ Le serveur publie aussi le prompt `kex_supervision_triage` pour guider une inves
 seule. Sa vue de synthèse expose notamment la version du protocole, les requêtes, la latence et les
 sessions clientes actives ou inactives.
 
-## Playground MCP et Resource Templates
+## Appeler un serveur MCP sans le modèle
 
-Dans **Technique → MCP**, le Playground permet d'exercer directement un serveur sans passer par le
-modèle. On peut ainsi vérifier d'abord que le serveur répond et que sa capacité produit les bonnes
+Dans **Intégrations**, le panneau **Détails** d'une connexion permet d'exercer directement un
+serveur sans passer par le modèle. On peut ainsi vérifier d'abord que le serveur répond et que sa capacité produit les bonnes
 données, puis seulement tester si le modèle choisit correctement cette capacité.
 
-Le Playground permet d'appeler les outils, parcourir et lire les resources et utiliser les
+Ce panneau permet d'appeler les outils, parcourir et lire les resources et utiliser les
 **resource templates**. Lorsqu'un template paramétré est sélectionné, ses champs sont générés
 immédiatement : l'opérateur renseigne les paramètres sans construire l'URI à la main.
 
@@ -308,8 +308,8 @@ supprimerait la validation humaine qu'il est censé demander.
 3. **Apprentissage gouverné** — lancer un diagnostic multi-outils, ouvrir la file de revue,
    approuver la compétence puis afficher sa curation.
 4. **Charte** — montrer une règle d'exploitation et son historique versionné.
-5. **Playground MCP** — découvrir outils/resources, sélectionner un resource template et exécuter
-   un appel sans modèle.
+5. **Appel MCP direct** — dans Intégrations → Détails, découvrir outils/resources, sélectionner un
+   resource template et exécuter un appel sans modèle.
 6. **Kex devient serveur MCP** — depuis un client externe, lire les alertes ou diagnostiquer un
    processus via les outils Kex, puis montrer la session dans la console.
 7. **Décision supervisée** — la retrouver dans la console et, si configuré, dans Slack, Teams ou
@@ -337,7 +337,7 @@ qu'il ne se permet pas de faire seul.
 ## TimesFM : démonstration et prompts opérationnels
 
 Prérequis : suivre le [guide TimesFM](TIMESFM.md), autoriser les cinq outils et disposer d’une
-série enrôlée dans KafkaExplorer. Remplacer `<series-id>` et `<environnement>` par une paire
+série enrôlée dans Kafka SQL Explorer. Remplacer `<series-id>` et `<environnement>` par une paire
 exacte du catalogue autorisé ; ces placeholders ne sont pas des identifiants exécutables.
 
 | Demande à l’agent | Lectures attendues et interprétation |
@@ -392,7 +392,7 @@ outils manquants ; l’agent ne choisit pas automatiquement une série à partir
 
 Si le catalogue est indisponible, tronqué ou incomplet, le wizard propose de continuer sans
 prévision. Corriger la connexion ou les permissions et relancer le parcours pour choisir une
-série ; l’administration et l’enrôlement des séries restent dans KafkaExplorer.
+série ; l’administration et l’enrôlement des séries restent dans Kafka SQL Explorer.
 
 ## Plans durables et preuves de réussite
 

@@ -6,7 +6,7 @@
 ./mvnw verify
 ```
 
-JDK 25. La suite ne sort pas sur le réseau et n'a besoin d'aucun secret : le profil `test` fournit
+JDK 21 au minimum. La suite ne sort pas sur le réseau et n'a besoin d'aucun secret : le profil `test` fournit
 une clé factice et désactive le client MCP.
 
 ## Ce qui est attendu
@@ -30,7 +30,7 @@ une clé factice et désactive le client MCP.
 
 ## Style
 
-- Java 25 idiomatique : records, streams, `Optional`, switch sur types scellés.
+- Java 21 idiomatique : records, streams, `Optional`, switch sur types scellés.
 - Injection par constructeur, jamais `@Autowired` sur un champ.
 - Français pour commentaires, documentation et noms de tests.
 - Anglais pour `README.md` ; toute modification s'y répercute dans `README.fr.md`.
@@ -43,9 +43,16 @@ Ne pas ouvrir d'issue publique pour une faille : voir [SECURITY.md](SECURITY.md)
 
 | Job | Portée |
 |---|---|
-| `build` | `./mvnw verify` sur JDK 25 |
+| `build` | `./mvnw verify` sur JDK 21 : format, licences, tests, couverture, SBOM |
+| `mcp-interop` | Contrat du serveur MCP Kex, puis appel par le SDK MCP officiel |
+| `browser` | Les suites Playwright de `src/test/browser/` contre un agent démarré (`first-run.mjs`, `console.mjs`…) |
 | `docker` | Image construite, conteneur démarré sans serveur MCP, stack de fumée montée |
+| `mcp-browser` | La console du serveur MCP Kex, serveur activé (`mcp-server.mjs`) |
+| `stack` | La stack Kafka + Explorer + TimesFM, et son diagnostic (`scripts/forecast-stack.py`) |
+| `repository-links` | Aucune URL vers l'ancien nom du dépôt |
 | `analyze` | CodeQL |
 | `scorecard` | OpenSSF Scorecard, hebdomadaire |
+
+`agent-evals` ne tourne qu'à la main : il appelle un vrai fournisseur de modèle, donc coûte.
 
 Une PR ne part en revue que verte.

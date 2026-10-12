@@ -2,7 +2,7 @@
 
 ## Le projet en une phrase
 
-Agent IA Spring Boot 4 / Spring AI 2 sur Java 25, client de serveurs MCP, branché par défaut sur le
+Agent IA Spring Boot 4 / Spring AI 2 sur Java 21, client de serveurs MCP, branché par défaut sur le
 serveur MCP de [Kafka SQL Explorer](https://github.com/devdownin/Kafkaexplorer).
 
 ## Commandes
@@ -18,7 +18,7 @@ docker compose -f compose/smoke.yml up -d --wait   # agent + serveur MCP factice
 PLAYWRIGHT_MODULE=/chemin/playwright/index.mjs node src/test/browser/console.mjs
 ```
 
-JDK 25 requis. La CI construit aussi l'image Docker et monte la stack de fumée.
+JDK 21 au minimum (la CI et l'image tournent en 21). La CI construit aussi l'image Docker et monte la stack de fumée.
 
 ## Structure
 
@@ -98,7 +98,7 @@ JDK 25 requis. La CI construit aussi l'image Docker et monte la stack de fumée.
   vulnérable avant de savoir qu'elle l'est.
 
 - **Un binaire de l'image de base qu'on n'appelle jamais se retire, il ne se tolère pas.** `pebble`
-  vient d'`eclipse-temurin:25-jre`, pas de notre arbre de dépendances : aucune ligne de `pom.xml`
+  vient d'`eclipse-temurin:21-jre`, pas de notre arbre de dépendances : aucune ligne de `pom.xml`
   ne le corrige, et attendre une image amont bloquerait chaque publication jusque-là. L'ENTRYPOINT
   lance `java` directement ; rien ne l'invoque. `tomcat.version` en revanche se corrige dans le
   pom — c'est une propriété que Spring Boot gère et documente pour avancer un composant sans

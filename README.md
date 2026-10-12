@@ -13,9 +13,10 @@
 [![Spring Boot 4.1](https://img.shields.io/badge/Spring_Boot-4.1-6DB33F?logo=springboot&logoColor=white)](pom.xml)
 [![Spring AI 2.0](https://img.shields.io/badge/Spring_AI-2.0-6DB33F)](pom.xml)
 [![MCP](https://img.shields.io/badge/MCP-stdio_·_SSE_·_streamable--HTTP-5A45FF)](docs/MCP.md)
+[![Docker Hub](https://img.shields.io/docker/v/compagnonsdudev/kex-agent-ai?logo=docker&logoColor=white&label=Docker%20Hub&sort=semver)](https://hub.docker.com/r/compagnonsdudev/kex-agent-ai)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
-[Why Kex-anHarness](#-why-kex-anharness) · [Highlights](#-highlights) · [Quick start](#-quick-start) · [What you can ask it](#-what-you-can-ask-it) · [How it works](#-how-it-works) · [Docs](#-documentation) · [🇫🇷 Français](README.fr.md)
+[Why Kex-anHarness](#-why-kex-anharness) · [Highlights](#-highlights) · [Quick start](#-quick-start) · [What you can ask it](#-what-you-can-ask-it) · [How it works](#-how-it-works) · [Docs](#-documentation) · [Ecosystem](#-ecosystem) · [🇫🇷 Français](README.fr.md)
 
 </div>
 
@@ -88,7 +89,7 @@ export OPENROUTER_MODEL=openai/gpt-oss-120b:free   # or any tool-calling model o
 ```
 
 It is a hosted gateway, so prompts and tool results — including the Kafka records the agent reads —
-travel through a third party. [The trade-offs, in full](docs/CONFIGURATION.md#choisir-le-fournisseur-de-modele).
+travel through a third party. [The trade-offs, in full](docs/CONFIGURATION.md#choisir-le-fournisseur-de-modèle).
 
 Just the agent, against an Explorer you already run:
 
@@ -117,24 +118,40 @@ curl -X POST localhost:8081/api/agent/chat \
 Or open **http://localhost:8081** for the **Control Center** — the console the agent serves itself.
 Paste the same bearer once; it lives in `sessionStorage` and never leaves the browser.
 
-No Docker? [Run it from source](docs/CONFIGURATION.md#running-from-source) — JDK 21 and `./mvnw spring-boot:run`.
+No Docker? [Run it from source](docs/CONFIGURATION.md#lancer-depuis-les-sources) — JDK 21 and `./mvnw spring-boot:run`.
 
 ## 🧭 The Control Center
 
 The agent ships with its own operations console at `/`, built around one loop:
 **observe → understand → decide → act → verify.**
 
+The console's screens are in French. In navigation order:
+
 | Screen | What it answers |
 |---|---|
-| Overview | Is everything running, what needs me, has the agent decided anything |
-| Agent | What the agent may and may not do, and under which mode |
-| Processes | Per-process state, delay, and the anomalies found on each |
-| Decisions | Every decision, its observations, its confidence, and what it actually did |
-| Configuration | Detection thresholds and confidence floor, versioned and audited |
-| Alerts | Grouped, actionable, each tied to a process and a recommendation |
-| Audit | Actor, action, reason, policy version, result, correlation id |
-| Technical | Kafka topics and consumer-group lag, MCP servers, direct tool invocation, health |
-| Conversation | The chat, streamed, with the tools it ran |
+| **Vue d'ensemble** (Overview) | Is everything running, what needs me, what is still missing to get started |
+| **Prévisions** (Forecasts) | TimesFM forecasts read from Kafka SQL Explorer, with their measured quality |
+| **À traiter** (To handle) | One queue: decisions awaiting a human, active alerts, degraded processes |
+| **Incidents** | Symptoms, evidence, decisions and timeline of one incident, on one screen |
+| **Processus** (Processes) | Per-process state, delay, coverage and trend, with saved views |
+| **Décisions** | Every decision, its observations, its confidence, and what it actually did |
+| **Conversation** | The chat, streamed, with the tools it ran |
+| **Tâches** (Tasks) | Durable plans: proposal, approval, execution, measured success — opt-in |
+| **Activité** (Activity) | Alerts, decisions, actions and state changes in a single timeline |
+| **Alertes** (Alerts) | Grouped, deduplicated, each tied to a process and a recommendation |
+| **Agent** | Mode, per-capability autonomy and floors, performance, notifications, governance, automations |
+| **Intégrations** | MCP connections — add, test, restrict per tool, diagnose, import/export, invoke — plus the recommended catalogue and the Kafka cluster view |
+| **Connaissance** (Knowledge) | Long-term memory, durable summaries, knowledge base |
+| **Système** (System) | Instance health, tokens consumed, HTTP requests, JVM memory |
+| **Audit** | Actor, action, reason, policy version, result, correlation id |
+| **Configuration** | Console preferences, the resolved model, detection thresholds, monitoring, the Kex MCP server |
+
+**On a fresh install**, the Overview opens with a setup checklist — API token, model key, a
+*reachable* MCP server, declared processes, the first cycle, Kafka — and says, step by step, what is
+missing. **Exécuter maintenant** (*Run now*) stays disabled, its reason in the tooltip, until a cycle
+can actually succeed, and an empty page's button leads to whatever lifts the blocker rather than
+promising an analysis it cannot run. The process and period filters appear only on the screens they
+filter, and default to the last 24 hours.
 
 A few things it deliberately does:
 
@@ -162,6 +179,10 @@ A few things it deliberately does:
   recommendations a human ruled on — an autonomous run never confirms itself — and stays absent
   until someone has ruled, where a `0` would read as "always wrong".
 - **Colour never carries a state by itself.** Every state ships a glyph and a label too.
+- **A switched-off feature is not an outage.** Tasks, the knowledge base or the Kex MCP server,
+  when disabled, say which variable turns them on — not "unknown resource" under a *Retry* button.
+- **An empty page says why it is empty** — nothing analysed yet, a filter that excludes everything
+  (named, and removable in one click), or genuinely nothing.
 - **Sensitive actions confirm with what they will do** — *Confirm: restart Consumer Integration-02*,
   not *Are you sure?*
 
@@ -253,10 +274,10 @@ kex:
 Restart, then `GET /api/agent/mcp/servers` tells you what it found. The whole story — including what
 MCP is, if this is your first one — is in [`docs/MCP.md`](docs/MCP.md).
 
-You can also manage them under **Technical → MCP servers**: test before add, HTTP or stdio,
-per-tool permissions, diagnostics, enable/disable and import/export. The MCP workspace also exposes
-active/idle sessions and their activity, plus a Playground for tools, resources and resource
-templates. Resource-template fields are generated as soon as a template is selected, so parameterized
+You can also manage them under **Intégrations** in the console: test before add, HTTP or stdio,
+per-tool permissions, diagnostics, enable/disable and import/export. Each connection's **Details**
+panel exposes active/idle sessions and their activity, and lets you call tools, read resources and
+fill resource templates. Resource-template fields are generated as soon as a template is selected, so parameterized
 resources can be exercised without hand-building their URI. Sessions are tracked in a registry and
 expire after 30 minutes of inactivity by default.
 
@@ -266,9 +287,16 @@ executables with `KEX_MCP_STDIO_ALLOWED_COMMANDS=npx,uvx`.
 ### Worked example: a second server, SpectraLLM
 
 [SpectraLLM](https://github.com/devdownin/SpectraLLM) (0.10.0+) serves a read-only MCP server over
-its indexed document corpus (`spectra_search`, `spectra_ask`, …). Pointing the agent at it as well
-as at Kafka SQL Explorer lets one question cross both: trace a record through the cluster with
-`kex_*`, then look up the runbook that explains it with `spectra_*`.
+its indexed document corpus. Pointing the agent at it as well as at Kafka SQL Explorer lets one
+question cross both: trace a record through the cluster with `kex_*`, then look up the runbook that
+explains it with `spectra_search`.
+
+The agent keeps `spectra_search`, `spectra_list_documents` and `spectra_preview_document`.
+`spectra_ask` is denied by default — it would have SpectraLLM's own model write the answer: two
+models in series, twice the cost, and sources the agent no longer controls. `spectra_status` is a
+diagnostic for operators. Both come back with `KEX_SPECTRA_ASK_DENIED=false` /
+`KEX_SPECTRA_STATUS_DENIED=false`. What belongs in SpectraLLM and what belongs in the agent's own
+knowledge base — rights, freshness, provenance — is in [`docs/CONNAISSANCE.md`](docs/CONNAISSANCE.md#et-spectrallm-).
 
 ```bash
 SPECTRALLM_URL=http://host.docker.internal:8082 SPECTRA_API_KEY=… \
@@ -333,7 +361,7 @@ simply stops, which a client cannot tell apart from a finished answer. Exchanges
 - **Tokens stay where they belong.** The MCP bearer is injected only on requests matching the
   declared URL prefix, so one server's credential never reaches another.
 - **The direct tool endpoint has no model in the loop.** Authorization is entirely on the caller.
-  Read [`docs/ARCHITECTURE.md#the-direct-tool-endpoint`](docs/ARCHITECTURE.md#the-direct-tool-endpoint)
+  Read [`docs/ARCHITECTURE.md#lendpoint-dappel-direct`](docs/ARCHITECTURE.md#lendpoint-dappel-direct)
   before exposing it.
 - **The audit can name a person, not just a key.** Set
   `spring.security.oauth2.resourceserver.jwt.issuer-uri` and the agent accepts OIDC tokens
@@ -352,7 +380,9 @@ simply stops, which a client cannot tell apart from a finished answer. Exchanges
 | [`docs/MCP.md`](docs/MCP.md) | What MCP is, the three transports, connecting a server, writing your own |
 | [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) | Every property and environment variable, the profiles, running from source |
 | [`docs/OBSERVABILITE.md`](docs/OBSERVABILITE.md) | Cost and tool metrics, scraping them, what to alert on |
-| [`docs/CONNAISSANCE.md`](docs/CONNAISSANCE.md) | The knowledge base: why it is off, how to turn it on, how to feed and debug it |
+| [`docs/CONNAISSANCE.md`](docs/CONNAISSANCE.md) | The knowledge base: why it is off, how to turn it on, how to feed and debug it, and how it compares with SpectraLLM |
+| [`docs/TOOL-CONTROLS.md`](docs/TOOL-CONTROLS.md) | Per-tool rules: denial, read-only retries, allowed argument values, destinations |
+| [`docs/FORECAST-STACK.md`](docs/FORECAST-STACK.md) | The complete Kafka + Explorer + TimesFM stack, its diagnostic, and troubleshooting |
 | [`docs/EXEMPLES.md`](docs/EXEMPLES.md) | Example prompts per capability, what the agent refuses, and a five-minute demo |
 
 ## 🧪 Tests
@@ -402,11 +432,23 @@ diagnosed against the base, not guessed at.
 
 ## 🛡️ Supply chain
 
-Every release image is built from a tagged commit, published multi-arch to GHCR with provenance and
-an SBOM. The build itself emits a CycloneDX SBOM (`target/classes/META-INF/sbom/`), CI enforces the
+Every release image is built from a tagged commit and published for `linux/amd64` to Docker Hub
+and GHCR with an SBOM, after a vulnerability scan of the very image about to be pushed. The build itself emits a CycloneDX SBOM (`target/classes/META-INF/sbom/`), CI enforces the
 license headers, the format, and a coverage floor, CodeQL runs per pull request and weekly, OpenSSF
 Scorecard weekly, and Dependabot watches Maven, Actions and Docker. Every GitHub Action is pinned by
 commit SHA.
+
+## 🧩 Ecosystem
+
+Three open-source projects, published under the same Docker Hub namespace, each usable on its own and wired to the others through MCP:
+
+| Project | What it does | Image | License |
+|---|---|---|---|
+| [Kafka SQL Explorer](https://github.com/devdownin/Kafkaexplorer) | Explore Kafka, query it in Flink SQL, audit it with AI — and serve it to agents as a read-only MCP server | [`compagnonsdudev/kafkaexplorer`](https://hub.docker.com/r/compagnonsdudev/kafkaexplorer) | AGPL-3.0-or-later |
+| [SpectraLLM](https://github.com/devdownin/SpectraLLM) | Turn your documents into a private, fine-tuned AI — local RAG, fine-tuning, and an MCP server over the corpus | [`compagnonsdudev/spectrallm`](https://hub.docker.com/r/compagnonsdudev/spectrallm) | AGPL-3.0-or-later |
+| **Kex-anHarness** *(this project)* | A governed AI agent that works through MCP tools — supervision, human approvals, audit trail | [`compagnonsdudev/kex-agent-ai`](https://hub.docker.com/r/compagnonsdudev/kex-agent-ai) | GPL-3.0-or-later |
+
+How they fit: Kex-anHarness reads Kafka through Kafka SQL Explorer's MCP server and searches documents through SpectraLLM's; Kafka SQL Explorer can use SpectraLLM as its private LLM provider.
 
 ## 🤝 Contributing
 
@@ -422,11 +464,11 @@ control, **star the project and help shape what production-grade agentic AI shou
 
 ## 📄 License
 
-GPL-3.0 — see [LICENSE](LICENSE).
+GPL-3.0-or-later — see [LICENSE](LICENSE).
 
 ## TimesFM forecasts
 
-**Control Center → Forecasts** reads KafkaExplorer’s persisted forecasts through five read-only MCP tools.
+**Control Center → Forecasts** reads Kafka SQL Explorer’s persisted forecasts through five read-only MCP tools.
 Choose an environment and an approved metric, inspect history, Q10/Q50/Q90, realised quality,
 baseline scores and predicted threshold breaches, then prepare an agent conversation.
 SHADOW, expired forecasts and fallback strategies remain explicit; no inference or activation runs in Kex.
@@ -450,7 +492,10 @@ Unknown mutations are reconciled without replay. Tasks and selective tool discov
 After upgrading, declare real read-only tools with `kex.agent.tools.rules.<name>.read-only=true`
 to retain transient MCP retries; unclassified tools are no longer automatically retried.
 
-Les [preuves de réussite et budgets partagés](docs/VERIFIED-LEARNING-BUDGETS.md) distinguent une réponse terminée d’un objectif vérifié. La [connaissance documentaire](docs/CONNAISSANCE.md) applique droits, environnement, fraîcheur et provenance datée.
+[Success evidence and shared budgets](docs/VERIFIED-LEARNING-BUDGETS.md) tell a finished answer apart from a verified objective. The [knowledge base](docs/CONNAISSANCE.md) applies rights, environment, freshness and dated provenance.
+
+Tasks are off by default: the **Tâches** screen then says so and names the variable,
+`KEX_AGENT_TASKS_ENABLED=true`.
 
 ## User workspace
 
@@ -476,7 +521,7 @@ First-time users see a dismissible startup guide explaining requests, results an
 
 ## Complete TimesFM stack
 
-Start Kafka, KafkaExplorer, PostgreSQL, TimesFM and Kex-anHarness together:
+Start Kafka, Kafka SQL Explorer, PostgreSQL, TimesFM and Kex-anHarness together:
 
 ```sh
 bin/forecast-stack.sh
