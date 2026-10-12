@@ -333,7 +333,7 @@ jobs:
   # utilise un serveur factice.
   explorer-contract:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       EXPLORER_IMAGE_NAMESPACE: ghcr.io/devdownin
       EXPLORER_MCP_AUTH_TOKEN: contract-token
@@ -388,9 +388,56 @@ jobs:
           cat "$report"
           grep -q 'Tests run: 1, Failures: 0, Errors: 0, Skipped: 0' "$report"
 
+      # Les captures de site/img/, régénérées sur l'agent branché sur ce même Explorer réel. Elles
+      # partent en artefact : une PR qui change la console montre ce qu'elle fait à la page de
+      # présentation, et les recopier reste un geste de revue.
+      - name: Package and start the agent against this Explorer
+        run: |
+          set -euo pipefail
+          ./mvnw -B --no-transfer-progress -DskipTests package
+          KAFKA_EXPLORER_URL=http://localhost:8080 EXPLORER_MCP_AUTH_TOKEN=contract-token \
+          nohup java -jar target/kex-agent-ai-*.jar \
+            --server.port=8081 \
+            --kex.agent.api-key=ci-secret \
+            --kex.agent.supervision.processes[0].id=order-integration \
+            --kex.agent.supervision.processes[0].name='Order Integration' \
+            --spring.ai.model.chat=openai \
+            --spring.ai.model.embedding=none \
+            --spring.ai.openai.api-key=ci-dummy \
+            --spring.ai.openai.base-url=http://127.0.0.1:8098 > agent.log 2>&1 &
+          for _ in $(seq 1 60); do
+            curl -fsS http://localhost:8081/actuator/health >/dev/null 2>&1 && break
+            sleep 2
+          done
+          curl -fsS http://localhost:8081/actuator/health
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-1.56.1
+
+      - name: Capture the landing page screenshots
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.56.1
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          mkdir -p fresh
+          PLAYWRIGHT_MODULE="$RUNNER_TEMP/pw/node_modules/playwright/index.mjs" \
+            node site/capture.mjs http://localhost:8081 fresh
+
+      - name: Upload the fresh screenshots
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
+        with:
+          name: site-screenshots
+          path: fresh/
+          retention-days: 14
+
       - name: Explorer logs on failure
         if: failure()
-        run: docker compose logs explorer || true
+        run: |
+          docker compose logs explorer || true
+          cat agent.log 2>/dev/null || true
 
       - name: Tear the stack down
         if: always()

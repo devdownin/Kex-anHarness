@@ -17,9 +17,27 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
   (sur chaque PR) et, avec `--published`, n'est pas en retard sur Docker Hub (planification
   hebdomadaire `ecosystem.yml`, avec `check-ecosystem.py --siblings`, qui compare le script partagé
   à ses copies dans les deux autres dépôts).
+- **PR automatique à chaque publication de l'Explorer** : le job `explorer-bump` d'`ecosystem.yml`
+  lance `check-explorer-pin.py --bump`, qui monte les trois fichiers sur la dernière version
+  poussée sur Docker Hub, et ouvre la PR `chore/explorer-<version>` ; `explorer-contract` y rejoue
+  le contrat réel avant tout merge. Une PR ouverte par `GITHUB_TOKEN` ne déclenche pas la CI : la
+  fermer puis la rouvrir.
+- **Captures du site régénérées en CI** : une fois le contrat passé, `explorer-contract` démarre
+  l'agent sur l'Explorer réel et `site/capture.mjs` (Playwright) photographie la vue d'ensemble et
+  les intégrations ; l'artefact `site-screenshots` remplace les images de `site/` d'un copier.
+- `scripts/check-readme-parity.py` (job `repository-links`) : `README.md` et `README.fr.md` ont
+  les mêmes titres niveau par niveau, les mêmes blocs de code et des ancres de navigation vivantes.
 
 ### Documentation
 
+- **README français au niveau de l'anglais** : « Pourquoi Kex-anHarness ? », « Points forts » et
+  « Prêt pour Kafka dès l'installation » y manquaient. Le lien « How it works » / « Comment ça
+  marche » de la navigation ne menait à aucun titre ; il mène à la Control Center.
+- **Un slogan, partout le même** : « Kex-anHarness: governed AI agent with MCP tools, supervision and
+  human approvals. » ouvre `DOCKERHUB.md` et sert de description au site ; le titre du site reprend
+  l'accroche du README.
+- Retrait des fichiers égarés à la racine (deux `.mht`, `frontskill.md`) ; `Redesign.md` devient
+  `docs/REDESIGN-SKILL.md`, à côté de l'audit qui le cite.
 - **Écosystème** : la section qui présente Kafka SQL Explorer, SpectraLLM et Kex-anHarness est
   générée par `scripts/check-ecosystem.py`, le même fichier dans les trois dépôts, et vérifiée par
   le job `repository-links`. Elle donne la commande qui lance les trois ensemble

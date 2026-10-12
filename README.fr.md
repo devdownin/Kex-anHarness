@@ -2,7 +2,9 @@
 
 # 🧭 Kex-anHarness
 
-### Un agent IA qui se sert vraiment de vos outils — Spring Boot 4, Spring AI 2, Java 21.
+### Arrêtez de demander à l'IA de deviner. Donnez-lui de vrais outils.
+
+**Un agent IA pensé pour la production, construit avec Java 21, Spring Boot 4, Spring AI 2 et MCP.**
 
 [![CI](https://github.com/devdownin/Kex-anHarness/actions/workflows/ci.yml/badge.svg)](https://github.com/devdownin/Kex-anHarness/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/devdownin/Kex-anHarness/actions/workflows/codeql.yml/badge.svg)](https://github.com/devdownin/Kex-anHarness/actions/workflows/codeql.yml)
@@ -14,7 +16,7 @@
 [![Docker Hub](https://img.shields.io/docker/v/compagnonsdudev/kex-agent-ai?logo=docker&logoColor=white&label=Docker%20Hub&sort=semver)](https://hub.docker.com/r/compagnonsdudev/kex-agent-ai)
 [![Licence : GPL v3](https://img.shields.io/badge/Licence-GPLv3-blue.svg)](LICENSE)
 
-[Site web](https://devdownin.github.io/Kex-anHarness/) · [Démarrage](#-démarrage) · [Ce qu'on peut lui demander](#-ce-quon-peut-lui-demander) · [Comment ça marche](#-comment-ça-marche) · [Docs](#-documentation) · [Écosystème](#-écosystème) · [🇬🇧 English](README.md)
+[Site web](https://devdownin.github.io/Kex-anHarness/) · [Pourquoi Kex-anHarness](#-pourquoi-kex-anharness-) · [Points forts](#-points-forts) · [Démarrage](#-démarrage) · [Ce qu'on peut lui demander](#-ce-quon-peut-lui-demander) · [La Control Center](#-la-control-center) · [Docs](#-documentation) · [Écosystème](#-écosystème) · [🇬🇧 English](README.md)
 
 </div>
 
@@ -28,17 +30,45 @@
 
 Kafka est une intégration de référence, pas une limite : Kex peut exploiter des serveurs MCP pour des fichiers, GitHub, SQL ou des systèmes métier. Sa différenciation reste la gouvernance — autonomie par capacité, seuils de confiance, validation humaine et audit. Voir [la vision et les extensions](docs/GOVERNED-GENERAL-AGENT.md).
 
-**La plupart des démos d'« agent IA » répondent de mémoire. Celui-ci va regarder.**
+## ✨ Pourquoi Kex-anHarness ?
 
-Kex-anHarness est un service Spring Boot qui se connecte à des serveurs [MCP](https://modelcontextprotocol.io),
-découvre les outils qu'ils exposent et les présente à un modèle Claude — de sorte qu'une question
-comme *« quels topics n'ont rien reçu aujourd'hui ? »* devient une vraie interrogation d'un vrai
-cluster, pas une supposition bien tournée.
+La plupart des démos d'agent IA produisent des réponses plausibles tirées de la mémoire du modèle.
+
+**Kex-anHarness, lui, va vérifier.**
+
+Kex-anHarness relie les modèles de langage à des systèmes réels par le
+[Model Context Protocol (MCP)](https://modelcontextprotocol.io). Il découvre les outils à
+l'exécution, les invoque de façon sécurisée, explique ses décisions et laisse les humains aux
+commandes grâce à une console d'exploitation complète.
+
+Une question comme *« quels topics n'ont rien reçu aujourd'hui ? »* devient une vraie interrogation
+d'un vrai cluster — pas une supposition bien tournée. Chaque capacité est explicite, chaque action
+sensible est contrôlée, et chaque résultat se retrace.
+
+## 🚀 Points forts
+
+- **Gestion MCP à l'exécution** — ajouter et tester des serveurs HTTP, SSE ou stdio directement depuis l'interface.
+- **Sessions MCP et Playground** — suivre l'activité et le cycle de vie des sessions, parcourir ressources et modèles de ressources, et exercer les capacités MCP depuis la console.
+- **Sûr par défaut** — authentification bearer, configuration MCP chiffrée et listes d'autorisation
+  stdio explicites.
+- **Permissions par outil** — décider exactement quels outils chaque connexion peut exposer au modèle.
+- **Supervision avec l'humain dans la boucle** — approuver, rejeter ou automatiser les actions par capacité.
+- **Control Center intégrée** — observer, comprendre, décider, agir et vérifier depuis une seule interface.
+- **Diagnostics d'exploitation** — historique de santé, latence, tests de connexion et rafraîchissement des outils à chaud.
+- **Configuration portable** — importer et exporter les connexions MCP sans exposer leurs secrets.
+- **Plusieurs fournisseurs de modèles** — Anthropic ou passerelles compatibles OpenAI comme OpenRouter.
+- **Prêt pour Kafka** — inspecter les topics, tracer des clés métier, diagnostiquer le lag et interroger les données en direct.
+- **Prêt pour Docker** — lancer l'agent seul ou démarrer la stack Kafka complète en une commande.
+
+## 🟠 Prêt pour Kafka dès l'installation
 
 Il est livré branché sur [Kafka SQL Explorer](https://github.com/devdownin/Kafkaexplorer), dont le
-serveur MCP expose des outils en lecture sur Kafka : liste des topics, SQL Flink, inférence de schéma,
-traçage d'une clé à travers les topics, audits de cluster et revues opérationnelles. Un `docker compose up` et vous interrogez
-votre broker en langage naturel.
+serveur MCP expose 21 outils en lecture sur Kafka : liste des topics, SQL Flink, inférence de schéma,
+traçage d'une clé à travers les topics, audits de cluster, santé des processus, activité des topics,
+diagnostic des consumers, santé des flux, vérification avant/après et preuves d'incident. Le modèle
+choisit l'outil adapté ; le serveur MCP applique les garde-fous d'exploitation. Un
+`docker compose up` et vous interrogez votre broker en langage naturel — en gardant la piste d'audit
+de ce que l'agent a réellement fait.
 
 ## ⚡ Démarrage
 
@@ -414,6 +444,14 @@ Comment ils s'emboîtent : Kex-anHarness lit Kafka par le serveur MCP de Kafka S
 
 [`CONTRIBUTING.md`](CONTRIBUTING.md) pour la marche à suivre et les règles de la maison,
 [`SECURITY.md`](SECURITY.md) pour signaler une faille — en privé, jamais en issue.
+
+---
+
+### Des agents qui agissent — et qui en répondent.
+
+Si vous pensez que les agents IA doivent se servir de vrais outils, expliquer leurs décisions et
+rester sous contrôle opérationnel, **mettez une étoile au projet et aidez à dessiner ce que devrait
+être une IA agentique digne de la production.**
 
 ## 📄 Licence
 
