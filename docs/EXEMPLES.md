@@ -216,13 +216,13 @@ Le serveur publie aussi le prompt `kex_supervision_triage` pour guider une inves
 seule. Sa vue de synthèse expose notamment la version du protocole, les requêtes, la latence et les
 sessions clientes actives ou inactives.
 
-## Playground MCP et Resource Templates
+## Appeler un serveur MCP sans le modèle
 
-Dans **Technique → MCP**, le Playground permet d'exercer directement un serveur sans passer par le
-modèle. On peut ainsi vérifier d'abord que le serveur répond et que sa capacité produit les bonnes
+Dans **Intégrations**, le panneau **Détails** d'une connexion permet d'exercer directement un
+serveur sans passer par le modèle. On peut ainsi vérifier d'abord que le serveur répond et que sa capacité produit les bonnes
 données, puis seulement tester si le modèle choisit correctement cette capacité.
 
-Le Playground permet d'appeler les outils, parcourir et lire les resources et utiliser les
+Ce panneau permet d'appeler les outils, parcourir et lire les resources et utiliser les
 **resource templates**. Lorsqu'un template paramétré est sélectionné, ses champs sont générés
 immédiatement : l'opérateur renseigne les paramètres sans construire l'URI à la main.
 
@@ -308,8 +308,8 @@ supprimerait la validation humaine qu'il est censé demander.
 3. **Apprentissage gouverné** — lancer un diagnostic multi-outils, ouvrir la file de revue,
    approuver la compétence puis afficher sa curation.
 4. **Charte** — montrer une règle d'exploitation et son historique versionné.
-5. **Playground MCP** — découvrir outils/resources, sélectionner un resource template et exécuter
-   un appel sans modèle.
+5. **Appel MCP direct** — dans Intégrations → Détails, découvrir outils/resources, sélectionner un
+   resource template et exécuter un appel sans modèle.
 6. **Kex devient serveur MCP** — depuis un client externe, lire les alertes ou diagnostiquer un
    processus via les outils Kex, puis montrer la session dans la console.
 7. **Décision supervisée** — la retrouver dans la console et, si configuré, dans Slack, Teams ou

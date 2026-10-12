@@ -2,12 +2,12 @@
 
 # 🧭 Kex-anHarness
 
-### Un agent IA qui se sert vraiment de vos outils — Spring Boot 4, Spring AI 2, Java 25.
+### Un agent IA qui se sert vraiment de vos outils — Spring Boot 4, Spring AI 2, Java 21.
 
 [![CI](https://github.com/devdownin/Kex-anHarness/actions/workflows/ci.yml/badge.svg)](https://github.com/devdownin/Kex-anHarness/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/devdownin/Kex-anHarness/actions/workflows/codeql.yml/badge.svg)](https://github.com/devdownin/Kex-anHarness/actions/workflows/codeql.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/devdownin/Kex-anHarness/badge)](https://scorecard.dev/viewer/?uri=github.com/devdownin/Kex-anHarness)
-[![Java 25](https://img.shields.io/badge/Java-25-orange)](pom.xml)
+[![Java 21](https://img.shields.io/badge/Java-21-orange)](pom.xml)
 [![Spring Boot 4.1](https://img.shields.io/badge/Spring_Boot-4.1-6DB33F?logo=springboot&logoColor=white)](pom.xml)
 [![Spring AI 2.0](https://img.shields.io/badge/Spring_AI-2.0-6DB33F)](pom.xml)
 [![MCP](https://img.shields.io/badge/MCP-stdio_·_SSE_·_streamable--HTTP-5A45FF)](docs/MCP.md)
@@ -60,7 +60,7 @@ export OPENROUTER_MODEL=openai/gpt-oss-120b:free   # ou n'importe quel modèle s
 
 C'est une passerelle hébergée : les prompts et les résultats d'outils — donc les messages Kafka que
 l'agent lit — transitent par un tiers.
-[Ce que ça implique, en détail](docs/CONFIGURATION.md#choisir-le-fournisseur-de-modele).
+[Ce que ça implique, en détail](docs/CONFIGURATION.md#choisir-le-fournisseur-de-modèle).
 
 L'agent seul, devant un Explorer que vous faites déjà tourner :
 
@@ -90,24 +90,40 @@ Ou ouvrez **http://localhost:8081** : la **Control Center**, la console que l'ag
 Le bearer se colle une fois ; il vit dans `sessionStorage` et ne quitte jamais le navigateur.
 
 Pas de Docker ? [Lancez-le depuis les sources](docs/CONFIGURATION.md#lancer-depuis-les-sources) —
-JDK 25 et `./mvnw spring-boot:run`.
+JDK 21 et `./mvnw spring-boot:run`.
 
 ## 🧭 La Control Center
 
 L'agent sert sa propre console d'exploitation sur `/`, construite autour d'une seule boucle :
 **observer → comprendre → décider → agir → vérifier.**
 
+Dans l'ordre de la navigation :
+
 | Écran | Ce à quoi il répond |
 |---|---|
-| Vue d'ensemble | Est-ce que tout tourne, qu'est-ce qui demande mon attention, l'agent a-t-il décidé |
-| Agent | Ce que l'agent peut et ne peut pas faire, et sous quel mode |
-| Processus | État, retard et anomalies de chaque processus surveillé |
-| Décisions | Chaque décision, ses observations, sa confiance, et ce qu'elle a réellement fait |
-| Configuration | Seuils de détection et plancher de confiance, versionnés et audités |
-| Alertes | Regroupées, actionnables, liées à un processus et à une recommandation |
-| Audit | Acteur, action, motif, version de politique, résultat, identifiant de corrélation |
-| Technique | Topics Kafka et retard des groupes, serveurs MCP, invocation directe, santé |
-| Conversation | Le chat, en flux, avec les outils qu'il a exécutés |
+| **Vue d'ensemble** | Est-ce que tout tourne, qu'est-ce qui demande mon attention, que manque-t-il pour démarrer |
+| **Prévisions** | Les prévisions TimesFM lues dans Kafka SQL Explorer, avec leur qualité mesurée |
+| **À traiter** | Une seule file : décisions à valider, alertes actives, processus dégradés |
+| **Incidents** | Symptômes, preuves, décisions et chronologie d'un incident, sur un seul écran |
+| **Processus** | État, retard, couverture et tendance de chaque processus, avec des vues enregistrées |
+| **Décisions** | Chaque décision, ses observations, sa confiance, et ce qu'elle a réellement fait |
+| **Conversation** | Le chat, en flux, avec les outils qu'il a exécutés |
+| **Tâches** | Plans durables : proposition, approbation, exécution, réussite mesurée — sur activation |
+| **Activité** | Alertes, décisions, actions et changements d'état réunis dans un seul fil |
+| **Alertes** | Regroupées, dédupliquées, liées à un processus et à une recommandation |
+| **Agent** | Mode, autonomie et planchers par capacité, performances, notifications, gouvernance, automatisations |
+| **Intégrations** | Connexions MCP — ajout, test, restriction par outil, diagnostic, import/export, invocation — plus le catalogue recommandé et la vue du cluster Kafka |
+| **Connaissance** | Mémoire long-terme, résumés durables, base de connaissance |
+| **Système** | Santé de l'instance, jetons consommés, requêtes HTTP, mémoire JVM |
+| **Audit** | Acteur, action, motif, version de politique, résultat, identifiant de corrélation |
+| **Configuration** | Préférences de la console, modèle résolu, seuils de détection, surveillance, serveur MCP Kex |
+
+**Sur une installation neuve**, la Vue d'ensemble s'ouvre sur une mise en route — jeton d'API, clé
+du modèle, serveur MCP *joignable*, processus déclarés, premier cycle, Kafka — qui dit, étape par
+étape, ce qui manque. **Exécuter maintenant** reste désactivé, le motif en infobulle, tant qu'un
+cycle ne peut pas aboutir, et le bouton d'une page vide mène à ce qui lève le blocage plutôt que de
+promettre une analyse impossible. Les filtres Processus et Période n'apparaissent que sur les écrans
+qu'ils filtrent, et couvrent par défaut les dernières 24 heures.
 
 Quelques partis pris explicites :
 
@@ -137,6 +153,11 @@ Quelques partis pris explicites :
   recommandations qu'un humain a tranchées — une exécution autonome ne se confirme pas elle-même —
   et reste absent tant que personne n'a tranché, là où un `0` se lirait « toujours faux ».
 - **La couleur ne porte jamais un état à elle seule.** Chaque état vient avec un glyphe et un libellé.
+- **Une fonctionnalité éteinte n'est pas une panne.** Tâches, base de connaissance ou serveur MCP
+  Kex désactivés disent quelle variable les allume — pas « ressource inconnue » sous un bouton
+  *Réessayer*.
+- **Une page vide dit pourquoi elle l'est** — rien n'a encore été analysé, un filtre écarte tout
+  (nommé, et levable d'un clic), ou il n'y a vraiment rien.
 - **Une action sensible se confirme avec ce qu'elle va faire** — *Confirmer : Redémarrer Consumer
   Integration-02*, pas *Êtes-vous sûr ?*
 
@@ -226,18 +247,27 @@ kex:
 Redémarrez, puis `GET /api/agent/mcp/servers` vous dit ce qui a été trouvé. L'histoire complète —
 y compris ce qu'est MCP si c'est votre premier — est dans [`docs/MCP.md`](docs/MCP.md).
 
-Vous pouvez aussi les administrer dans **Technique → Serveurs MCP** : test avant ajout, HTTP ou
-stdio, permissions par outil, diagnostics, activation et import/export. Définissez
+Vous pouvez aussi les administrer dans **Intégrations** : test avant ajout, HTTP ou stdio,
+permissions par outil, diagnostics, activation et import/export. Le panneau **Détails** de chaque
+connexion montre ses sessions et permet d'appeler un outil, de lire une ressource et de remplir un
+modèle de ressource. Définissez
 `KEX_MCP_STORAGE_KEY` pour chiffrer et conserver ces connexions ; et, pour stdio, autorisez
 explicitement les exécutables avec `KEX_MCP_STDIO_ALLOWED_COMMANDS=npx,uvx`.
 
 ### Exemple complet : un second serveur, SpectraLLM
 
 [SpectraLLM](https://github.com/devdownin/SpectraLLM) (0.10.0+) sert un serveur MCP en lecture
-seule sur son corpus documentaire indexé (`spectra_search`, `spectra_ask`, …). Brancher l'agent sur
-lui en plus de Kafka SQL Explorer permet à une même question de traverser les deux : suivre un
-enregistrement dans le cluster avec les outils `kex_*`, puis retrouver la procédure qui l'explique
-avec les outils `spectra_*`.
+seule sur son corpus documentaire indexé. Brancher l'agent sur lui en plus de Kafka SQL Explorer
+permet à une même question de traverser les deux : suivre un enregistrement dans le cluster avec
+les outils `kex_*`, puis retrouver la procédure qui l'explique avec `spectra_search`.
+
+L'agent garde `spectra_search`, `spectra_list_documents` et `spectra_preview_document`.
+`spectra_ask` est refusé par défaut : il ferait rédiger la réponse par le modèle de SpectraLLM —
+deux modèles en série, un coût doublé, des sources que l'agent ne fixe plus. `spectra_status` sert
+au diagnostic d'un opérateur. Les deux reviennent avec `KEX_SPECTRA_ASK_DENIED=false` /
+`KEX_SPECTRA_STATUS_DENIED=false`. Ce qui va dans SpectraLLM et ce qui va dans la base de
+connaissance de l'agent — droits, fraîcheur, provenance — est dans
+[`docs/CONNAISSANCE.md`](docs/CONNAISSANCE.md#et-spectrallm-).
 
 ```bash
 SPECTRALLM_URL=http://host.docker.internal:8082 SPECTRA_API_KEY=… \
@@ -301,7 +331,7 @@ bloquante répond `504`.
   préfixe d'URL déclaré : le secret d'un serveur ne part jamais vers un autre.
 - **L'endpoint d'appel direct n'a pas de modèle dans la boucle.** L'autorisation est entièrement à la
   charge de l'appelant. Lire
-  [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#the-direct-tool-endpoint) avant de l'exposer.
+  [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#lendpoint-dappel-direct) avant de l'exposer.
 - **L'audit peut nommer une personne, pas seulement une clé.** Renseigner
   `spring.security.oauth2.resourceserver.jwt.issuer-uri` et l'agent accepte des jetons OIDC à côté
   de ses clés API : l'audit inscrit alors le claim de nom plutôt qu'un nom d'intégration. Les rôles
@@ -320,7 +350,9 @@ bloquante répond `504`.
 | [`docs/MCP.md`](docs/MCP.md) | Ce qu'est MCP, les trois transports, brancher un serveur, écrire le sien |
 | [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) | Toutes les propriétés, les profils, lancer depuis les sources |
 | [`docs/OBSERVABILITE.md`](docs/OBSERVABILITE.md) | Métriques de coût et d'outils, scraping, seuils d'alerte |
-| [`docs/CONNAISSANCE.md`](docs/CONNAISSANCE.md) | La base de connaissance : pourquoi éteinte, comment l'allumer, l'alimenter et la diagnostiquer |
+| [`docs/CONNAISSANCE.md`](docs/CONNAISSANCE.md) | La base de connaissance : pourquoi éteinte, comment l'allumer, l'alimenter et la diagnostiquer, et ce qui la distingue de SpectraLLM |
+| [`docs/TOOL-CONTROLS.md`](docs/TOOL-CONTROLS.md) | Règles par outil : refus, réessais en lecture seule, valeurs d'arguments et destinations autorisées |
+| [`docs/FORECAST-STACK.md`](docs/FORECAST-STACK.md) | La stack complète Kafka + Explorer + TimesFM, son diagnostic et son dépannage |
 | [`docs/EXEMPLES.md`](docs/EXEMPLES.md) | Exemples de prompts par capacité, ce que l'agent refuse, et une démonstration de cinq minutes |
 
 ## 🧪 Tests
@@ -369,8 +401,8 @@ une réponse décevante se diagnostique donc contre la base, elle ne se devine p
 
 ## 🛡️ Chaîne d'approvisionnement
 
-Chaque image de release est construite depuis un commit tagué, publiée multi-arch sur GHCR avec
-provenance et SBOM. Le build émet lui-même un SBOM CycloneDX (`target/classes/META-INF/sbom/`), la
+Chaque image de release est construite depuis un commit tagué et publiée pour `linux/amd64` sur
+Docker Hub et GHCR avec son SBOM, après un scan de vulnérabilités de l'image même qui va partir. Le build émet lui-même un SBOM CycloneDX (`target/classes/META-INF/sbom/`), la
 CI impose les en-têtes de licence, le format et un plancher de couverture, CodeQL tourne par pull
 request et chaque semaine, OpenSSF Scorecard chaque semaine, et Dependabot surveille Maven, Actions
 et Docker. Chaque GitHub Action est épinglée par SHA de commit.
@@ -408,6 +440,9 @@ La console Tâches distingue le plan proposé, son approbation, son exécution e
 Les mutations incertaines sont réconciliées sans rejeu. Les tâches et la sélection des outils s’activent explicitement.
 Après mise à jour, déclarer les véritables lectures avec `kex.agent.tools.rules.<name>.read-only=true`
 pour conserver les réessais MCP transitoires ; les outils non classés ne sont plus rejoués automatiquement.
+
+Les tâches sont éteintes par défaut : l'écran **Tâches** le dit alors et nomme la variable,
+`KEX_AGENT_TASKS_ENABLED=true`.
 
 ## Espace utilisateur
 

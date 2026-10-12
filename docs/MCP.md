@@ -186,7 +186,7 @@ Pour vérifier, dans l'ordre où les choses peuvent casser :
 
 ### Administrer les serveurs depuis la console
 
-La vue **Technique → Serveurs MCP** ajoute des connexions sans redémarrer. L'assistant teste le
+La vue **Intégrations** de la console ajoute des connexions sans redémarrer. L'assistant teste le
 handshake et découvre les outils avant tout enregistrement. Il permet ensuite de désactiver,
 modifier, rafraîchir, diagnostiquer ou retirer le serveur, de limiter les outils présentés au
 modèle, et de les associer à des capacités métier.

@@ -5,6 +5,22 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
 
 ## [Non publié]
 
+### Documentation
+
+- README (anglais et français) et page Docker Hub alignés sur la console actuelle : les seize écrans
+  dans l'ordre de la navigation (l'écran « Technique » n'existe plus, ses connexions MCP sont dans
+  **Intégrations**), la mise en route d'une installation neuve, « Exécuter maintenant » désactivé
+  avec son motif, les filtres limités aux vues qu'ils filtrent et leur période par défaut de 24 h.
+- SpectraLLM : la page Docker Hub montre comment brancher la connexion par variables, et les deux
+  README disent quels outils l'agent garde (`spectra_search`…) et pourquoi `spectra_ask` est refusé.
+- Java 21 partout où Java 25 était annoncé (README français, Docker Hub, `CONTRIBUTING.md`,
+  `CLAUDE.md`) : le pom, l'image et la CI sont en 21. La chaîne d'approvisionnement ne se dit plus
+  « multi-arch » : l'image est publiée pour `linux/amd64`.
+- `CONTRIBUTING.md` liste tous les jobs de CI (`browser`, `mcp-interop`, `mcp-browser`, `stack`,
+  `repository-links`…), pas seulement les quatre premiers.
+- Aide contextuelle de la console (Configuration) : analyse impossible, filtres Processus et
+  Période, fonctionnalité désactivée, réponse en direct, documentation SpectraLLM.
+
 ### Modifié
 
 - SpectraLLM : l'agent ne propose plus au modèle que `spectra_search`, `spectra_list_documents` et

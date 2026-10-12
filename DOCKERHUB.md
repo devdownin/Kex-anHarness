@@ -4,9 +4,9 @@
 tools, explains what it sees, and asks a named human before it acts — every decision carrying its
 confidence, its evidence and an audit trail.
 
-Built on Spring Boot 4 / Spring AI 2, Java 25. Ships with a browser console (the **Control Center**)
+Built on Spring Boot 4 / Spring AI 2, Java 21. Ships with a browser console (the **Control Center**)
 served by the agent itself, no build step and no CDN. The console manages MCP connections at runtime,
-shows session activity and lifecycle, and includes a Playground for tools, resources and parameterized
+shows session activity and lifecycle, and lets you call tools, read resources and fill parameterized
 resource templates.
 
 - **Source, issues and full documentation:** https://github.com/devdownin/Kex-anHarness
@@ -42,7 +42,9 @@ docker run --rm -p 8081:8081 \
 ```
 
 Then open **http://localhost:8081** and paste the same bearer once — it lives in `sessionStorage`
-and never leaves the browser. Or talk to the API directly:
+and never leaves the browser. On a fresh install the first screen is a setup checklist that names
+what is still missing — model key, a *reachable* MCP server, declared processes — and **Run now**
+stays disabled, with its reason, until an analysis cycle can actually succeed. Or talk to the API directly:
 
 ```bash
 curl -X POST localhost:8081/api/agent/chat \
@@ -57,15 +59,38 @@ is one `docker compose up` away from
 
 ## MCP from the browser
 
-Under **Technical → MCP servers**, connections can be tested before they are added, enabled or disabled,
-restricted per tool, diagnosed, and imported/exported. HTTP, SSE and stdio transports are supported.
-The same workspace exposes active/idle MCP sessions and recent activity. Its Playground lets you call
-tools, browse/read resources and select resource templates; template fields are generated immediately
-from the selected template instead of requiring a URI to be assembled manually.
+Under **Intégrations** (the console is in French), connections can be tested before they are added,
+enabled or disabled, restricted per tool, diagnosed, and imported/exported. HTTP, SSE and stdio
+transports are supported. Each connection's **Details** panel exposes active/idle MCP sessions and
+recent activity, and lets you call tools, browse/read resources and select resource templates;
+template fields are generated immediately from the selected template instead of requiring a URI to
+be assembled manually.
 
 Runtime connections can be encrypted and persisted with `KEX_MCP_STORAGE_KEY`. For stdio servers,
 executables remain opt-in through `KEX_MCP_STDIO_ALLOWED_COMMANDS`. MCP sessions expire after 30 minutes
 of inactivity by default.
+
+## A second MCP server: SpectraLLM
+
+[SpectraLLM](https://github.com/devdownin/SpectraLLM) 0.10.0+ serves its indexed documentation over
+MCP. Point the agent at it as well as at Kafka SQL Explorer, and one question can trace a record
+through the cluster, then find the runbook that explains it:
+
+```bash
+docker run --rm -p 8081:8081 \
+  -e ANTHROPIC_API_KEY=sk-ant-... -e KEX_AGENT_API_KEY=secret \
+  -e KAFKA_EXPLORER_URL=http://host.docker.internal:8080 \
+  -e SPECTRALLM_URL=http://host.docker.internal:8082 -e SPECTRA_API_KEY=... \
+  -e SPRING_AI_MCP_CLIENT_STREAMABLEHTTP_CONNECTIONS_SPECTRALLM_URL=http://host.docker.internal:8082 \
+  -e SPRING_AI_MCP_CLIENT_STREAMABLEHTTP_CONNECTIONS_SPECTRALLM_ENDPOINT=/mcp \
+  compagnonsdudev/kex-agent-ai:latest
+```
+
+The key travels in `X-API-Key`, and only to requests under `SPECTRALLM_URL`. The agent keeps
+`spectra_search`, `spectra_list_documents` and `spectra_preview_document`; `spectra_ask`, which would
+have SpectraLLM's own model write the answer, and the diagnostic `spectra_status` are denied by
+default (`KEX_SPECTRA_ASK_DENIED=false` / `KEX_SPECTRA_STATUS_DENIED=false` to restore them).
+[The full guide](https://github.com/devdownin/Kex-anHarness/blob/main/docs/MCP.md#spectrallm).
 
 ## Kafka operational reviews
 
@@ -97,6 +122,8 @@ as unmeasured.
 | `KEX_AGENT_LLM_PROVIDER` | `anthropic` (default) or `openai` — the latter also covers OpenRouter-compatible gateways |
 | `KEX_MCP_STORAGE_KEY` | Encrypt and persist MCP connections created from the Control Center |
 | `KEX_MCP_STDIO_ALLOWED_COMMANDS` | Explicit allowlist of executables accepted for stdio MCP servers |
+| `SPECTRALLM_URL`, `SPECTRA_API_KEY` | SpectraLLM's API and key, sent as `X-API-Key` to that URL only — see above |
+| `KEX_AGENT_TASKS_ENABLED` | `true` turns on durable tasks (plan, approval, execution). Off, the **Tâches** screen says so and names this variable |
 
 An unreachable MCP server never blocks startup: the agent boots, says so, and keeps serving what it
 still can. [Every setting, with its reasons](https://github.com/devdownin/Kex-anHarness/blob/main/docs/CONFIGURATION.md).
