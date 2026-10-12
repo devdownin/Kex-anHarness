@@ -3,8 +3,11 @@
 #   SPECTRALLM_URL=http://host.docker.internal:8082 SPECTRA_API_KEY=... \
 #     docker compose -f docker-compose.yml -f compose/spectrallm.yml up -d
 #
-# L'agent gagne les outils spectra_* — recherche de passages, réponse RAG sourcée, documents
-# indexés, état des services — à côté des kex_* de Kafka Explorer. Tous en lecture seule.
+# L'agent gagne les outils spectra_* à côté des kex_* de Kafka Explorer, tous en lecture seule. Il
+# n'en propose que trois au modèle : spectra_search, spectra_list_documents et
+# spectra_preview_document. spectra_ask, qui fait rédiger la réponse par le LLM de SpectraLLM, et
+# spectra_status, réservé au diagnostic, sont refusés par application.yml. Pour les rendre :
+# KEX_SPECTRA_ASK_DENIED=false, KEX_SPECTRA_STATUS_DENIED=false.
 #
 # SpectraLLM n'est pas démarré ici : il tourne ailleurs, en 0.10.0 au moins, avec
 # SPECTRA_MCP_ENABLED=true et une SPECTRA_API_KEY (sans clé, son /mcp répond 503). Depuis

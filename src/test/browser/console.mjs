@@ -1453,7 +1453,7 @@ await check('le contexte opérateur est persistant et réinitialisable', async (
   await page.selectOption('#context-period', 'all');
   assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('kex.agent.operator-context')).period), 'all');
   await page.click('#context-reset');
-  assert.equal(await page.inputValue('#context-period'), '1h');
+  assert.equal(await page.inputValue('#context-period'), '24h');
 });
 
 await check('la vue Activité réunit les événements opérationnels', async () => {

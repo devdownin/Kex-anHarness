@@ -171,6 +171,18 @@ kex:
           base-url: ${KEX_MCP_CATALOG_OFFICIAL_REGISTRY_BASE_URL:https://registry.modelcontextprotocol.io}
 
   agent:
+    tools:
+      rules:
+        # SpectraLLM : spectra_ask fait rédiger la réponse par le LLM de SpectraLLM — deux modèles
+        # en série, un coût double, et des sources que l'agent ne maîtrise plus. spectra_search
+        # rend les mêmes passages sans appel de modèle : c'est lui que l'agent garde, avec
+        # spectra_list_documents et spectra_preview_document. spectra_status ne sert qu'au
+        # diagnostic d'un opérateur, pas à une réponse. Le nom simple couvre aussi le nom qualifié
+        # (spectrallm__spectra_ask) ; inerte tant qu'aucune connexion SpectraLLM n'existe.
+        spectra_ask:
+          denied: ${KEX_SPECTRA_ASK_DENIED:true}
+        spectra_status:
+          denied: ${KEX_SPECTRA_STATUS_DENIED:true}
     tasks:
       enabled: ${KEX_AGENT_TASKS_ENABLED:false}
       store-path: ${KEX_AGENT_TASKS_STORE_PATH:${user.home}/.kex-agent-ai/tasks}

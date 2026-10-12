@@ -5,7 +5,27 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
 
 ## [Non publié]
 
+### Modifié
+
+- SpectraLLM : l'agent ne propose plus au modèle que `spectra_search`, `spectra_list_documents` et
+  `spectra_preview_document`. `spectra_ask` faisait rédiger la réponse par le LLM de SpectraLLM —
+  deux modèles en série, un coût doublé, des sources que l'agent ne fixe plus — et `spectra_status`
+  ne sert qu'au diagnostic. Les deux sont refusés par une règle `kex.agent.tools.rules`, réversible
+  par `KEX_SPECTRA_ASK_DENIED=false` / `KEX_SPECTRA_STATUS_DENIED=false`. `docs/CONNAISSANCE.md`
+  compare la base interne et SpectraLLM et dit quoi mettre où.
+
 ### Corrigé
+
+- Tâches désactivées : le message nomme la propriété à changer (`KEX_AGENT_TASKS_ENABLED=true`) ;
+  « Actualiser » et le panneau de détail vide disparaissent. Le panneau de détail ne s'affiche plus
+  vide non plus quand aucune tâche n'est sélectionnée.
+- Configuration : les sections suivent l'ordre de leurs onglets — le serveur MCP Kex, désactivé par
+  défaut, ouvrait la page alors que son onglet est le dernier.
+- La période par défaut du contexte opérateur passe d'une heure à 24 h : Audit et Décisions
+  s'ouvraient vides dès que le dernier geste datait de la veille. « Réinitialiser » remet aussi les
+  listes à jour quand l'instantané de supervision n'est pas encore lu.
+- Connaissance : les descriptions parlent d'usage (`remember_fact`, « magasin vectoriel »,
+  « locataire » retirés), et le lien vers la conversation porte un seul libellé.
 
 - Un rendu périmé n'écrase plus un rendu récent : `render()` ignorait l'ordre des réponses, si bien
   qu'un sondage de fond parti avant une navigation ou un filtre pouvait, en arrivant après, remettre

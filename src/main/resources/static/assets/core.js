@@ -516,11 +516,15 @@ export function setCycleGate(gate) {
 
 const OPERATOR_CONTEXT_KEY = 'kex.agent.operator-context';
 
+// Vingt-quatre heures et non une : sur une heure, Audit et Décisions s'ouvraient vides dès que le
+// dernier geste datait de la veille — « Aucune entrée dans ce contexte » sur un journal qui en avait.
+export const DEFAULT_PERIOD = '24h';
+
 export function operatorContext() {
   try {
-    return { process: '', period: '1h', ...(JSON.parse(localStorage.getItem(OPERATOR_CONTEXT_KEY)) || {}) };
+    return { process: '', period: DEFAULT_PERIOD, ...(JSON.parse(localStorage.getItem(OPERATOR_CONTEXT_KEY)) || {}) };
   } catch {
-    return { process: '', period: '1h' };
+    return { process: '', period: DEFAULT_PERIOD };
   }
 }
 

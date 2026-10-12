@@ -1733,6 +1733,8 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
 
 /* Serveur MCP : trois vues dans la configuration, denses mais lisibles. */
 .mcp-server-panel { scroll-margin-top: 1rem; }
+/* Sans tâche sélectionnée, le panneau de détail restait un rectangle blanc sous la liste. */
+#task-detail:empty { display: none; }
 .mcp-tabs { margin: 1rem 0; }
 .mcp-tabs button.active { font-weight: 700; border-color: var(--border-strong, currentColor); }
 .mcp-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; margin: 1rem 0; }

@@ -464,6 +464,52 @@ await check('une réponse lente ne remplace pas un rendu plus récent du même b
   await context.close();
 });
 
+await check('Tâches désactivées : la propriété à changer, ni bouton inutile ni panneau vide', async () => {
+  const { context, page } = await open(desktop, 'tasks');
+  // La CI n'active pas les tâches planifiées : la route répond 404.
+  await page.waitForFunction(() => /désactivées/.test(document.querySelector('#task-note').textContent));
+  assert.match(await page.textContent('#task-note'), /KEX_AGENT_TASKS_ENABLED=true/);
+  assert.equal(await page.locator('#refresh-tasks').isVisible(), false, '« Actualiser » ne rallume pas une fonctionnalité éteinte');
+  assert.equal(await page.locator('#task-detail').isVisible(), false, 'un panneau blanc reste sous le message');
+  await context.close();
+});
+
+await check('Configuration : les sections suivent l’ordre de leurs onglets', async () => {
+  const { context, page } = await open(desktop, 'settings');
+  await page.locator('#settings-preferences').waitFor();
+  const order = await page.evaluate(() => {
+    const tabs = [...document.querySelectorAll('[data-settings-target]')].map((tab) => tab.dataset.settingsTarget);
+    const top = (id) => document.getElementById(id).getBoundingClientRect().top;
+    return { tabs, sorted: [...tabs].sort((a, b) => top(a) - top(b)) };
+  });
+  assert.deepEqual(order.sorted, order.tabs, `sections dans l’ordre ${order.sorted.join(', ')}`);
+  await context.close();
+});
+
+await check('la période par défaut couvre la journée, pas la dernière heure', async () => {
+  const { context, page } = await open(desktop, 'audit');
+  await page.evaluate(() => localStorage.removeItem('kex.agent.operator-context'));
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('#operator-context:not([hidden])').waitFor();
+  assert.equal(await page.inputValue('#context-period'), '24h');
+  await page.selectOption('#context-period', '15m');
+  await page.click('#context-reset');
+  assert.equal(await page.inputValue('#context-period'), '24h', 'Réinitialiser revient à l’ancienne valeur');
+  await context.close();
+});
+
+await check('Connaissance parle d’usage, pas d’implémentation, et nomme un geste d’un seul nom', async () => {
+  const { context, page } = await open(desktop, 'knowledge');
+  await page.locator('#memory-list [data-empty-state], #memory-list table').first().waitFor();
+  await page.locator('#summaries-list [data-empty-state], #summaries-list .stack').first().waitFor();
+  const text = await page.locator('#view-knowledge').innerText();
+  assert.doesNotMatch(text, /remember_fact|magasin vectoriel|locataire|seuil de similarité|côté serveur/);
+  const toChat = await page.locator('#view-knowledge a[href="#/chat"]').allInnerTexts();
+  assert.ok(toChat.length >= 1);
+  assert.equal(new Set(toChat).size, 1, `deux libellés pour le même lien : ${toChat.join(' / ')}`);
+  await context.close();
+});
+
 await browser.close();
 console.log(checks.join('\n'));
 if (problems.length) {

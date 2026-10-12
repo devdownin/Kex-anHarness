@@ -19,7 +19,7 @@ export async function list() {
     }
     if (!data.rows.length) {
       return empty('Aucun souvenir retenu.',
-        'Le modèle n’a rien jugé utile de retenir au-delà des conversations.',
+        'L’agent n’a encore rien jugé utile de garder d’une conversation à l’autre.',
         { href: '#/chat', label: 'Ouvrir une conversation' });
     }
 

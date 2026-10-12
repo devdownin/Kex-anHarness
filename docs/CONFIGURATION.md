@@ -29,6 +29,8 @@ arrive.
 | `KAFKA_EXPLORER_URL` | `http://localhost:8080` | URL de l'Explorer, côté agent |
 | `SPECTRALLM_URL` | *(vide)* | URL de l'API SpectraLLM, côté agent. Vide, aucune clé n'est posée — voir [MCP.md](MCP.md#spectrallm) |
 | `SPECTRA_API_KEY` | *(vide)* | Clé de SpectraLLM, envoyée en `X-API-Key` aux seules requêtes vers `SPECTRALLM_URL` |
+| `KEX_SPECTRA_ASK_DENIED` | `true` | Retire `spectra_ask` à l'agent : la réponse rédigée par le LLM de SpectraLLM. `spectra_search` rend les passages sans appel de modèle — voir [MCP.md](MCP.md#spectrallm) |
+| `KEX_SPECTRA_STATUS_DENIED` | `true` | Retire `spectra_status` à l'agent : un outil de diagnostic pour l'opérateur, pas pour une réponse |
 | `KEX_AGENT_PORT` | `8081` | Port publié de l'agent (côté hôte) |
 | `EXPLORER_PORT` | `8080` | Port publié de l'Explorer |
 | `KAFKA_PORT` | `9092` | Port publié du broker |

@@ -36,6 +36,7 @@ export async function view() {
     $('#task-note').textContent = tasks.length ? 'Sélectionnez une tâche pour examiner son plan et ses preuves.'
       : 'Aucune tâche. Préparez un plan ou décrivez votre objectif.';
     $('#task-plan-form').hidden = false;
+    $('#refresh-tasks').hidden = false;
     $('#task-list').replaceChildren(...tasks.map((task) => {
       const button = el('button', 'ghost', `${task.plan.objective} · ${LABELS[task.status] || task.status}`);
       button.type = 'button'; button.dataset.taskId = task.id;
@@ -49,10 +50,16 @@ export async function view() {
     }
   } catch (error) {
     if (current !== generation) return;
-    $('#task-note').textContent = error.status === 404
-      ? 'Les tâches planifiées sont désactivées sur cette installation. Un administrateur peut activer ce parcours.'
+    // Une fonctionnalité éteinte n'est pas une panne : on dit quoi changer, et on retire ce qui ne
+    // peut rien faire — « Actualiser » ne rallumera pas un parcours désactivé côté serveur.
+    const disabled = error.status === 404;
+    $('#task-note').textContent = disabled
+      ? 'Les tâches planifiées sont désactivées sur cette installation. Pour les activer, définir '
+        + 'KEX_AGENT_TASKS_ENABLED=true (propriété kex.agent.tasks.enabled) puis redémarrer l’agent.'
       : error.message;
     $('#task-plan-form').hidden = true;
+    $('#refresh-tasks').hidden = disabled;
+    if (disabled) clear();
   } finally { inFlight = false; }
 }
 
