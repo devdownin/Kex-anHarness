@@ -234,7 +234,7 @@ jobs:
           tags: ${{ steps.version.outputs.tags }}
           labels: |
             org.opencontainers.image.title=Kex-anHarness
-            org.opencontainers.image.description=Agent IA outillé par MCP, branché sur Kafka SQL Explorer
+            org.opencontainers.image.description=Kex-anHarness: governed AI agent with MCP tools, supervision and human approvals.
             org.opencontainers.image.version=${{ steps.version.outputs.version }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
@@ -302,8 +302,8 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           repository: ${{ steps.destination.outputs.dockerhub_repository }}
           readme-filepath: ./DOCKERHUB.md
-          short-description: ${{ github.event.repository.description }}
-          enable-url-completion: true
+          short-description: "Kex-anHarness: governed AI agent with MCP tools, supervision and human approvals."
+          enable-url-completion: false
 
       - name: Log out
         if: always()

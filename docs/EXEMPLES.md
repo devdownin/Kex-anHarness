@@ -83,9 +83,9 @@ Le cycle de supervision privilégie alors `kex_process_health`, `kex_topic_activ
 `kex_diagnose_consumer` et `kex_flow_health`. S'il détecte une anomalie, il peut consolider
 les faits avec `kex_incident_evidence`. Après une action, `kex_compare_process_state` ne sert
 qu'avec une baseline explicite : conserver le `measurementId` rendu par la mesure « avant » et le
-transmettre en `beforeMeasurementId` avec les mêmes stages et la même fenêtre. KafkaExplorer vérifie
+transmettre en `beforeMeasurementId` avec les mêmes stages et la même fenêtre. Kafka SQL Explorer vérifie
 que la mesure « après » porte sur une fenêtre postérieure. La comparaison doit viser la même instance
-KafkaExplorer (snapshots temporaires en mémoire) ; un résultat `UNKNOWN` ne confirme pas la résolution.
+Kafka SQL Explorer (snapshots temporaires en mémoire) ; un résultat `UNKNOWN` ne confirme pas la résolution.
 
 Pour une DLQ, déclarer la relation dans le hint au lieu de laisser l'agent l'inférer :
 
@@ -337,7 +337,7 @@ qu'il ne se permet pas de faire seul.
 ## TimesFM : démonstration et prompts opérationnels
 
 Prérequis : suivre le [guide TimesFM](TIMESFM.md), autoriser les cinq outils et disposer d’une
-série enrôlée dans KafkaExplorer. Remplacer `<series-id>` et `<environnement>` par une paire
+série enrôlée dans Kafka SQL Explorer. Remplacer `<series-id>` et `<environnement>` par une paire
 exacte du catalogue autorisé ; ces placeholders ne sont pas des identifiants exécutables.
 
 | Demande à l’agent | Lectures attendues et interprétation |
@@ -392,7 +392,7 @@ outils manquants ; l’agent ne choisit pas automatiquement une série à partir
 
 Si le catalogue est indisponible, tronqué ou incomplet, le wizard propose de continuer sans
 prévision. Corriger la connexion ou les permissions et relancer le parcours pour choisir une
-série ; l’administration et l’enrôlement des séries restent dans KafkaExplorer.
+série ; l’administration et l’enrôlement des séries restent dans Kafka SQL Explorer.
 
 ## Plans durables et preuves de réussite
 

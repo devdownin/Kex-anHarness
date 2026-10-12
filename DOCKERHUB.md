@@ -18,10 +18,14 @@ resource templates.
 |---|---|
 | `latest` | Most recent stable release |
 | `x.y.z` | An exact release — what you pin in production |
+| `x.y` / `x` | The newest patch of that minor / major line — moves with each release |
 | `sha-<short>` | A single commit, kept for traceability |
+| `edge` | The latest manual build from `main` — never a release |
 
-Pre-releases never move `latest` — a `docker pull` without a tag should not bring back code nobody
+Pre-releases get neither `latest` nor the moving `x.y` / `x` tags — a `docker pull` without a tag should not bring back code nobody
 has finished judging.
+
+The same tags are mirrored to `ghcr.io/devdownin/kex-agent-ai`.
 
 `linux/amd64` only: an arm64 image would mean QEMU and an emulated Maven build, an order of magnitude
 more build time. Each image ships an SBOM, and is scanned for vulnerabilities **before** it is
@@ -161,6 +165,18 @@ of it the agent observes and recommends; it does not act. Where a capability can
 declared per capability, an execution mode can only narrow it, and anything below the confidence
 floor goes back to a human. Nothing here is a default you inherit by accident: an unlisted capability
 is forbidden.
+
+## 🧩 Ecosystem
+
+Three open-source projects, published under the same Docker Hub namespace, each usable on its own and wired to the others through MCP:
+
+| Project | What it does | Image | License |
+|---|---|---|---|
+| [Kafka SQL Explorer](https://github.com/devdownin/Kafkaexplorer) | Explore Kafka, query it in Flink SQL, audit it with AI — and serve it to agents as a read-only MCP server | [`compagnonsdudev/kafkaexplorer`](https://hub.docker.com/r/compagnonsdudev/kafkaexplorer) | AGPL-3.0-or-later |
+| [SpectraLLM](https://github.com/devdownin/SpectraLLM) | Turn your documents into a private, fine-tuned AI — local RAG, fine-tuning, and an MCP server over the corpus | [`compagnonsdudev/spectrallm`](https://hub.docker.com/r/compagnonsdudev/spectrallm) | AGPL-3.0-or-later |
+| **Kex-anHarness** *(this project)* | A governed AI agent that works through MCP tools — supervision, human approvals, audit trail | [`compagnonsdudev/kex-agent-ai`](https://hub.docker.com/r/compagnonsdudev/kex-agent-ai) | GPL-3.0-or-later |
+
+How they fit: Kex-anHarness reads Kafka through Kafka SQL Explorer's MCP server and searches documents through SpectraLLM's; Kafka SQL Explorer can use SpectraLLM as its private LLM provider.
 
 ## Project name
 

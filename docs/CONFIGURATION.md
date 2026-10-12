@@ -110,7 +110,7 @@ sensible pour l'un, trop laxiste pour l'autre.
 ### Créer un processus depuis la conversation
 
 Dans **Conversation → Créer avec l’assistant guidé**, renseigner le nom, l’objectif et au moins le
-topic source. Les topics connus et les groupes liés au topic source sont suggérés si KafkaExplorer
+topic source. Les topics connus et les groupes liés au topic source sont suggérés si Kafka SQL Explorer
 est disponible ; une liste incomplète ou indisponible n’empêche pas la saisie manuelle. Avant
 enregistrement, vérifier l’identifiant et le `hint` proposés. Seul un principal **ADMIN** peut
 confirmer **Créer ce processus**. Le processus apparaît immédiatement avec l’état `UNKNOWN`, puis
@@ -362,7 +362,7 @@ instances créées sous ces noms.
 | `token` | Valeur du bearer. Une entrée sans jeton est ignorée |
 
 Le filtrage par préfixe évite qu'un jeton parte vers un serveur MCP autre que le sien. Un préfixe
-sans jeton (le défaut pour Kafka Explorer, qui ne demande aucune authentification) est ignoré en
+sans jeton (le défaut pour Kafka SQL Explorer, qui ne demande aucune authentification) est ignoré en
 silence. Un jeton déclaré sans préfixe, en revanche, ne s'appliquera jamais à aucune requête et est
 ignoré avec un avertissement au démarrage (`WARN McpBearerTokenCustomizer`) — sans lui, cette
 entrée-là se découvrait par le 401 du serveur distant, sans qu'aucun journal ne rapproche l'un de

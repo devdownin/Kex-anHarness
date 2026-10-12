@@ -128,7 +128,7 @@ configuré.
 D'où `kex.mcp.bearer-tokens[]`, une liste de couples `url-prefix` / `token` : le customizer ne pose
 l'en-tête que sur les requêtes dont l'URI commence par le préfixe déclaré. Un préfixe sans jeton
 reste filtré en silence — c'est la forme même d'un serveur MCP par défaut qui ne demande aucune
-authentification, celui de Kafka Explorer dans `application.yml`. Un jeton déclaré sans préfixe, à
+authentification, celui de Kafka SQL Explorer dans `application.yml`. Un jeton déclaré sans préfixe, à
 l'inverse, ne s'appliquera jamais à aucune requête ; un avertissement au démarrage le rapproche
 désormais du 401 qu'il cause côté serveur MCP, plutôt que de laisser les deux se découvrir
 séparément.

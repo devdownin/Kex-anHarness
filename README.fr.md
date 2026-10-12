@@ -11,9 +11,10 @@
 [![Spring Boot 4.1](https://img.shields.io/badge/Spring_Boot-4.1-6DB33F?logo=springboot&logoColor=white)](pom.xml)
 [![Spring AI 2.0](https://img.shields.io/badge/Spring_AI-2.0-6DB33F)](pom.xml)
 [![MCP](https://img.shields.io/badge/MCP-stdio_·_SSE_·_streamable--HTTP-5A45FF)](docs/MCP.md)
+[![Docker Hub](https://img.shields.io/docker/v/compagnonsdudev/kex-agent-ai?logo=docker&logoColor=white&label=Docker%20Hub&sort=semver)](https://hub.docker.com/r/compagnonsdudev/kex-agent-ai)
 [![Licence : GPL v3](https://img.shields.io/badge/Licence-GPLv3-blue.svg)](LICENSE)
 
-[Démarrage](#-démarrage) · [Ce qu'on peut lui demander](#-ce-quon-peut-lui-demander) · [Comment ça marche](#-comment-ça-marche) · [Docs](#-documentation) · [🇬🇧 English](README.md)
+[Démarrage](#-démarrage) · [Ce qu'on peut lui demander](#-ce-quon-peut-lui-demander) · [Comment ça marche](#-comment-ça-marche) · [Docs](#-documentation) · [Écosystème](#-écosystème) · [🇬🇧 English](README.md)
 
 </div>
 
@@ -407,6 +408,18 @@ CI impose les en-têtes de licence, le format et un plancher de couverture, Code
 request et chaque semaine, OpenSSF Scorecard chaque semaine, et Dependabot surveille Maven, Actions
 et Docker. Chaque GitHub Action est épinglée par SHA de commit.
 
+## 🧩 Écosystème
+
+Trois projets open source, publiés sous le même espace Docker Hub, utilisables seuls et branchés entre eux par MCP :
+
+| Projet | Ce qu'il fait | Image | Licence |
+|---|---|---|---|
+| [Kafka SQL Explorer](https://github.com/devdownin/Kafkaexplorer) | Explorer Kafka, l'interroger en Flink SQL, l'auditer avec l'IA — et le servir aux agents en serveur MCP en lecture seule | [`compagnonsdudev/kafkaexplorer`](https://hub.docker.com/r/compagnonsdudev/kafkaexplorer) | AGPL-3.0-or-later |
+| [SpectraLLM](https://github.com/devdownin/SpectraLLM) | Transformer vos documents en IA privée et fine-tunée — RAG local, fine-tuning, et un serveur MCP sur le corpus | [`compagnonsdudev/spectrallm`](https://hub.docker.com/r/compagnonsdudev/spectrallm) | AGPL-3.0-or-later |
+| **Kex-anHarness** *(ce projet)* | Un agent IA gouverné qui agit par des outils MCP — supervision, validations humaines, piste d'audit | [`compagnonsdudev/kex-agent-ai`](https://hub.docker.com/r/compagnonsdudev/kex-agent-ai) | GPL-3.0-or-later |
+
+Comment ils s'emboîtent : Kex-anHarness lit Kafka par le serveur MCP de Kafka SQL Explorer et cherche dans les documents par celui de SpectraLLM ; Kafka SQL Explorer peut prendre SpectraLLM comme fournisseur de LLM privé.
+
 ## 🤝 Contribuer
 
 [`CONTRIBUTING.md`](CONTRIBUTING.md) pour la marche à suivre et les règles de la maison,
@@ -414,11 +427,11 @@ et Docker. Chaque GitHub Action est épinglée par SHA de commit.
 
 ## 📄 Licence
 
-GPL-3.0 — voir [LICENSE](LICENSE).
+GPL-3.0-or-later — voir [LICENSE](LICENSE).
 
 ## Prévisions TimesFM
 
-**Pilotage → Prévisions** lit les prévisions persistées de KafkaExplorer via cinq outils MCP en lecture seule.
+**Pilotage → Prévisions** lit les prévisions persistées de Kafka SQL Explorer via cinq outils MCP en lecture seule.
 Choisissez l’environnement et la métrique autorisée, consultez historique, Q10/Q50/Q90, qualité réalisée,
 baselines et dépassements prédits, puis préparez une conversation avec l’agent.
 SHADOW, prévisions expirées et replis restent explicites ; Kex ne lance ni inférence ni activation.
@@ -468,7 +481,7 @@ Un guide de premier usage explique demande, résultat et approbation, avec trois
 
 ## Stack complète avec TimesFM
 
-Pour lancer Kafka, KafkaExplorer, PostgreSQL, TimesFM et Kex-anHarness ensemble :
+Pour lancer Kafka, Kafka SQL Explorer, PostgreSQL, TimesFM et Kex-anHarness ensemble :
 
 ```sh
 bin/forecast-stack.sh
