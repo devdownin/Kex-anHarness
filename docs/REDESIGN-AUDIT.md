@@ -1,4 +1,4 @@
-# Audit et application de Redesign.md
+# Audit et application de [la grille Redesign](REDESIGN-SKILL.md)
 
 La console conserve HTML, CSS et JavaScript natifs. Cette passe concerne les primitives visuelles partagées ; les routes, identifiants DOM, API et actions métier restent inchangés.
 

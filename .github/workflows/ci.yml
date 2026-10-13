@@ -333,7 +333,7 @@ jobs:
   # utilise un serveur factice.
   explorer-contract:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       EXPLORER_IMAGE_NAMESPACE: ghcr.io/devdownin
       EXPLORER_MCP_AUTH_TOKEN: contract-token
@@ -388,10 +388,131 @@ jobs:
           cat "$report"
           grep -q 'Tests run: 1, Failures: 0, Errors: 0, Skipped: 0' "$report"
 
+      # Les captures de site/img/, régénérées sur l'agent branché sur ce même Explorer réel. Elles
+      # partent en artefact : une PR qui change la console montre ce qu'elle fait à la page de
+      # présentation, et les recopier reste un geste de revue.
+      - name: Package and start the agent against this Explorer
+        run: |
+          set -euo pipefail
+          ./mvnw -B --no-transfer-progress -DskipTests package
+          KAFKA_EXPLORER_URL=http://localhost:8080 EXPLORER_MCP_AUTH_TOKEN=contract-token \
+          nohup java -jar target/kex-agent-ai-*.jar \
+            --server.port=8081 \
+            --kex.agent.api-key=ci-secret \
+            --kex.agent.supervision.processes[0].id=order-integration \
+            --kex.agent.supervision.processes[0].name='Order Integration' \
+            --spring.ai.model.chat=openai \
+            --spring.ai.model.embedding=none \
+            --spring.ai.openai.api-key=ci-dummy \
+            --spring.ai.openai.base-url=http://127.0.0.1:8098 > agent.log 2>&1 &
+          for _ in $(seq 1 60); do
+            curl -fsS http://localhost:8081/actuator/health >/dev/null 2>&1 && break
+            sleep 2
+          done
+          curl -fsS http://localhost:8081/actuator/health
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-1.56.1
+
+      - name: Capture the landing page screenshots
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.56.1
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          mkdir -p fresh
+          PLAYWRIGHT_MODULE="$RUNNER_TEMP/pw/node_modules/playwright/index.mjs" \
+            node site/capture.mjs http://localhost:8081 fresh
+
+      - name: Upload the fresh screenshots
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
+        with:
+          name: site-screenshots
+          path: fresh/
+          retention-days: 14
+
       - name: Explorer logs on failure
         if: failure()
-        run: docker compose logs explorer || true
+        run: |
+          docker compose logs explorer || true
+          cat agent.log 2>/dev/null || true
 
       - name: Tear the stack down
         if: always()
         run: docker compose down -v || true
+
+  # Les captures de la page de présentation vieillissent sans bruit : personne ne les regarde tant
+  # qu'elles ne sont pas fausses. Après chaque merge sur main, ce job compare celles que
+  # `explorer-contract` vient de prendre à `site/img/` et, au-delà de 3 % de pixels changés (une
+  # horloge ou un lissage restent sous 0,5 %), ouvre ou met à jour UNE pull request, toujours sur la
+  # même branche : une dérive non traitée ne produit pas dix PR. Jamais sur une pull request : une
+  # branche de travail n'a pas à en ouvrir une autre.
+  refresh-screenshots:
+    needs: explorer-contract
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      # AUTOMATION_PR_TOKEN est facultatif : avec lui, la PR lance la CI d'elle-même ; sans lui,
+      # GITHUB_TOKEN l'ouvre quand même, mais la CI ne part pas (règle de GitHub contre les boucles).
+      GH_TOKEN: ${{ secrets.AUTOMATION_PR_TOKEN || secrets.GITHUB_TOKEN }}
+      HAS_PR_TOKEN: ${{ secrets.AUTOMATION_PR_TOKEN != '' }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+
+      - name: Download the fresh screenshots
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: site-screenshots
+          path: fresh
+
+      - name: Compare them to site/img
+        id: drift
+        run: |
+          set -uo pipefail
+          python3 scripts/compare-screenshots.py fresh site/img | tee drift.txt
+          status=${PIPESTATUS[0]}
+          case "$status" in
+            0) echo "drifted=false" >> "$GITHUB_OUTPUT" ;;
+            1) echo "drifted=true" >> "$GITHUB_OUTPUT" ;;
+            *) exit "$status" ;;
+          esac
+
+      - name: Open or update the pull request
+        if: steps.drift.outputs.drifted == 'true'
+        run: |
+          set -euo pipefail
+          branch="chore/site-screenshots"
+          cp fresh/overview.png fresh/integrations.png site/img/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add site/img
+          git commit -m "Captures de la page de présentation reprises sur la Control Center"
+          # Branche du robot, recréée à chaque dérive : la forcer évite qu'un second passage échoue
+          # sur une branche déjà poussée alors que sa PR est encore ouverte.
+          git push --force -u origin "$branch"
+          if [ "$(gh pr list --head "$branch" --state open --json number --jq length)" != "0" ]; then
+            echo "Une pull request est déjà ouverte sur ${branch} : la branche est à jour, rien à créer."
+            exit 0
+          fi
+          if [ "$HAS_PR_TOKEN" = true ]; then
+            note="La CI part d'elle-même : PR ouverte avec AUTOMATION_PR_TOKEN."
+          else
+            note="Ouverte par GITHUB_TOKEN : la CI ne part pas d'elle-même, la fermer et la rouvrir la lance."
+          fi
+          if ! gh pr create --base "$DEFAULT_BRANCH" --title "Captures de la page de présentation à jour" \
+            --body "$(printf '%s\n' \
+              "Les captures prises par \`explorer-contract\` sur la Control Center réelle s'écartent de \`site/img/\` :" \
+              "" "\`\`\`" "$(cat drift.txt)" "\`\`\`" "" \
+              "Regarder les deux images avant de merger : un écart peut être un vrai changement d'écran, ou un état de démonstration inhabituel. $note" \
+              "" "---" "_Generated by [Claude Code](https://claude.ai/code)_")"; then
+            echo "::error::La branche ${branch} est poussée mais la PR n'a pas pu être ouverte. Si c'est un refus de permission : Settings → Actions → General → « Allow GitHub Actions to create and approve pull requests »."
+            exit 1
+          fi

@@ -1,8 +1,8 @@
 # Kex-anHarness
 
-**A governed AI agent for Kafka operations.** It watches your integration processes through MCP
-tools, explains what it sees, and asks a named human before it acts — every decision carrying its
-confidence, its evidence and an audit trail.
+**Governed AI agent with MCP tools, supervision and human approvals.** It watches your integration
+processes — Kafka out of the box — explains what it sees, and asks a named human before it acts,
+every decision carrying its confidence, its evidence and an audit trail.
 
 Built on Spring Boot 4 / Spring AI 2, Java 21. Ships with a browser console (the **Control Center**)
 served by the agent itself, no build step and no CDN. The console manages MCP connections at runtime,

@@ -8,6 +8,7 @@ consignes de supervision décrivent, et rien ne l'a dit.
 
     python3 scripts/check-explorer-pin.py              # les trois fichiers disent la même version
     python3 scripts/check-explorer-pin.py --published  # … et Docker Hub n'en sert pas de plus récente
+    python3 scripts/check-explorer-pin.py --bump       # monte les trois fichiers sur ce que Docker Hub sert
 
 « Plus récente » veut dire la dernière poussée, pas le plus grand numéro : un tag se tape à la
 main, et un tag erroné (`kex-agent-ai:9.9.23` pour 0.9.23) dépasserait toute vraie version.
@@ -49,6 +50,28 @@ def newest_published() -> tuple[str | None, str | None]:
     return (max(pushed)[1], None) if pushed else (None, "aucun tag X.Y.Z listé")
 
 
+def bump(pinned: str) -> int:
+    """Monte les trois fichiers sur la dernière version poussée, si elle dépasse l'épinglage.
+
+    Appelé chaque semaine par ecosystem.yml, qui ouvre ensuite la PR : le job explorer-contract
+    y rejoue le contrat réel contre la nouvelle image avant tout merge.
+    """
+    newest, why_not = newest_published()
+    if newest is None:
+        print(f"::warning::Docker Hub injoignable ({why_not}) — rien n'a été monté")
+        return 0
+    if version(newest) <= version(pinned):
+        print(f"rien à monter : Docker Hub sert {newest}, l'épinglage est {pinned}")
+        return 0
+    for rel, pattern in SOURCES.items():
+        path = ROOT / rel
+        text = path.read_text(encoding="utf-8")
+        match = pattern.search(text)
+        path.write_text(text[:match.start(1)] + newest + text[match.end(1):], encoding="utf-8")
+    print(f"monté de {pinned} à {newest} dans {', '.join(SOURCES)}")
+    return 0
+
+
 def main(argv: list[str]) -> int:
     pins: dict[str, str] = {}
     problems: list[str] = []
@@ -63,6 +86,9 @@ def main(argv: list[str]) -> int:
     pinned = next(iter(pins.values()), None)
     if pinned and version(pinned) is None:
         problems.append(f"l'Explorer est épinglé sur « {pinned} », pas sur une version X.Y.Z")
+
+    if "--bump" in argv and pinned and not problems:
+        return bump(pinned)
 
     if "--published" in argv and pinned and not problems:
         newest, why_not = newest_published()

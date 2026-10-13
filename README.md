@@ -16,7 +16,7 @@
 [![Docker Hub](https://img.shields.io/docker/v/compagnonsdudev/kex-agent-ai?logo=docker&logoColor=white&label=Docker%20Hub&sort=semver)](https://hub.docker.com/r/compagnonsdudev/kex-agent-ai)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
-[Website](https://devdownin.github.io/Kex-anHarness/) · [Why Kex-anHarness](#-why-kex-anharness) · [Highlights](#-highlights) · [Quick start](#-quick-start) · [What you can ask it](#-what-you-can-ask-it) · [How it works](#-how-it-works) · [Docs](#-documentation) · [Ecosystem](#-ecosystem) · [🇫🇷 Français](README.fr.md)
+[Website](https://devdownin.github.io/Kex-anHarness/) · [Why Kex-anHarness](#-why-kex-anharness) · [Highlights](#-highlights) · [Quick start](#-quick-start) · [What you can ask it](#-what-you-can-ask-it) · [The Control Center](#-the-control-center) · [Docs](#-documentation) · [Ecosystem](#-ecosystem) · [🇫🇷 Français](README.fr.md)
 
 </div>
 
