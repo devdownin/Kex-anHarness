@@ -30,6 +30,11 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
   (`scripts/compare-screenshots.py`, seuil de 3 % de pixels : deux prises à 20 s d'écart en
   diffèrent de 0 à 0,4 %) et ouvre ou met à jour la PR `chore/site-screenshots`. Une dérive non
   traitée ne fait pas dix PR, et un fichier illisible arrête le job au lieu de passer pour « stable ».
+- **Correctif — `refresh-screenshots` s'arrêtait sur la dérive qu'il devait signaler.** GitHub lance
+  les étapes en `bash -e` : `compare-screenshots.py | tee` renvoyait 1 (dérive, le cas attendu) et
+  l'étape mourait avant de lire le code de sortie, donc sans ouvrir de PR. Le code se lit désormais
+  hors pipe, `-e` suspendu le temps de l'appel ; vérifié en exécutant l'étape extraite du workflow
+  sous `bash -e` (dérive, stable, et code 2 qui échoue toujours). Vu au premier merge sur main.
 - **Les PR des workflows peuvent lancer la CI** : `explorer-bump` et `refresh-screenshots` lisent le
   secret facultatif `AUTOMATION_PR_TOKEN` (jeton à portée restreinte ou jeton d'App : contents et
   pull-requests en écriture). Sans lui, rien ne change : `GITHUB_TOKEN` ouvre la PR, qu'il faut
