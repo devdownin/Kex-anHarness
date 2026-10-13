@@ -475,9 +475,14 @@ jobs:
       - name: Compare them to site/img
         id: drift
         run: |
-          set -uo pipefail
-          python3 scripts/compare-screenshots.py fresh site/img | tee drift.txt
-          status=${PIPESTATUS[0]}
+          # GitHub lance `bash -e` : une pipe qui renvoie 1 (la dérive, cas attendu) tuerait l'étape
+          # avant le `case`. Le code de sortie se lit donc hors pipe, -e suspendu le temps de l'appel.
+          set -u
+          set +e
+          python3 scripts/compare-screenshots.py fresh site/img > drift.txt
+          status=$?
+          set -e
+          cat drift.txt
           case "$status" in
             0) echo "drifted=false" >> "$GITHUB_OUTPUT" ;;
             1) echo "drifted=true" >> "$GITHUB_OUTPUT" ;;
