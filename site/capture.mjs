@@ -3,8 +3,9 @@
 //
 // Les captures de la page de présentation (site/img/), prises sur la Control Center réelle.
 // La CI les régénère dans le job explorer-contract, où l'agent est branché sur un vrai Kafka SQL
-// Explorer, et les publie en artefact : une capture qui vieillit se voit alors dans la PR qui l'a
-// fait vieillir. Les recopier dans site/img/ reste un geste de revue, comme pour l'Explorer.
+// Explorer, et les publie en artefact. Après un merge sur main, le job refresh-screenshots les
+// compare à site/img/ (scripts/compare-screenshots.py) et ouvre une PR si elles ont dérivé : le
+// merge de cette PR reste le geste de revue.
 //
 //   PLAYWRIGHT_MODULE=/chemin/playwright/index.mjs node site/capture.mjs http://localhost:8081 site/img
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? 'playwright');

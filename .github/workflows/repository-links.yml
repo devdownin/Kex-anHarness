@@ -29,3 +29,7 @@ jobs:
       # ne se vérifie pas, la charpente si : mêmes titres, mêmes blocs de code, ancres vivantes.
       - name: README EN and FR share one structure
         run: python3 scripts/check-readme-parity.py
+      # Le comparateur des captures du site décide s'il faut ouvrir une PR : une erreur de lecture
+      # PNG ou de seuil ouvrirait des PR à chaque merge, ou n'en ouvrirait jamais.
+      - name: Screenshot comparer tests
+        run: python3 -m unittest discover -s scripts/tests

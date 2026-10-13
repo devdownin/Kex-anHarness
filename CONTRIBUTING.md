@@ -50,10 +50,11 @@ Ne pas ouvrir d'issue publique pour une faille : voir [SECURITY.md](SECURITY.md)
 | `mcp-browser` | La console du serveur MCP Kex, serveur activé (`mcp-server.mjs`) |
 | `stack` | La stack Kafka + Explorer + TimesFM, et son diagnostic (`scripts/forecast-stack.py`) |
 | `explorer-contract` | Le contrat réel (`KafkaExplorerLiveContractTest`) contre l'image Kafka SQL Explorer épinglée, puis les captures du site (artefact `site-screenshots`, `site/capture.mjs`) |
+| `refresh-screenshots` | Sur main seulement : compare les captures d'`explorer-contract` à `site/img/` et ouvre la PR `chore/site-screenshots` au-delà de 3 % de pixels changés |
 | `repository-links` | Aucune URL vers l'ancien nom du dépôt, section Écosystème conforme, épinglage de l'Explorer identique partout, README EN et FR de même charpente |
 | `analyze` | CodeQL |
 | `scorecard` | OpenSSF Scorecard, hebdomadaire |
-| `ecosystem` | Hebdomadaire : script Écosystème identique dans les trois dépôts ; une Explorer plus récente sur Docker Hub ouvre la PR qui monte l'épinglage (à fermer et rouvrir pour lancer la CI) |
+| `ecosystem` | Hebdomadaire : script Écosystème identique dans les trois dépôts ; une Explorer plus récente sur Docker Hub ouvre la PR qui monte l'épinglage. Avec le secret facultatif `AUTOMATION_PR_TOKEN` (contents et pull-requests en écriture), la CI de cette PR part d'elle-même ; sans lui, la fermer et la rouvrir la lance |
 
 `agent-evals` ne tourne qu'à la main : il appelle un vrai fournisseur de modèle, donc coûte.
 
