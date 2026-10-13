@@ -503,7 +503,14 @@ jobs:
           # Branche du robot, recréée à chaque dérive : la forcer évite qu'un second passage échoue
           # sur une branche déjà poussée alors que sa PR est encore ouverte.
           git push --force -u origin "$branch"
-          if [ "$(gh pr list --head "$branch" --state open --json number --jq length)" != "0" ]; then
+          # Le compte est lu dans une variable, pas dans le test : `[ "$(gh …)" != "0" ]` lisait un `gh`
+          # en échec (jeton refusé, 401) comme une chaîne vide, donc « une PR est déjà ouverte », et
+          # l'étape sortait en vert sans PR. Une mesure qui a échoué n'est pas un 0 ni un 1.
+          open_count=$(gh pr list --head "$branch" --state open --json number --jq length) || {
+            echo "::error::Impossible de lister les pull requests ouvertes sur ${branch}. Si AUTOMATION_PR_TOKEN est défini, c'est lui que GitHub refuse (expiré, mal collé, ou sans droit sur ce dépôt) : le régénérer, ou supprimer le secret pour retomber sur GITHUB_TOKEN."
+            exit 1
+          }
+          if [ "$open_count" != "0" ]; then
             echo "Une pull request est déjà ouverte sur ${branch} : la branche est à jour, rien à créer."
             exit 0
           fi
