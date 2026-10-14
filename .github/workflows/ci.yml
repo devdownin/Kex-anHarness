@@ -42,7 +42,7 @@ jobs:
         run: ./mvnw -B --no-transfer-progress verify
 
       - name: Upload the SBOM
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v4
         with:
           name: sbom
           path: target/classes/META-INF/sbom/*.json
@@ -50,7 +50,7 @@ jobs:
 
       - name: Upload test reports
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v4
         with:
           name: surefire-reports
           path: target/surefire-reports/
@@ -215,7 +215,7 @@ jobs:
 
       - name: Upload agent logs on failure
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v4
         with:
           name: agent-browser-log
           path: ${{ runner.temp }}/agent.log
@@ -427,7 +427,7 @@ jobs:
             node site/capture.mjs http://localhost:8081 fresh
 
       - name: Upload the fresh screenshots
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v4
         with:
           name: site-screenshots
           path: fresh/
