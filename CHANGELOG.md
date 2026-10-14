@@ -35,6 +35,10 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
   l'étape mourait avant de lire le code de sortie, donc sans ouvrir de PR. Le code se lit désormais
   hors pipe, `-e` suspendu le temps de l'appel ; vérifié en exécutant l'étape extraite du workflow
   sous `bash -e` (dérive, stable, et code 2 qui échoue toujours). Vu au premier merge sur main.
+- **Correctif — un `gh` en échec ne se lit plus comme « une PR est déjà ouverte »** : le compte des PR
+  ouvertes se faisait dans `[ "$(gh pr list …)" != "0" ]`, où un jeton refusé (HTTP 401) donnait une chaîne
+  vide, donc « déjà ouverte », et l'étape sortait en vert sans PR. Le compte est lu dans une variable et
+  son échec est une erreur qui nomme `AUTOMATION_PR_TOKEN`.
 - **Les PR des workflows peuvent lancer la CI** : `explorer-bump` et `refresh-screenshots` lisent le
   secret facultatif `AUTOMATION_PR_TOKEN` (jeton à portée restreinte ou jeton d'App : contents et
   pull-requests en écriture). Sans lui, rien ne change : `GITHUB_TOKEN` ouvre la PR, qu'il faut
