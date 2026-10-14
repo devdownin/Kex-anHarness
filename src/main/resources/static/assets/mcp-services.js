@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Kex Agent AI Contributors
 
+// UX MCP transversale (point d'entrée, wizard, fraîcheur et garde-fous d'exécution).
+import './mcp-ux-guard.js';
+import './mcp-ux.js';
+
 export function parameterRows(schema = {}) {
   const required = new Set(schema?.required || []);
   return Object.entries(schema?.properties || {}).map(([name, field]) => ({
