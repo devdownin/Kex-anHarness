@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Kex Agent AI Contributors
 
 // UX MCP transversale (point d'entrée, wizard, fraîcheur et garde-fous d'exécution).
+import './mcp-ux-guard.js';
 import './mcp-ux.js';
 
 export function parameterRows(schema = {}) {
