@@ -101,7 +101,7 @@ class SecurityConfig {
                         // conversations suivantes du même propriétaire — même pouvoir que l'approuver.
                         .requestMatchers(HttpMethod.POST, "/api/agent/mcp/servers/*/tools/*",
                                 "/api/agent/knowledge", "/api/agent/skills/*/approve",
-                                "/api/agent/skills/*/reject",
+                                "/api/agent/skills/*/reject", "/api/agent/skills/*/probe",
                                 "/api/agent/skills/*/retire", "/api/agent/memory/summaries/*/contradict").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/agent/mcp/servers",
                                 "/api/agent/supervision/processes",

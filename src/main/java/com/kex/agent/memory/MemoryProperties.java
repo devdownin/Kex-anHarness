@@ -3,11 +3,13 @@
 package com.kex.agent.memory;
 
 import java.time.Duration;
+import java.util.Set;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import org.hibernate.validator.constraints.time.DurationMin;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.validation.annotation.Validated;
 
@@ -38,17 +40,42 @@ public record MemoryProperties(
 
     /**
      * Ce que la bibliothèque de compétences approuvées pèse réellement dans le prompt. Elle ne fait
-     * que grandir — chaque échange réussi en propose une — alors que seules les {@code injected}
-     * premières agissent. Sans critère de tri, « les cinq premières » dépendait de l'ordre de
+     * que grandir — chaque échange réussi en propose une — alors que seules les premières de chaque
+     * portée agissent. Sans critère de tri, « les cinq premières » dépendait de l'ordre de
      * stockage : la sixième compétence approuvée n'agissait jamais et rien ne le disait.
      *
-     * @param injected           compétences réellement injectées, les plus récemment approuvées d'abord
+     * @param injected           compétences de domaine injectées par demande, celles dont un
+     *                           déclencheur correspond d'abord, puis les plus récemment approuvées
+     * @param invariantInjected  compétences invariantes injectées dans toute conversation : un
+     *                           plafond séparé, pour qu'aucune procédure de domaine ne les évince
      * @param charactersPerSkill troncature par compétence, avant le plafond global du bloc de contexte
      * @param staleAfter         au-delà, une compétence approuvée est signalée comme candidate à la
      *                           revue : signalée, jamais retirée d'elle-même
      */
     public record Skills(@DefaultValue("5") @Positive int injected,
+                         @DefaultValue("3") @Positive int invariantInjected,
                          @DefaultValue("3000") @Positive int charactersPerSkill,
-                         @DefaultValue("90d") @DurationMin(millis = 1) Duration staleAfter) {
+                         @DefaultValue("90d") @DurationMin(millis = 1) Duration staleAfter,
+                         @DefaultValue @Valid Probe probe) {
+
+        @ConstructorBinding
+        public Skills {
+            probe = probe == null ? new Probe(Set.of()) : probe;
+        }
+
+        public Skills(int injected, int charactersPerSkill, Duration staleAfter) {
+            this(injected, 3, charactersPerSkill, staleAfter, new Probe(Set.of()));
+        }
+    }
+
+    /**
+     * Le rejeu contrastif d'une compétence en attente. Il exécute le modèle et ses outils pour de
+     * vrai : la liste vient donc de la configuration, jamais de la demande rejouée, et vide elle
+     * éteint le rejeu — même règle que {@code kex.agent.automation.read-only-tools}.
+     */
+    public record Probe(@DefaultValue Set<String> readOnlyTools) {
+        public Probe {
+            readOnlyTools = readOnlyTools == null ? Set.of() : Set.copyOf(readOnlyTools);
+        }
     }
 }

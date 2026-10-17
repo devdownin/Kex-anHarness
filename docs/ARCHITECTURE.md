@@ -1709,6 +1709,44 @@ systématiquement, ce que des exécutions répétées avec un état propre ont f
 instrumentant chaque étape jusqu'à trouver laquelle bloquait réellement. La correction attend la
 disparition du dialogue (`{ state: 'hidden' }`) sur le sélecteur positif, jamais sur sa négation.
 
+### Une compétence a une portée, et se rejoue avant d'être tranchée
+
+Deux constats tirés de *Harness²* (arXiv 2610.14224), qui améliore un harness d'agent sans vérité
+terrain : séparer les modifications *invariantes* (planification, vérification, usage des outils) de
+celles *de domaine* est ce qui pèse le plus dans son ablation, et une modification ne se retient que
+sur un écart de comportement observé dans des conditions identiques. La bibliothèque de compétences
+manquait des deux.
+
+**La portée.** Un seul plafond (`injected`, trié par fraîcheur d'approbation) laissait une procédure
+de lag approuvée hier évincer « toujours citer la couverture », approuvée le mois dernier et utile à
+toutes les conversations. `SkillScope` sépare les deux : `INVARIANT` sous `invariant-injected` dans
+toute conversation, `DOMAIN` sous `injected` et seulement quand la demande touche l'un de ses
+`triggers`. `SkillsService.injectable` est la seule sélection — le contexte durable comme le rapport
+de curation la lisent, pour qu'ils ne puissent pas diverger. Une compétence antérieure garde
+`scope = NULL` en base (V8) et se lit `DOMAIN` sans déclencheur : exactement l'injection d'avant.
+
+Le déclencheur est déterministe et sans modèle — minuscules, sans accents, en début de mot — pour la
+même raison que le curateur compare les titres plutôt que les contenus : un rapprochement jugé par le
+modèle ne serait pas reproductible d'une conversation à l'autre.
+
+**Le rejeu.** Un réviseur approuvait sur la preuve textuelle de la proposition, sans savoir si la
+procédure changeait quoi que ce soit. `SkillProbeService` exécute une même demande deux fois, en
+parallèle — pour qu'un lag qui bouge entre deux exécutions séquentielles ne passe pas pour un effet
+de la compétence —, la candidate injectée par `injectable` comme si elle venait d'être approuvée.
+L'écart se joint à l'entrée (`probes`, cinq retenus) ; aucun verdict n'est calculé, conformément à
+l'article lui-même : la stochasticité de l'exécution et les biais communs aux deux passages
+limitent ce qu'un écart prouve. Un sélecteur « la meilleure des deux » par un juge modèle aurait
+été un chiffre non reproductible de plus.
+
+Ce que l'article fait et que Kex ne reprend pas : réécrire seul le prompt système et les garde-fous.
+Ici la surface modifiable reste la bibliothèque de compétences, et tout passe par une approbation
+humaine nommée.
+
+Le rejeu appelle réellement le modèle et les outils : `ADMIN`, allowlist de configuration
+(`probe.read-only-tools`, vide par défaut, donc éteint), et `AgentService.probe` ne nourrit pas la
+mémoire long-terme — sans cela, chaque rejeu aurait déposé deux résumés `UNVERIFIED` parmi ceux des
+vraies conversations — et purge la fenêtre de conversation, dont personne ne connaît l'identifiant.
+
 ## Ce que les tests couvrent
 
 | Test | Ce qu'il verrouille |

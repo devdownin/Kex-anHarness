@@ -11,6 +11,7 @@ import java.util.Map;
 
 import com.kex.agent.memory.LearningEntry;
 import com.kex.agent.memory.MemoryProperties;
+import com.kex.agent.memory.SkillScope;
 
 /**
  * Regarde ce que la bibliothèque de compétences fait réellement au prompt. Chaque échange réussi en
@@ -40,14 +41,22 @@ public final class SkillCurator {
 
     public SkillCuration curate(String owner) {
         List<LearningEntry> ranked = skills.ranked(owner);
-        int limit = properties.skills().injected();
-        List<SkillCuration.Digest> injected = digests(ranked.stream().limit(limit).toList());
-        List<SkillCuration.Digest> dormant = digests(ranked.stream().skip(limit).toList());
-        Instant cutoff = clock.instant().minus(properties.skills().staleAfter());
+        MemoryProperties.Skills limits = properties.skills();
+        // Sans demande, `injectable` rend exactement ce qui agit partout ; les compétences à
+        // déclencheurs ne sont ni injectées d'office ni en sommeil, elles attendent leur sujet.
+        List<LearningEntry> always = skills.injectable(owner, null, null, limits);
+        List<LearningEntry> conditional = ranked.stream()
+                .filter(entry -> entry.effectiveScope() == SkillScope.DOMAIN && !entry.triggers().isEmpty())
+                .toList();
+        List<LearningEntry> dormant = ranked.stream()
+                .filter(entry -> !always.contains(entry) && !conditional.contains(entry)).toList();
+        Instant cutoff = clock.instant().minus(limits.staleAfter());
         List<SkillCuration.Digest> stale = digests(ranked.stream()
                 .filter(entry -> entry.reviewedAt().isBefore(cutoff)).toList());
+        List<SkillCuration.Digest> injected = digests(always);
         int characters = injected.stream().mapToInt(SkillCuration.Digest::characters).sum();
-        return new SkillCuration(ranked.size(), injected, dormant, stale, duplicates(ranked), characters);
+        return new SkillCuration(ranked.size(), injected, digests(conditional), digests(dormant), stale,
+                duplicates(ranked), characters);
     }
 
     /**
@@ -70,7 +79,8 @@ public final class SkillCurator {
         return entries.stream()
                 .map(entry -> new SkillCuration.Digest(entry.id(), entry.title(), entry.reviewedAt(),
                         entry.reviewedBy(),
-                        Math.min(entry.markdown().length(), properties.skills().charactersPerSkill())))
+                        Math.min(entry.markdown().length(), properties.skills().charactersPerSkill()),
+                        entry.effectiveScope(), entry.triggers()))
                 .toList();
     }
 

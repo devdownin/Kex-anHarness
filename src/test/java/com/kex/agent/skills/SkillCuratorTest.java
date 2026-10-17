@@ -12,6 +12,7 @@ import java.util.List;
 import com.kex.agent.memory.LearningEntry;
 import com.kex.agent.memory.LearningRepository;
 import com.kex.agent.memory.MemoryProperties;
+import com.kex.agent.memory.SkillScope;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -100,6 +101,32 @@ class SkillCuratorTest {
         skills.retire(entry.id(), "admin", "obsolète");
 
         assertThat(skills.approved("ops")).isEmpty();
+    }
+
+    /**
+     * Une compétence à déclencheurs n'est ni injectée d'office ni en sommeil : la lister parmi les
+     * dormantes pousserait à retirer ce qui agit précisément quand on en parle.
+     */
+    @Test
+    void separe_les_invariantes_les_conditionnelles_et_les_dormantes() {
+        scoped("invariante", SkillScope.INVARIANT, List.of(), NOW.minus(Duration.ofDays(5)));
+        scoped("dlq", SkillScope.DOMAIN, List.of("dlq"), NOW.minus(Duration.ofDays(1)));
+        approved("générale récente", NOW.minus(Duration.ofDays(2)));
+        approved("générale ancienne", NOW.minus(Duration.ofDays(3)));
+
+        SkillCuration report = curator(1, Duration.ofDays(90)).curate("ops");
+
+        assertThat(report.injected()).extracting(SkillCuration.Digest::title)
+                .containsExactly("invariante", "générale récente");
+        assertThat(report.conditional()).extracting(SkillCuration.Digest::title).containsExactly("dlq");
+        assertThat(report.conditional().getFirst().triggers()).containsExactly("dlq");
+        assertThat(report.dormant()).extracting(SkillCuration.Digest::title).containsExactly("générale ancienne");
+        assertThat(report.injected().getFirst().scope()).isEqualTo(SkillScope.INVARIANT);
+    }
+
+    private void scoped(String title, SkillScope scope, List<String> triggers, Instant reviewedAt) {
+        repository.add(new LearningEntry("id-" + title, "ops", "SKILL", title, "# " + title, "preuve", null,
+                reviewedAt, "APPROVED", "admin", reviewedAt, "ok", null, scope, triggers, List.of()));
     }
 
     private LearningEntry approved(String title, Instant reviewedAt) {

@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.util.List;
 
 import com.kex.agent.memory.LearningEntry;
+import com.kex.agent.memory.SkillScope;
 import com.kex.agent.supervision.SupervisionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,13 +21,14 @@ class SkillsControllerTest {
 
     private final SkillsService service = mock(SkillsService.class);
     private final SkillCurator curator = mock(SkillCurator.class);
+    private final SkillProbeService probes = mock(SkillProbeService.class);
     private final SupervisionService supervision = mock(SupervisionService.class);
     private final Principal principal = () -> "admin";
     private SkillsController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new SkillsController(service, curator, supervision);
+        controller = new SkillsController(service, curator, probes, supervision);
     }
 
     @Test
@@ -37,13 +39,15 @@ class SkillsControllerTest {
                 "conv-1", Instant.now(), "APPROVED", "admin", Instant.now(), "Good");
 
         given(service.list("admin")).willReturn(List.of(entry));
-        given(service.propose("admin", "Check Lag", "Markdown", "Evidence", "conv-1")).willReturn(entry);
+        given(service.propose("admin", "Check Lag", "Markdown", "Evidence", "conv-1", null,
+                SkillScope.DOMAIN, List.of("lag"))).willReturn(entry);
         given(service.review("s-1", true, "admin", "Good")).willReturn(approved);
         given(service.review("s-1", false, "admin", "Bad")).willReturn(entry);
 
         assertThat(controller.list(principal)).containsExactly(entry);
 
-        SkillsController.Proposal proposal = new SkillsController.Proposal("Check Lag", "Markdown", "Evidence", "conv-1");
+        SkillsController.Proposal proposal = new SkillsController.Proposal("Check Lag", "Markdown", "Evidence", "conv-1",
+                SkillScope.DOMAIN, List.of("lag"));
         assertThat(controller.propose(proposal, principal)).isEqualTo(entry);
         verify(supervision).auditAction("admin", "Compétence proposée", "s-1");
 
@@ -71,5 +75,16 @@ class SkillsControllerTest {
         given(service.ranked("admin")).willReturn(List.of());
         assertThat(controller.available(principal)).isEmpty();
         verify(service).ranked("admin");
+    }
+
+    @Test
+    void le_rejeu_est_delegue_sous_l_identite_de_l_appelant_et_audite() {
+        LearningEntry entry = new LearningEntry("s-3", "ops-console", "SKILL", "Check Lag", "Markdown",
+                "Evidence", null, Instant.now(), "PENDING", null, null, null);
+        given(probes.probe("s-3", "Le lag de billing ?", "admin")).willReturn(entry);
+
+        assertThat(controller.probe("s-3", new SkillsController.ProbeRequest("Le lag de billing ?"), principal))
+                .isEqualTo(entry);
+        verify(supervision).auditAction("admin", "Compétence rejouée", "s-3");
     }
 }

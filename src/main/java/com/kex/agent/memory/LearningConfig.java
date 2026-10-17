@@ -6,9 +6,11 @@ import java.nio.file.Path;
 import java.time.Clock;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kex.agent.agent.AgentService;
 import com.kex.agent.skills.CharterService;
 import com.kex.agent.skills.RefusalSkillProposer;
 import com.kex.agent.skills.SkillCurator;
+import com.kex.agent.skills.SkillProbeService;
 import com.kex.agent.skills.SkillsService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -41,6 +43,12 @@ class LearningConfig {
     @Bean
     SkillCurator skillCurator(SkillsService skills, MemoryProperties properties, Clock clock) {
         return new SkillCurator(skills, properties, clock);
+    }
+
+    @Bean
+    SkillProbeService skillProbeService(SkillsService skills, AgentService agent, MemoryProperties properties,
+                                        Clock clock) {
+        return new SkillProbeService(skills, agent, properties.skills().probe(), clock);
     }
 
     /** Sans mémoire activée, personne n'écoute l'événement : les refus ne font que durcir le plancher. */

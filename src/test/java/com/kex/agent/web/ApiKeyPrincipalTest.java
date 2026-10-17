@@ -107,6 +107,16 @@ class ApiKeyPrincipalTest {
                 .isEqualTo(409);
     }
 
+    /** Le rejeu dépense du budget de modèle et appelle des outils au nom du propriétaire. */
+    @Test
+    void seul_un_admin_peut_rejouer_une_competence() throws Exception {
+        assertThat(postJsonStatus("/api/agent/skills/inconnue/probe", "Bearer jeton-ops",
+                "{\"request\":\"Le lag ?\"}")).isEqualTo(403);
+        // 409 : rejeu désactivé ou compétence inconnue — la sécurité a laissé passer l'admin.
+        assertThat(postJsonStatus("/api/agent/skills/inconnue/probe", "Bearer jeton-admin",
+                "{\"request\":\"Le lag ?\"}")).isEqualTo(409);
+    }
+
     /**
      * Même niveau d'accès que la revue qu'elle rend trouvable — pas celui d'une lecture ordinaire
      * de compétences, qu'{@code OPERATOR} a déjà.

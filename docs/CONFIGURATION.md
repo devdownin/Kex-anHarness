@@ -195,14 +195,51 @@ Ce que la bibliothèque de compétences approuvées pèse dans le prompt.
 
 ```yaml
 kex.agent.memory.skills:
-  injected: 5                # compétences réellement injectées, les plus récemment approuvées
+  injected: 5                # compétences de domaine injectées par demande
+  invariant-injected: 3      # compétences invariantes, injectées dans toute conversation
   characters-per-skill: 3000
   stale-after: 90d           # au-delà, signalée comme candidate à la revue — jamais retirée seule
+  probe:
+    read-only-tools:         # vide : rejeu éteint
+      - kafka-explorer__kex_consumer_lag      # nom exposé au modèle : <connexion>__<outil>
+      - kafka-explorer__kex_diagnose_consumer
 ```
+
+Une compétence porte une **portée**, fixée à la proposition :
+
+- `INVARIANT` — une règle de méthode (citer la couverture, relire un résultat d'outil). Injectée dans
+  toute conversation, sous `invariant-injected`, la plus récemment approuvée d'abord. Pas de
+  déclencheur : elle n'en a pas l'usage, et un déclencheur laisserait croire qu'elle ne vaut que pour
+  certaines demandes.
+- `DOMAIN` (défaut) — une procédure liée à un sujet. Avec des `triggers` (dix au plus), elle n'est
+  injectée que quand la demande en contient un en début de mot, sans tenir compte de la casse ni des
+  accents (`retention` couvre « Rétention », `lag` ne couvre pas « flag »), et passe alors devant
+  celles qui n'en ont pas. Sans déclencheur, elle est toujours éligible — c'est le cas de toute
+  compétence antérieure à la portée, qui s'injecte donc exactement comme avant.
+
+```http
+POST /api/agent/skills
+{"title":"Revue DLQ","markdown":"...","evidence":"...","scope":"DOMAIN","triggers":["dlq","lettre morte"]}
+```
+
+**Rejeu contrastif.** `POST /api/agent/skills/{id}/probe` avec `{"request":"..."}` exécute la même
+demande deux fois, en parallèle, avec et sans la compétence en attente — injectée comme si elle
+était approuvée, éviction par les plafonds comprise. L'écart (outils ajoutés ou abandonnés, appels en
+échec, jetons, motif d'arrêt, les deux réponses) est joint à la compétence et affiché dans la file de
+revue ; les cinq derniers rejeux sont conservés. Aucun verdict n'est calculé : un rejeu montre que
+le comportement change, pas que la réponse est juste. Un seul essai par rejeu, sur un modèle
+stochastique : relancer avant de conclure sur un petit écart.
+
+Le rejeu appelle réellement le modèle et les outils, au nom et sur le budget du locataire
+propriétaire : `ADMIN` seulement, outils limités à `probe.read-only-tools` (même règle que
+`kex.agent.automation.read-only-tools`), rien n'entre en mémoire long-terme, et la fenêtre de
+conversation du rejeu est purgée en sortie. Une compétence tranchée pendant le rejeu l'emporte :
+le rejeu n'est pas écrit (`409`).
 
 | Endpoint | Rôle |
 |---|---|
-| `GET /api/agent/skills/curation` | Ce qui agit, ce qui dort au-delà du plafond, les doublons de titre, ce qui n'a plus été revu |
+| `GET /api/agent/skills/curation` | Ce qui agit partout, ce qui attend un déclencheur (`conditional`), ce qui dort au-delà d'un plafond, les doublons de titre, ce qui n'a plus été revu |
+| `POST /api/agent/skills/{id}/probe` | `{"request":"..."}` — `ADMIN`. Rejeu contrastif d'une compétence `PENDING`, tracé dans l'audit ; `409` si le rejeu est éteint, déjà en cours ou la compétence tranchée |
 | `GET /api/agent/skills/review-queue` | `ADMIN`. Tout ce qui est `PENDING`, tous propriétaires confondus, le plus ancien d'abord — la revue (`approve`/`reject`) reste elle-même transverse, voir ARCHITECTURE.md |
 | `POST /api/agent/skills/{id}/retire` | `{"reason":"..."}` — `ADMIN`, motif obligatoire, tracé dans l'audit |
 
