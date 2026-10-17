@@ -6,6 +6,16 @@ Kex n'est pas limité à Kafka : ses outils MCP peuvent observer des fichiers, G
 
 La fenêtre de conversation reste bornée. En complément, Kex conserve des résumés et des faits par identité authentifiée. Les procédures déduites d'une tâche réussie sont enregistrées en `PENDING` ; elles ne sont jamais chargées comme compétences exécutables avant l'approbation nominative d'un opérateur. Le profil `shared-memory` persiste ces données en PostgreSQL ; le mode local les écrit dans `~/.kex/memory`.
 
+### Cycle de vie d'une compétence
+
+- **Portée.** Une compétence est `INVARIANT` (règle valable partout, par exemple citer la couverture d'une réponse ; sans déclencheur) ou `DOMAIN` (procédure d'un sujet, avec des déclencheurs : elle n'entre dans le contexte que si la demande les contient). Chaque portée a son plafond d'injection (`injected`, `invariant-injected`) : une procédure récente n'évince plus une règle ancienne. Une compétence antérieure sans portée reste une procédure de domaine sans déclencheur.
+- **Index et lecture.** Quand l'échange peut appeler un outil, une procédure de domaine n'entre que par une ligne d'index ; le modèle l'ouvre avec `read_skill`. Chaque lecture est comptée et alimente la curation (`unread`). Sans outil permis, la procédure est recopiée en entier, comme avant.
+- **Rejeu avant revue.** `POST /api/agent/skills/{id}/probe` (`ADMIN`) rejoue une demande avec et sans la compétence en attente, 1 à 3 passes par côté, en parallèle et sous l'allowlist `kex.agent.memory.skills.probe.read-only-tools` (vide : éteint). Le résultat joint à la compétence les outils ajoutés ou perdus de façon stable, les tokens et les lectures de compétences ; aucun verdict n'est calculé, l'humain tranche.
+- **Refus répétés.** Au-delà de N refus concordants d'une décision, une règle est proposée en `DOMAIN`, déclenchée par les processus refusés, puis passe par la même revue.
+- **Revue.** Approuver, rejeter et retirer exigent `ADMIN` ; la file `GET /api/agent/skills/review-queue` est transverse.
+
+Les anomalies de la supervision suivent la même exigence de preuve : une observation doit citer l'outil dont l'appel a abouti dans le cycle, sinon l'anomalie est écartée, sans alerte ni décision, et le processus redevient `UNKNOWN`. Voir [Architecture](ARCHITECTURE.md) et [Configuration](CONFIGURATION.md).
+
 ## Canaux et planification
 
 Slack, Teams et e-mail sont des sorties configurées par l'administrateur. Par défaut, un message d'approbation ouvre la console ; le clic ne donne aucun droit et l'action exige toujours une authentification, une décision encore pendante et les seuils Kex. Avec `channels.slack-signing-secret` renseignée, Slack gagne aussi deux boutons Approuver/Refuser qui agissent directement — la signature propre à l'interactivité de Slack et une correspondance expéditeur → opérateur déclaré remplacent alors le bearer, jamais le contournent. Teams n'a pas d'équivalent : une Adaptive Card ne livre nulle part sans un Bot Framework enregistré, son message reste un lien.
