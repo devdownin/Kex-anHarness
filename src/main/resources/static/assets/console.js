@@ -1095,7 +1095,9 @@ async function route() {
     }
     // Sur mobile la navigation défile horizontalement : l'entrée courante doit être visible, sinon
     // rien ne dit où l'on est après un lien profond (#/integrations depuis la mise en route).
-    document.querySelector('.nav-item[aria-current="page"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    // `start`, pas `nearest` : la barre s'aimante sur le début de ses entrées, et `nearest` laissait
+    // l'aimantation recaler sur la voisine, l'entrée courante coupée au bord droit.
+    document.querySelector('.nav-item[aria-current="page"]')?.scrollIntoView({ block: 'nearest', inline: 'start' });
     placeOperatorContext(view);
     $('#crumb').textContent = VIEWS[view].title;
     // Le titre suit la vue : un onglet parmi dix ne se retrouve pas, et un signet pris sur un
