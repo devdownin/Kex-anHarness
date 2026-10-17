@@ -107,13 +107,14 @@ try {
   assert.match(await page.textContent('.mcp-discovery-state'), /Échec de connexion/);
   assert.doesNotMatch(await page.textContent('#drawer-body'), /Chargement des services/);
   fail = false;
-  await page.getByRole('button', { name: 'Réessayer' }).click();
+  // Le tiroir seul : la liste des serveurs, derrière, porte son propre « Réessayer » sur le même échec.
+  await page.locator('#drawer-body').getByRole('button', { name: 'Réessayer' }).click();
   await page.waitForFunction(() => document.querySelector('#drawer-body').textContent.includes('Consulter les topics disponibles'));
   console.log('✓ l’échec est explicite et le bouton Réessayer recharge les services');
   await page.evaluate(async () => (await import('/assets/core.js')).closeDrawer());
-  denied = true; await select(); await page.getByText('Accès refusé', { exact: true }).waitFor(); assert.equal(await page.getByRole('button', { name: 'Réessayer' }).count(), 0);
+  denied = true; await select(); await page.locator('#drawer-body').getByText('Accès refusé', { exact: true }).waitFor(); assert.equal(await page.locator('#drawer-body').getByRole('button', { name: 'Réessayer' }).count(), 0);
   denied = false; noOutput = true; await page.evaluate(async () => (await import('/assets/core.js')).closeDrawer()); await select();
-  await page.getByText('Objectif non fourni par le serveur.', { exact: true }).waitFor(); assert.match(await page.textContent('.mcp-expected-result'), /non décrit par le serveur/);
+  await page.locator('#drawer-body').getByText('Objectif non fourni par le serveur.', { exact: true }).waitFor(); assert.match(await page.textContent('.mcp-expected-result'), /non décrit par le serveur/);
   noOutput = false;
   await page.evaluate(async () => (await import('/assets/core.js')).closeDrawer());
   let release;

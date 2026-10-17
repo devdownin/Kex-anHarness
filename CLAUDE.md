@@ -422,4 +422,19 @@ JDK 21 au minimum (la CI et l'image tournent en 21). La CI construit aussi l'ima
   importée ou écrite hors de `SkillsService.propose` garde sa casse et ses accents : « Lettre morte »
   ne correspondait jamais à une demande normalisée. `matches` normalise les deux côtés.
 
+- **Sous `scroll-snap-type`, `scrollIntoView({ inline: 'nearest' })` ne garantit pas la visibilité.**
+  Le défilement s'arrête à moitié, puis l'aimantation recale sur le début de l'entrée voisine : sur
+  mobile, l'entrée courante de la navigation restait coupée au bord droit. L'alignement demandé doit
+  être celui de `scroll-snap-align` (`start`).
+
+- **Un paquet de l'image de base qu'on n'appelle jamais se purge aussi.** `curl` et `libcurl4t64`
+  viennent d'`eclipse-temurin:21-jre` ; les sondes passent par `/dev/tcp`. Une CVE HIGH sur ce `curl`
+  a bloqué le scan Trivy sans qu'aucune ligne du projet ne soit en cause — même raisonnement que
+  `pebble`, mais par `dpkg --purge` : Trivy lit la base `dpkg`, pas le système de fichiers.
+
+- **Un module de fonctions pures n'importe pas de module d'interface.** `mcp-services.js` est testé
+  sous Node ; y importer `mcp-ux.js` et `mcp-ux-guard.js`, qui touchent `Element` et `document` au
+  chargement, cassait ce test — masqué en CI tant qu'un script navigateur antérieur échouait, la
+  séquence s'arrêtant au premier échec. Les imports à effet de bord vivent chez l'appelant (`tools.js`).
+
 Le détail et les raisons sont dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
