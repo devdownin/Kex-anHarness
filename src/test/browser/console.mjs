@@ -1240,7 +1240,7 @@ await check('la carte dit la portée et le rejeu envoie la demande saisie', asyn
   await page.click('#confirm-accept');
   const response = await probed;
   assert.equal(response.status(), 409);
-  assert.deepEqual(response.request().postDataJSON(), { request: 'Le lag de billing est-il stable ?' });
+  assert.deepEqual(response.request().postDataJSON(), { request: 'Le lag de billing est-il stable ?', repetitions: 3 });
   await page.waitForSelector('dialog#confirm', { state: 'hidden' });
 });
 

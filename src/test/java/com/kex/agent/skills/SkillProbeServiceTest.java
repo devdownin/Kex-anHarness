@@ -14,6 +14,7 @@ import java.util.concurrent.TimeUnit;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kex.agent.agent.AgentAnswer;
 import com.kex.agent.agent.AgentEvent;
+import com.kex.agent.agent.AgentProbe;
 import com.kex.agent.agent.AgentService;
 import com.kex.agent.agent.AgentTimeoutException;
 import com.kex.agent.agent.AgentUsage;
@@ -62,16 +63,16 @@ class SkillProbeServiceTest {
         given(agent.probe(eq("ops-console"), eq("Le lag de billing ?"), eq(TOOLS), notNull()))
                 .willReturn(answer(List.of("kex_consumer_lag", "kex_diagnose_consumer"), null));
 
-        LearningEntry probed = service(TOOLS).probe(pending.id(), "  Le lag de billing ?  ", "admin");
+        LearningEntry probed = service(TOOLS).probe(pending.id(), "  Le lag de billing ?  ", 1, "admin");
 
         SkillProbe probe = probed.probes().getFirst();
         assertThat(probe.actor()).isEqualTo("admin");
         assertThat(probe.observedAt()).isEqualTo(NOW);
         assertThat(probe.toolsAdded()).containsExactly("kex_diagnose_consumer");
         assertThat(probe.toolsDropped()).isEmpty();
-        assertThat(probe.reference().inputTokens()).isEqualTo(100);
+        assertThat(probe.references().getFirst().inputTokens()).isEqualTo(100);
         // Le fournisseur n'a rien dit : une absence, jamais zéro.
-        assertThat(probe.candidate().inputTokens()).isNull();
+        assertThat(probe.candidates().getFirst().inputTokens()).isNull();
         assertThat(skills.pending(pending.id()).probes()).containsExactly(probe);
         verify(agent).probe(eq("ops-console"), any(), eq(TOOLS),
                 org.mockito.ArgumentMatchers.argThat(entry -> entry != null && entry.id().equals(pending.id())));
@@ -87,10 +88,10 @@ class SkillProbeServiceTest {
             return answer(List.of(), null);
         });
 
-        LearningEntry probed = service(TOOLS).probe(pending.id(), "lag ?", "admin");
+        LearningEntry probed = service(TOOLS).probe(pending.id(), "lag ?", 1, "admin");
 
-        assertThat(probed.probes().getFirst().reference().error()).isNull();
-        assertThat(probed.probes().getFirst().candidate().error()).isNull();
+        assertThat(probed.probes().getFirst().references().getFirst().error()).isNull();
+        assertThat(probed.probes().getFirst().candidates().getFirst().error()).isNull();
     }
 
     @Test
@@ -99,10 +100,10 @@ class SkillProbeServiceTest {
         given(agent.probe(any(), any(), any(), notNull()))
                 .willThrow(new IllegalStateException("{\"error\":\"corps du fournisseur\"}"));
 
-        SkillProbe probe = service(TOOLS).probe(pending.id(), "lag ?", "admin").probes().getFirst();
+        SkillProbe probe = service(TOOLS).probe(pending.id(), "lag ?", 1, "admin").probes().getFirst();
 
-        assertThat(probe.candidate().error()).isEqualTo("IllegalStateException");
-        assertThat(probe.candidate().answer()).isNull();
+        assertThat(probe.candidates().getFirst().error()).isEqualTo("IllegalStateException");
+        assertThat(probe.candidates().getFirst().answer()).isNull();
         assertThat(probe.toolsDropped()).containsExactly("kex_consumer_lag");
     }
 
@@ -112,14 +113,14 @@ class SkillProbeServiceTest {
         given(agent.probe(any(), any(), any(), notNull()))
                 .willThrow(new AgentTimeoutException(java.time.Duration.ofSeconds(1), "c"));
 
-        SkillProbe probe = service(TOOLS).probe(pending.id(), "lag ?", "admin").probes().getFirst();
+        SkillProbe probe = service(TOOLS).probe(pending.id(), "lag ?", 1, "admin").probes().getFirst();
 
-        assertThat(probe.candidate().error()).isEqualTo("AgentTimeoutException");
+        assertThat(probe.candidates().getFirst().error()).isEqualTo("AgentTimeoutException");
     }
 
     @Test
     void sans_allowlist_configuree_le_rejeu_est_eteint_et_n_appelle_rien() {
-        assertThatThrownBy(() -> service(Set.of()).probe(pending.id(), "lag ?", "admin"))
+        assertThatThrownBy(() -> service(Set.of()).probe(pending.id(), "lag ?", 1, "admin"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("read-only-tools");
         verify(agent, never()).probe(any(), any(), any(), any());
@@ -127,10 +128,10 @@ class SkillProbeServiceTest {
 
     @Test
     void une_demande_vide_ou_une_competence_deja_tranchee_est_refusee() {
-        assertThatThrownBy(() -> service(TOOLS).probe(pending.id(), " ", "admin"))
+        assertThatThrownBy(() -> service(TOOLS).probe(pending.id(), " ", 1, "admin"))
                 .isInstanceOf(IllegalArgumentException.class);
         skills.review(pending.id(), true, "admin", "ok");
-        assertThatThrownBy(() -> service(TOOLS).probe(pending.id(), "lag ?", "admin"))
+        assertThatThrownBy(() -> service(TOOLS).probe(pending.id(), "lag ?", 1, "admin"))
                 .isInstanceOf(IllegalStateException.class);
         verify(agent, never()).probe(any(), any(), any(), any());
     }
@@ -142,7 +143,7 @@ class SkillProbeServiceTest {
             return answer(List.of(), null);
         });
 
-        assertThatThrownBy(() -> service(TOOLS).probe(pending.id(), "lag ?", "admin"))
+        assertThatThrownBy(() -> service(TOOLS).probe(pending.id(), "lag ?", 1, "admin"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("pendant le rejeu");
         assertThat(skills.list("ops-console").getFirst().probes()).isEmpty();
@@ -158,10 +159,10 @@ class SkillProbeServiceTest {
             return answer(List.of(), null);
         });
         SkillProbeService service = service(TOOLS);
-        Thread first = Thread.startVirtualThread(() -> service.probe(pending.id(), "lag ?", "admin"));
+        Thread first = Thread.startVirtualThread(() -> service.probe(pending.id(), "lag ?", 1, "admin"));
         try {
             assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
-            assertThatThrownBy(() -> service.probe(pending.id(), "lag ?", "admin"))
+            assertThatThrownBy(() -> service.probe(pending.id(), "lag ?", 1, "admin"))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("déjà en cours");
         }
@@ -180,13 +181,52 @@ class SkillProbeServiceTest {
         assertThat(skills.pending(pending.id()).probes()).hasSize(1);
     }
 
+    @Test
+    void trois_passes_de_chaque_cote_ne_retiennent_que_l_ecart_stable() {
+        CountDownLatch all = new CountDownLatch(6);
+        java.util.concurrent.atomic.AtomicInteger candidateRuns = new java.util.concurrent.atomic.AtomicInteger();
+        given(agent.probe(any(), any(), any(), any())).willAnswer(invocation -> {
+            all.countDown();
+            // Les six exécutions partent ensemble : séquentielles, elles ne passeraient jamais ce point.
+            assertThat(all.await(5, TimeUnit.SECONDS)).isTrue();
+            if (invocation.getArgument(3) == null) return answer(List.of("kex_consumer_lag"), null);
+            boolean first = candidateRuns.getAndIncrement() == 0;
+            // Le diagnostic n'apparaît qu'une fois sur trois : un écart de hasard, pas de la compétence.
+            return answer(first ? List.of("kex_consumer_lag", "kex_lag_trend", "kex_diagnose_consumer")
+                    : List.of("kex_consumer_lag", "kex_lag_trend"), null, List.of(pending.id()));
+        });
+
+        SkillProbe probe = service(TOOLS).probe(pending.id(), "lag ?", 3, "admin").probes().getFirst();
+
+        assertThat(probe.references()).hasSize(3);
+        assertThat(probe.candidates()).hasSize(3);
+        assertThat(probe.toolsAdded()).containsExactly("kex_lag_trend");
+        assertThat(probe.toolsDropped()).isEmpty();
+        assertThat(probe.tools()).contains(new SkillProbe.ToolFrequency("kex_diagnose_consumer", 0, 1),
+                new SkillProbe.ToolFrequency("kex_consumer_lag", 3, 3));
+        assertThat(probe.candidates()).allSatisfy(run -> assertThat(run.skillsRead()).containsExactly(pending.id()));
+    }
+
+    @Test
+    void les_repetitions_sont_bornees() {
+        assertThatThrownBy(() -> service(TOOLS).probe(pending.id(), "lag ?", 0, "admin"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service(TOOLS).probe(pending.id(), "lag ?", 4, "admin"))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(agent, never()).probe(any(), any(), any(), any());
+    }
+
     private SkillProbeService service(Set<String> tools) {
         return new SkillProbeService(skills, agent, new MemoryProperties.Probe(tools), Clock.fixed(NOW, ZoneId.of("UTC")));
     }
 
-    private static AgentAnswer answer(List<String> tools, AgentUsage usage) {
+    private static AgentProbe answer(List<String> tools, AgentUsage usage) {
+        return answer(tools, usage, List.of());
+    }
+
+    private static AgentProbe answer(List<String> tools, AgentUsage usage, List<String> skillsRead) {
         List<AgentEvent.ToolCall> calls = tools.stream()
                 .map(tool -> new AgentEvent.ToolCall(tool, 5, false, NOW.toString(), null)).toList();
-        return new AgentAnswer("probe", "Réponse", calls, usage, "end_turn");
+        return new AgentProbe(new AgentAnswer("probe", "Réponse", calls, usage, "end_turn"), skillsRead);
     }
 }

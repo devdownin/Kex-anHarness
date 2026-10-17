@@ -15,11 +15,18 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 @JsonIgnoreProperties(value = { "summary", "scenarios" }, allowGetters = true)
+/**
+ * @param harness            what was evaluated around the model: {@code base}, or the skills fixture
+ *                           file name — two reports may differ by model or by harness
+ * @param harnessFingerprint SHA-256 of that fixture, so two runs labelled alike can be told apart
+ */
 public record AgentEvalReport(String corpus, String model, String provider, String revision,
-                              int repetitions, List<AgentEvalScoring.Trial> trials) {
+                              int repetitions, List<AgentEvalScoring.Trial> trials, String harness,
+                              String harnessFingerprint) {
     @JsonProperty("summary")
     public AgentEvalScoring.Rates summary() {
-        return trials.isEmpty() ? new AgentEvalScoring.Rates(0, 0, 0, 0, 0, 0) : AgentEvalScoring.aggregate(trials);
+        return trials.isEmpty() ? new AgentEvalScoring.Rates(0, 0, 0, 0, 0, 0, null, null, null)
+                : AgentEvalScoring.aggregate(trials);
     }
 
     @JsonProperty("scenarios")
@@ -81,6 +88,21 @@ public record AgentEvalReport(String corpus, String model, String provider, Stri
             }
         }
         return List.copyOf(failures);
+    }
+
+    /**
+     * Informative, never gating: a cost threshold would be a number nobody chose. Each delta is
+     * candidate minus baseline, {@code null} when either side did not measure it.
+     */
+    public AgentEvalComparison compare(AgentEvalReport baseline) {
+        Map<String, AgentEvalComparison.Delta> deltas = new LinkedHashMap<>();
+        Map<String, AgentEvalScoring.Rates> before = baseline.scenarios();
+        scenarios().forEach((id, after) -> {
+            AgentEvalScoring.Rates prior = before.get(id);
+            if (prior != null) deltas.put(id, AgentEvalComparison.Delta.between(prior, after));
+        });
+        return new AgentEvalComparison(baseline.model(), baseline.harness(), model, harness,
+                AgentEvalComparison.Delta.between(baseline.summary(), summary()), deltas);
     }
 
     public void write(Path file) throws IOException {

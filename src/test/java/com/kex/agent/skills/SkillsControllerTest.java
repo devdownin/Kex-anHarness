@@ -81,10 +81,14 @@ class SkillsControllerTest {
     void le_rejeu_est_delegue_sous_l_identite_de_l_appelant_et_audite() {
         LearningEntry entry = new LearningEntry("s-3", "ops-console", "SKILL", "Check Lag", "Markdown",
                 "Evidence", null, Instant.now(), "PENDING", null, null, null);
-        given(probes.probe("s-3", "Le lag de billing ?", "admin")).willReturn(entry);
+        given(probes.probe("s-3", "Le lag de billing ?", 1, "admin")).willReturn(entry);
+        given(probes.probe("s-3", "Le lag de billing ?", 3, "admin")).willReturn(entry);
 
-        assertThat(controller.probe("s-3", new SkillsController.ProbeRequest("Le lag de billing ?"), principal))
+        assertThat(controller.probe("s-3", new SkillsController.ProbeRequest("Le lag de billing ?", null), principal))
                 .isEqualTo(entry);
-        verify(supervision).auditAction("admin", "Compétence rejouée", "s-3");
+        assertThat(controller.probe("s-3", new SkillsController.ProbeRequest("Le lag de billing ?", 3), principal))
+                .isEqualTo(entry);
+        verify(probes).probe("s-3", "Le lag de billing ?", 1, "admin");
+        verify(supervision, org.mockito.Mockito.times(2)).auditAction("admin", "Compétence rejouée", "s-3");
     }
 }

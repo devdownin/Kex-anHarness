@@ -124,6 +124,24 @@ class SkillCuratorTest {
         assertThat(report.injected().getFirst().scope()).isEqualTo(SkillScope.INVARIANT);
     }
 
+    /** Une invariante agit sans lecture : la ranger parmi les « jamais lues » pousserait à la retirer. */
+    @Test
+    void signale_les_procedures_de_domaine_jamais_lues_et_compte_les_lectures() {
+        scoped("invariante", SkillScope.INVARIANT, List.of(), NOW.minus(Duration.ofDays(3)));
+        approved("lue", NOW.minus(Duration.ofDays(2)));
+        approved("ignorée", NOW.minus(Duration.ofDays(1)));
+        repository.recordRead("id-lue", NOW);
+
+        SkillCuration report = curator(5, Duration.ofDays(90)).curate("ops");
+
+        assertThat(report.unread()).extracting(SkillCuration.Digest::title).containsExactly("ignorée");
+        assertThat(report.injected()).filteredOn(digest -> digest.title().equals("lue"))
+                .singleElement().satisfies(digest -> {
+                    assertThat(digest.reads()).isEqualTo(1);
+                    assertThat(digest.lastReadAt()).isEqualTo(NOW);
+                });
+    }
+
     private void scoped(String title, SkillScope scope, List<String> triggers, Instant reviewedAt) {
         repository.add(new LearningEntry("id-" + title, "ops", "SKILL", title, "# " + title, "preuve", null,
                 reviewedAt, "APPROVED", "admin", reviewedAt, "ok", null, scope, triggers, List.of()));
@@ -193,6 +211,18 @@ class SkillCuratorTest {
             return entries.stream()
                     .filter(entry -> kind.equals(entry.kind()) && "PENDING".equals(entry.status()))
                     .toList();
+        }
+
+        @Override
+        public boolean recordRead(String id, Instant at) {
+            for (int i = 0; i < entries.size(); i++) {
+                LearningEntry entry = entries.get(i);
+                if (entry.id().equals(id) && "APPROVED".equals(entry.status())) {
+                    entries.set(i, entry.withUsage(entry.reads() + 1, at));
+                    return true;
+                }
+            }
+            return false;
         }
     }
 }

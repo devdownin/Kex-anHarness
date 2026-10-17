@@ -1747,6 +1747,27 @@ Le rejeu appelle réellement le modèle et les outils : `ADMIN`, allowlist de co
 mémoire long-terme — sans cela, chaque rejeu aurait déposé deux résumés `UNVERIFIED` parmi ceux des
 vraies conversations — et purge la fenêtre de conversation, dont personne ne connaît l'identifiant.
 
+### Un index plutôt que des procédures recopiées, et ce qu'il permet enfin de mesurer
+
+Cinq procédures de 3000 caractères pesaient dans chaque prompt, utiles ou non à la demande. Comme la
+bibliothèque de *Harness²*, qui expose un index consulté à la demande, le contexte durable ne liste
+plus une compétence de domaine que par une ligne ; `read_skill` en rend le texte. L'outil est
+construit pour chaque demande à partir de l'index de cette demande : il n'interroge jamais le dépôt,
+si bien qu'aucun identifiant inventé n'atteint un autre locataire ou une compétence en attente.
+
+Deux exceptions, et chacune a sa raison. Une invariante reste recopiée : elle vaut pour tout échange,
+et la faire lire d'abord, c'est risquer qu'elle ne le soit jamais. Une tâche à allowlist vide ne
+peut appeler aucun outil : un index y serait une procédure perdue, d'où le retour au texte complet.
+`read_skill` reste hors de l'allowlist des tâches pour la même raison — il ne lit que ce que le
+prompt annonce déjà.
+
+Le gain annexe est une mesure que le curateur n'avait pas : combien de fois une procédure a été
+ouverte. C'est un plancher d'usage, rien de plus — une lecture ne dit pas que la procédure a aidé.
+Le rejeu, de son côté, dit enfin si la candidate a été lue ; il répète chaque côté jusqu'à trois
+fois et ne retient comme écart que ce qui tient à chaque passe. Les rapports d'évaluation portent
+le coût à côté du score, comme l'article publie le nombre d'étapes à côté de chaque résultat, et
+comparent deux harnesses avec le même modèle.
+
 ## Ce que les tests couvrent
 
 | Test | Ce qu'il verrouille |

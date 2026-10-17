@@ -152,7 +152,7 @@ function reviewQueueCard(row) {
   card.append(definition('Portée', el('span', null, scopeLabel(row))));
   card.append(el('pre', 'dump muted', row.markdown));
   const probes = row.probes || [];
-  if (probes.length) card.append(probeSummary(probes[probes.length - 1]));
+  if (probes.length) card.append(probeSummary(probes[probes.length - 1], row.id));
 
   const actions = el('div', 'card-actions');
   const probe = el('button', 'ghost', 'Rejouer');
@@ -180,22 +180,38 @@ function scopeLabel(entry) {
 
 /**
  * Un écart de comportement, jamais un verdict : le serveur n'en calcule aucun, l'écran non plus.
- * Une réponse qui « a l'air meilleure » se lit dans les deux réponses dépliées, pas dans un score.
+ * Une réponse qui « a l'air meilleure » se lit dans les réponses dépliées, pas dans un score.
  */
-function probeSummary(probe) {
+function probeSummary(probe, skillId) {
   const wrap = el('div', 'stack');
-  wrap.append(el('h4', 'drawer-sub', `Dernier rejeu · ${ago(probe.observedAt)} · ${probe.actor}`));
+  const passes = probe.candidates.length;
+  wrap.append(el('h4', 'drawer-sub',
+    `Dernier rejeu · ${passes} passe(s) de chaque côté · ${ago(probe.observedAt)} · ${probe.actor}`));
   wrap.append(definition('Demande', el('span', null, probe.request)));
-  wrap.append(definition('Sans la compétence', el('span', null, runLine(probe.reference))));
-  wrap.append(definition('Avec la compétence', el('span', null, runLine(probe.candidate))));
-  wrap.append(definition('Outils ajoutés', el('span', 'mono', probe.toolsAdded.join(', ') || '—')));
-  wrap.append(definition('Outils abandonnés', el('span', 'mono', probe.toolsDropped.join(', ') || '—')));
-  const answers = el('details');
-  answers.append(el('summary', null, 'Les deux réponses'));
-  answers.append(el('pre', 'dump muted', probe.reference.answer || '—'));
-  answers.append(el('pre', 'dump muted', probe.candidate.answer || '—'));
-  wrap.append(answers);
+  const read = probe.candidates.filter((run) => (run.skillsRead || []).includes(skillId)).length;
+  // Une candidate jamais lue n'a pas pu produire l'écart : le dire avant de le montrer.
+  wrap.append(definition('Compétence lue', el('span', null, `${read} passe(s) sur ${passes}`)));
+  wrap.append(definition('Outils ajoutés à chaque passe', el('span', 'mono', probe.toolsAdded.join(', ') || '—')));
+  wrap.append(definition('Outils abandonnés à chaque passe', el('span', 'mono', probe.toolsDropped.join(', ') || '—')));
+  if (probe.tools.length) {
+    const list = el('ul', 'stack');
+    probe.tools.forEach((tool) => list.append(el('li', 'mono',
+      `${tool.tool} : ${tool.inReferences}/${probe.references.length} sans, ${tool.inCandidates}/${passes} avec`)));
+    wrap.append(definition('Fréquence des outils', list));
+  }
+  const runs = el('details');
+  runs.append(el('summary', null, 'Les exécutions et leurs réponses'));
+  probe.references.forEach((run, index) => runs.append(runBlock(`Sans la compétence, passe ${index + 1}`, run)));
+  probe.candidates.forEach((run, index) => runs.append(runBlock(`Avec la compétence, passe ${index + 1}`, run)));
+  wrap.append(runs);
   return wrap;
+}
+
+function runBlock(label, run) {
+  const block = el('div', 'stack');
+  block.append(definition(label, el('span', null, runLine(run))));
+  block.append(el('pre', 'dump muted', run.answer || '—'));
+  return block;
 }
 
 function runLine(run) {
@@ -207,13 +223,15 @@ function runLine(run) {
   return `${run.tools.length} appel(s) d’outil, ${run.failedCalls} en échec · ${tokens}`;
 }
 
+const PROBE_REPETITIONS = 3;
+
 async function probeSkill(row) {
   const { confirmed, reason } = await confirmAction({
     title: 'Rejouer une demande avec et sans cette compétence',
     accept: `Rejouer : ${row.title}`,
     lines: [
       ['Compétence', row.title],
-      ['Exécution', 'Deux appels au modèle en parallèle, sous l’allowlist d’outils de la configuration.'],
+      ['Exécution', `${PROBE_REPETITIONS} passes de chaque côté, soit ${PROBE_REPETITIONS * 2} appels au modèle en parallèle, sous l’allowlist d’outils de la configuration.`],
       ['Coût', 'Imputé au budget du locataire propriétaire.'],
     ],
     reasonLabel: 'Demande à rejouer (une question où la compétence devrait agir)',
@@ -221,7 +239,7 @@ async function probeSkill(row) {
   });
   if (!confirmed) return;
   try {
-    await api(`${SKILLS_BASE}/${encodeURIComponent(row.id)}/probe`, { method: 'POST', body: { request: reason } });
+    await api(`${SKILLS_BASE}/${encodeURIComponent(row.id)}/probe`, { method: 'POST', body: { request: reason, repetitions: PROBE_REPETITIONS } });
     toast('Rejeu terminé : l’écart est joint à la compétence.');
     await reviewQueue();
   }
@@ -276,12 +294,16 @@ function curationReport(data) {
   tiles.append(tile('Injectées', data.injected.length));
   tiles.append(tile('Conditionnelles', data.conditional.length));
   tiles.append(tile('En sommeil', data.dormant.length));
+  tiles.append(tile('Jamais lues', data.unread.length));
   tiles.append(tile('Obsolètes', data.stale.length));
   tiles.append(tile('Caractères injectés', data.characters.toLocaleString('fr-FR')));
   wrap.append(tiles);
 
   if (data.dormant.length) {
     wrap.append(digestGroup('En sommeil : approuvées, mais au-delà du plafond d’injection', data.dormant, true));
+  }
+  if (data.unread.length) {
+    wrap.append(digestGroup('Jamais lues : indexées, jamais ouvertes par l’agent depuis leur approbation', data.unread, true));
   }
   if (data.stale.length) {
     wrap.append(digestGroup('Obsolètes : non revues depuis longtemps', data.stale, true));
@@ -318,7 +340,7 @@ function digestRow(entry, retirable) {
   const row = el('div', 'confirm-row');
   row.append(el('span', 'label', entry.title));
   row.append(el('span', 'value muted',
-    `${scopeLabel(entry)} · approuvée par ${entry.reviewedBy} · ${ago(entry.reviewedAt)} · ${entry.characters.toLocaleString('fr-FR')} car.`));
+    `${scopeLabel(entry)} · ${usageLabel(entry)} · approuvée par ${entry.reviewedBy} · ${ago(entry.reviewedAt)} · ${entry.characters.toLocaleString('fr-FR')} car.`));
   if (retirable) {
     const retire = el('button', 'ghost danger', 'Retirer');
     retire.type = 'button';
@@ -327,6 +349,13 @@ function digestRow(entry, retirable) {
     row.append(retire);
   }
   return row;
+}
+
+/** Une invariante est injectée en entier : elle agit sans jamais être « lue », ne rien compter pour elle. */
+function usageLabel(entry) {
+  if (entry.scope === 'INVARIANT') return 'injectée en entier';
+  if (!entry.reads) return 'jamais lue';
+  return `lue ${entry.reads} fois, dernière ${ago(entry.lastReadAt)}`;
 }
 
 function duplicatesGroup(duplicates) {

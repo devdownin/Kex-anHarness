@@ -16,6 +16,7 @@ public final class JdbcLearningRepository implements LearningRepository {
     private static final RowMapper<LearningEntry> ROW = (rs, row) -> {
         Timestamp reviewedAt = rs.getTimestamp("reviewed_at");
         String scope = rs.getString("scope");
+        Timestamp lastReadAt = rs.getTimestamp("last_read_at");
         return new LearningEntry(rs.getString("id"), rs.getString("owner"), rs.getString("kind"),
                 rs.getString("title"), rs.getString("markdown"), rs.getString("evidence"),
                 rs.getString("conversation_id"), rs.getTimestamp("created_at").toInstant(),
@@ -24,7 +25,8 @@ public final class JdbcLearningRepository implements LearningRepository {
                 decode(rs.getString("verification"), LearningEvidence.class),
                 scope == null ? null : SkillScope.valueOf(scope),
                 List.of(decode(rs.getString("triggers"), String[].class, new String[0])),
-                List.of(decode(rs.getString("probes"), SkillProbe[].class, new SkillProbe[0])));
+                List.of(decode(rs.getString("probes"), SkillProbe[].class, new SkillProbe[0])),
+                rs.getInt("reads"), lastReadAt == null ? null : lastReadAt.toInstant());
     };
     private final JdbcTemplate jdbc;
     private final int capacity;
@@ -97,6 +99,13 @@ public final class JdbcLearningRepository implements LearningRepository {
     public Optional<String> ownerOf(String id) {
         return jdbc.query("SELECT owner FROM kex_agent_learning WHERE id = ?",
                 (rs, row) -> rs.getString("owner"), id).stream().findFirst();
+    }
+
+    @Override
+    public boolean recordRead(String id, Instant at) {
+        return jdbc.update("""
+                UPDATE kex_agent_learning SET reads = reads + 1, last_read_at = ?
+                WHERE id = ? AND kind = 'SKILL' AND status = 'APPROVED'""", Timestamp.from(at), id) == 1;
     }
 
     @Override

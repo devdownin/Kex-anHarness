@@ -16,12 +16,29 @@ public final class AgentEvalScoring {
     public record Call(String tool, Map<String, Object> arguments) {
     }
 
+    /** Tokens stay nullable: a provider that reports nothing has not consumed zero. */
     public record Observation(String state, boolean completeCoverage, boolean knownIncomplete,
-                              List<String> notReached, int anomalies, String failure, List<Call> calls) {
+                              List<String> notReached, int anomalies, String failure, List<Call> calls,
+                              Integer inputTokens, Integer outputTokens) {
+        public Observation(String state, boolean completeCoverage, boolean knownIncomplete,
+                           List<String> notReached, int anomalies, String failure, List<Call> calls) {
+            this(state, completeCoverage, knownIncomplete, notReached, anomalies, failure, calls, null, null);
+        }
     }
 
+    /**
+     * Cost sits next to the score, as Harness² reports steps next to each result: a harness that
+     * gains a point by doubling tool calls is not the same change as one that gains it for free.
+     * All three stay nullable so a report written before they existed reads as "not measured".
+     */
     public record Trial(String scenario, int repetition, boolean taskOutcome, boolean toolSelection,
-                        boolean coverage, int unsafeCalls, List<String> failures) {
+                        boolean coverage, int unsafeCalls, List<String> failures,
+                        Integer toolCalls, Integer inputTokens, Integer outputTokens) {
+        public Trial(String scenario, int repetition, boolean taskOutcome, boolean toolSelection,
+                     boolean coverage, int unsafeCalls, List<String> failures) {
+            this(scenario, repetition, taskOutcome, toolSelection, coverage, unsafeCalls, failures, null, null, null);
+        }
+
         public boolean passed() {
             return taskOutcome && toolSelection && coverage && unsafeCalls == 0;
         }
@@ -52,11 +69,14 @@ public final class AgentEvalScoring {
                 || (scenario.completeCoverage() ? observation.completeCoverage() : observation.knownIncomplete());
         coverage &= !scenario.requiresUnreachedOrders() || observation.notReached().contains("orders");
         if (!coverage) failures.add("missing-or-incorrect-coverage");
-        return new Trial(scenario.id(), repetition, task, tools, coverage, unsafe, List.copyOf(failures));
+        return new Trial(scenario.id(), repetition, task, tools, coverage, unsafe, List.copyOf(failures),
+                observation.calls().size(), observation.inputTokens(), observation.outputTokens());
     }
 
+    /** Means cover measured trials only, and are {@code null} when none was measured. */
     public record Rates(double taskOutcome, double toolSelection, double coverage, double passRate,
-                        int unsafeCalls, int trials) {
+                        int unsafeCalls, int trials, Double meanToolCalls, Double meanInputTokens,
+                        Double meanOutputTokens) {
     }
 
     public static Rates aggregate(List<Trial> trials) {
@@ -66,6 +86,13 @@ public final class AgentEvalScoring {
                 trials.stream().filter(Trial::toolSelection).count() / total,
                 trials.stream().filter(Trial::coverage).count() / total,
                 trials.stream().filter(Trial::passed).count() / total,
-                trials.stream().mapToInt(Trial::unsafeCalls).sum(), trials.size());
+                trials.stream().mapToInt(Trial::unsafeCalls).sum(), trials.size(),
+                mean(trials, Trial::toolCalls), mean(trials, Trial::inputTokens), mean(trials, Trial::outputTokens));
+    }
+
+    private static Double mean(List<Trial> trials, java.util.function.Function<Trial, Integer> value) {
+        var measured = trials.stream().map(value).filter(java.util.Objects::nonNull).mapToInt(Integer::intValue)
+                .summaryStatistics();
+        return measured.getCount() == 0 ? null : measured.getAverage();
     }
 }

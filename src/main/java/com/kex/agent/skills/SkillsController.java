@@ -10,6 +10,8 @@ import com.kex.agent.memory.LearningEntry;
 import com.kex.agent.memory.SkillScope;
 import com.kex.agent.supervision.SupervisionService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -92,7 +94,8 @@ class SkillsController {
     @PostMapping("/{id}/probe")
     LearningEntry probe(@PathVariable String id, @Valid @RequestBody ProbeRequest request, Principal principal) {
         String actor = actor(principal);
-        LearningEntry entry = probes.probe(id, request.request(), actor);
+        LearningEntry entry = probes.probe(id, request.request(),
+                request.repetitions() == null ? 1 : request.repetitions(), actor);
         supervision.auditAction(actor, "Compétence rejouée", id);
         return entry;
     }
@@ -145,7 +148,8 @@ class SkillsController {
                     @Size(max = 255) String conversationId,
                     SkillScope scope,
                     @Size(max = 10) List<@Size(max = 60) String> triggers) { }
-    record ProbeRequest(@NotBlank @Size(max = 4000) String request) { }
+    record ProbeRequest(@NotBlank @Size(max = 4000) String request,
+                        @Min(1) @Max(SkillProbeService.MAX_REPETITIONS) Integer repetitions) { }
     record Review(@Size(max = 2000) String reason) { }
     /** Motif obligatoire, contrairement à une revue : un retrait sans raison est irrelisable. */
     record Retirement(@NotBlank @Size(max = 2000) String reason) { }

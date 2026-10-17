@@ -9,17 +9,20 @@ import java.util.List;
 /**
  * Markdown content stays inert data until a named human approves a SKILL.
  *
- * @param scope    {@code null} hors compétence, et pour une compétence antérieure à la portée :
- *                 {@link #effectiveScope()} la lit alors comme {@link SkillScope#DOMAIN} sans
- *                 déclencheur, ce qui reproduit exactement l'injection d'avant
- * @param triggers termes normalisés qui rendent une compétence de domaine pertinente pour une demande
- * @param probes   les rejeux contrastifs, le plus récent en dernier
+ * @param scope      {@code null} hors compétence, et pour une compétence antérieure à la portée :
+ *                   {@link #effectiveScope()} la lit alors comme {@link SkillScope#DOMAIN} sans
+ *                   déclencheur, ce qui reproduit exactement l'injection d'avant
+ * @param triggers   termes normalisés qui rendent une compétence de domaine pertinente pour une demande
+ * @param probes     les rejeux contrastifs, le plus récent en dernier
+ * @param reads      lectures par {@code read_skill} depuis l'approbation — un plancher d'usage : une
+ *                   compétence injectée en entier (invariante, ou tâche sans outil) agit sans être lue
+ * @param lastReadAt {@code null} tant qu'aucune lecture n'a eu lieu
  */
 public record LearningEntry(String id, String owner, String kind, String title, String markdown,
                             String evidence, String conversationId, Instant createdAt,
                             String status, String reviewedBy, Instant reviewedAt, String reviewReason,
                             LearningEvidence verification, SkillScope scope, List<String> triggers,
-                            List<SkillProbe> probes) {
+                            List<SkillProbe> probes, int reads, Instant lastReadAt) {
 
     /** Au-delà, le plus ancien rejeu tombe : une file de revue se lit, elle ne s'archive pas. */
     public static final int RETAINED_PROBES = 5;
@@ -27,6 +30,14 @@ public record LearningEntry(String id, String owner, String kind, String title, 
     public LearningEntry {
         triggers = triggers == null ? List.of() : List.copyOf(triggers);
         probes = probes == null ? List.of() : List.copyOf(probes);
+    }
+
+    public LearningEntry(String id, String owner, String kind, String title, String markdown,
+            String evidence, String conversationId, Instant createdAt, String status,
+            String reviewedBy, Instant reviewedAt, String reviewReason, LearningEvidence verification,
+            SkillScope scope, List<String> triggers, List<SkillProbe> probes) {
+        this(id, owner, kind, title, markdown, evidence, conversationId, createdAt, status,
+                reviewedBy, reviewedAt, reviewReason, verification, scope, triggers, probes, 0, null);
     }
 
     public LearningEntry(String id, String owner, String kind, String title, String markdown,
@@ -45,7 +56,7 @@ public record LearningEntry(String id, String owner, String kind, String title, 
 
     public LearningEntry reviewed(String status, String actor, Instant at, String reason) {
         return new LearningEntry(id, owner, kind, title, markdown, evidence, conversationId, createdAt,
-                status, actor, at, reason, verification, scope, triggers, probes);
+                status, actor, at, reason, verification, scope, triggers, probes, reads, lastReadAt);
     }
 
     public LearningEntry withProbe(SkillProbe probe) {
@@ -53,7 +64,14 @@ public record LearningEntry(String id, String owner, String kind, String title, 
         next.add(probe);
         List<SkillProbe> retained = next.subList(Math.max(0, next.size() - RETAINED_PROBES), next.size());
         return new LearningEntry(id, owner, kind, title, markdown, evidence, conversationId, createdAt,
-                status, reviewedBy, reviewedAt, reviewReason, verification, scope, triggers, retained);
+                status, reviewedBy, reviewedAt, reviewReason, verification, scope, triggers, retained,
+                reads, lastReadAt);
+    }
+
+    public LearningEntry withUsage(int reads, Instant lastReadAt) {
+        return new LearningEntry(id, owner, kind, title, markdown, evidence, conversationId, createdAt,
+                status, reviewedBy, reviewedAt, reviewReason, verification, scope, triggers, probes,
+                reads, lastReadAt);
     }
 
     public SkillScope effectiveScope() {
