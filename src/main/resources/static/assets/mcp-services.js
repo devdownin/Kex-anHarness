@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Kex Agent AI Contributors
 
-// UX MCP transversale (point d'entrée, wizard, fraîcheur et garde-fous d'exécution).
-import './mcp-ux-guard.js';
-import './mcp-ux.js';
+// Fonctions pures, sans DOM : `src/test/frontend/mcp-services.mjs` les charge sous Node. Les
+// modules d'interface MCP, qui touchent `document` dès leur chargement, sont importés par `tools.js`.
 
 export function parameterRows(schema = {}) {
   const required = new Set(schema?.required || []);

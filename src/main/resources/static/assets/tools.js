@@ -13,6 +13,10 @@ import * as knowledge from './knowledge.js';
 import * as memory from './memory.js';
 import * as summaries from './summaries.js';
 import { redact } from './user-results.js';
+// UX MCP transversale (point d'entrée, wizard, fraîcheur et garde-fous d'exécution). Le garde-fou
+// d'abord : il enveloppe `replaceWith` avant que les enrichissements ne s'en servent.
+import './mcp-ux-guard.js';
+import './mcp-ux.js';
 import { serviceAvailability, expectedResult, discoveryFailure, discoveryState, exampleArguments, parameterRows, servicePrompt, toolEffects } from './mcp-services.js';
 
 // Cache du dernier relevé : la recherche filtre dessus plutôt que de refaire un appel réseau par

@@ -15,8 +15,8 @@ RUN --mount=type=cache,target=/root/.m2 \
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 COPY --from=build /build/target/*.jar /app/app.jar
-# Pas de HEALTHCHECK ici : l'image JRE n'embarque ni curl ni wget, et les installer pour
-# sonder /actuator/health coûterait une couche apt. La sonde est dans docker-compose.yml.
+# Pas de HEALTHCHECK ici : l'image n'embarque ni curl ni wget, et les installer pour sonder
+# /actuator/health coûterait une couche apt. La sonde est dans docker-compose.yml.
 #
 # `pebble` (le superviseur de service de l'image Ubuntu de base, pas notre code) n'est jamais
 # invoqué — l'ENTRYPOINT lance `java` directement, en PID 1. Retiré plutôt que laissé mort :
@@ -24,7 +24,13 @@ COPY --from=build /build/target/*.jar /app/app.jar
 # n'est pas dans notre arbre de dépendances) ni justifier de garder bloquerait chaque publication
 # jusqu'à ce qu'une image de base amont le corrige. `-f` : ne pas faire échouer la construction si
 # une future image de base ne le porte plus.
-RUN rm -f /usr/bin/pebble
+#
+# Même raisonnement pour `curl` et `libcurl4t64`, que l'image de base installe et que rien ici
+# n'appelle — les sondes passent par `/dev/tcp`. Seul `curl` dépend de `libcurl4t64`. Une CVE
+# HIGH sur ce `curl` a bloqué le scan sans qu'aucune ligne de notre code ne soit en cause.
+# `dpkg --purge` ne fait qu'avertir pour un paquet déjà absent.
+RUN rm -f /usr/bin/pebble \
+    && dpkg --purge curl libcurl4t64
 
 # Tout ce que l'agent retient hors base : souvenirs long terme, compétences approuvées, charte,
 # et les connexions MCP chiffrées créées dans la console. Le chemin est posé explicitement plutôt
