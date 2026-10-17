@@ -57,6 +57,35 @@ le même code de `main`. Il exige une autorisation explicite du coût et ne s’
 les PR ni sur une branche de travail. Les clés ne sont injectées que dans les étapes payantes.
 Il ne permet pas de charger du code arbitraire par un paramètre de référence Git.
 
+## Comparer deux harnesses avec le même modèle
+
+`KEX_EVAL_SKILLS` désigne un fichier de compétences approuvées à injecter avant le premier essai :
+un tableau JSON de `{title, markdown, scope, triggers}`. Le même modèle, deux fichiers (ou aucun
+pour la référence), deux rapports : la comparaison isole alors ce que les compétences changent.
+
+```bash
+bash scripts/evals-run.sh "$MODEL" target/agent-evals/base.json
+KEX_EVAL_SKILLS=src/test/resources/evals/skills-coverage-rule.json \
+  bash scripts/evals-run.sh "$MODEL" target/agent-evals/skills.json target/agent-evals/base.json
+```
+
+Les compétences sont semées sous le propriétaire du cycle de supervision, dans un stockage mémoire
+temporaire. `remember_fact` et `recall_facts` sont alors refusés : sans cela, un essai laisserait au
+suivant des faits que les fixtures n'isolent pas. Le rapport porte `harness` (`base` ou le nom du
+fichier) et `harnessFingerprint` (SHA-256 du fichier), pour distinguer deux exécutions au même nom.
+
+## Coût d'exécution
+
+Chaque essai enregistre `toolCalls` (appels reçus par le serveur MCP de fixtures), `inputTokens` et
+`outputTokens` (écart du compteur `gen_ai.client.token.usage` filtré par `gen_ai.token.type` autour du
+cycle). Les moyennes par scénario et globales (`meanToolCalls`, `meanInputTokens`,
+`meanOutputTokens`) ne portent que sur les essais mesurés, et valent `null` si aucun ne l'est : un
+fournisseur muet n'a pas consommé zéro. Un rapport antérieur se relit sans coût, jamais avec zéro.
+
+Avec une référence, `<rapport>.comparison.json` donne, globalement et par scénario, l'écart de
+taux de réussite et de coût (candidat moins référence). Il est informatif : aucun seuil de coût ne
+fait échouer l'évaluation, faute d'un chiffre que quelqu'un aurait choisi.
+
 ## Seuils et rapports
 
 Chaque scénario est répété trois fois par défaut, dans des conversations nouvelles. Les circuits

@@ -24,9 +24,10 @@ import com.kex.agent.memory.SkillScope;
  * minuterie — en multi-instance, chaque réplique rendrait le même verdict et notifierait en double,
  * le piège déjà documenté pour le cycle de supervision.
  *
- * <p>Aucune note inventée : sans télémétrie d'usage, personne ne sait laquelle a servi. Ce rapport
- * ne dit que ce qui est mesurable — laquelle agit, laquelle dort, laquelle en double une autre,
- * laquelle n'a pas été revue depuis longtemps.
+ * <p>Aucune note inventée. Ce rapport ne dit que ce qui est mesurable — laquelle agit, laquelle
+ * dort, laquelle en double une autre, laquelle n'a pas été revue depuis longtemps, et combien de fois
+ * une compétence de domaine a été ouverte par {@code read_skill}. Une lecture n'est pas un succès :
+ * c'est un plancher d'usage, pas une note de qualité.
  */
 public final class SkillCurator {
     private final SkillsService skills;
@@ -55,7 +56,9 @@ public final class SkillCurator {
                 .filter(entry -> entry.reviewedAt().isBefore(cutoff)).toList());
         List<SkillCuration.Digest> injected = digests(always);
         int characters = injected.stream().mapToInt(SkillCuration.Digest::characters).sum();
-        return new SkillCuration(ranked.size(), injected, digests(conditional), digests(dormant), stale,
+        List<SkillCuration.Digest> unread = digests(ranked.stream()
+                .filter(entry -> entry.effectiveScope() == SkillScope.DOMAIN && entry.reads() == 0).toList());
+        return new SkillCuration(ranked.size(), injected, digests(conditional), digests(dormant), unread, stale,
                 duplicates(ranked), characters);
     }
 
@@ -80,7 +83,7 @@ public final class SkillCurator {
                 .map(entry -> new SkillCuration.Digest(entry.id(), entry.title(), entry.reviewedAt(),
                         entry.reviewedBy(),
                         Math.min(entry.markdown().length(), properties.skills().charactersPerSkill()),
-                        entry.effectiveScope(), entry.triggers()))
+                        entry.effectiveScope(), entry.triggers(), entry.reads(), entry.lastReadAt()))
                 .toList();
     }
 

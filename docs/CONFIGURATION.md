@@ -222,13 +222,31 @@ POST /api/agent/skills
 {"title":"Revue DLQ","markdown":"...","evidence":"...","scope":"DOMAIN","triggers":["dlq","lettre morte"]}
 ```
 
-**Rejeu contrastif.** `POST /api/agent/skills/{id}/probe` avec `{"request":"..."}` exécute la même
-demande deux fois, en parallèle, avec et sans la compétence en attente — injectée comme si elle
-était approuvée, éviction par les plafonds comprise. L'écart (outils ajoutés ou abandonnés, appels en
-échec, jetons, motif d'arrêt, les deux réponses) est joint à la compétence et affiché dans la file de
-revue ; les cinq derniers rejeux sont conservés. Aucun verdict n'est calculé : un rejeu montre que
-le comportement change, pas que la réponse est juste. Un seul essai par rejeu, sur un modèle
-stochastique : relancer avant de conclure sur un petit écart.
+**Index et `read_skill`.** Une compétence de domaine retenue pour une demande n'entre plus dans le
+prompt qu'en une ligne d'index : identifiant, titre et le paragraphe `## Quand l'utiliser` de sa
+procédure s'il existe. Le modèle l'ouvre avec l'outil local `read_skill(id)`, construit pour cette
+seule demande : il ne rend que ce que l'index liste — rien d'un autre locataire, d'une compétence en
+attente ou au-delà du plafond. Une invariante reste recopiée en entier, puisqu'elle vaut pour tout
+échange. Une tâche dont l'allowlist est vide (la planification d'une tâche durable) ne peut appeler
+aucun outil : ses procédures restent recopiées en entier, comme avant.
+
+Chaque lecture d'une compétence approuvée est comptée (`reads`, `lastReadAt`, migration V9) et
+affichée dans la curation ; `unread` liste les compétences de domaine jamais ouvertes depuis leur
+approbation. Une lecture est un plancher d'usage, pas une note : une invariante agit sans être lue,
+une procédure recopiée dans une tâche sans outil aussi, et une lecture ne dit pas que la procédure a
+aidé. Les lectures d'un rejeu ne comptent pas.
+
+**Rejeu contrastif.** `POST /api/agent/skills/{id}/probe` avec `{"request":"...","repetitions":3}`
+exécute la même demande `repetitions` fois de chaque côté (1 à 3, défaut 1 ; la console en demande
+3), toutes en parallèle, avec et sans la compétence en attente — injectée comme si elle était
+approuvée, éviction par les plafonds comprise. Sont joints à la compétence, et affichés dans la file
+de revue : les outils ajoutés ou abandonnés *à chaque passe* (un écart qui ne tient qu'une fois sur
+trois n'en est pas un), la fréquence de chaque outil de part et d'autre, les appels en échec, les
+jetons, le motif d'arrêt, les réponses, et les passes où la candidate a effectivement été lue par
+`read_skill` — sans lecture, un écart tient au hasard. Les cinq derniers rejeux sont conservés ; un
+rejeu écrit avant les répétitions se relit comme une passe de chaque côté. Aucun verdict n'est
+calculé : un rejeu montre que le comportement change, pas que la réponse est juste. Le coût est de
+`2 × repetitions` échanges complets.
 
 Le rejeu appelle réellement le modèle et les outils, au nom et sur le budget du locataire
 propriétaire : `ADMIN` seulement, outils limités à `probe.read-only-tools` (même règle que
@@ -238,8 +256,8 @@ le rejeu n'est pas écrit (`409`).
 
 | Endpoint | Rôle |
 |---|---|
-| `GET /api/agent/skills/curation` | Ce qui agit partout, ce qui attend un déclencheur (`conditional`), ce qui dort au-delà d'un plafond, les doublons de titre, ce qui n'a plus été revu |
-| `POST /api/agent/skills/{id}/probe` | `{"request":"..."}` — `ADMIN`. Rejeu contrastif d'une compétence `PENDING`, tracé dans l'audit ; `409` si le rejeu est éteint, déjà en cours ou la compétence tranchée |
+| `GET /api/agent/skills/curation` | Ce qui agit partout, ce qui attend un déclencheur (`conditional`), ce qui dort au-delà d'un plafond, ce qui n'a jamais été lu (`unread`), les lectures par compétence, les doublons de titre, ce qui n'a plus été revu |
+| `POST /api/agent/skills/{id}/probe` | `{"request":"...","repetitions":1..3}` — `ADMIN`. Rejeu contrastif d'une compétence `PENDING`, tracé dans l'audit ; `409` si le rejeu est éteint, déjà en cours ou la compétence tranchée |
 | `GET /api/agent/skills/review-queue` | `ADMIN`. Tout ce qui est `PENDING`, tous propriétaires confondus, le plus ancien d'abord — la revue (`approve`/`reject`) reste elle-même transverse, voir ARCHITECTURE.md |
 | `POST /api/agent/skills/{id}/retire` | `{"reason":"..."}` — `ADMIN`, motif obligatoire, tracé dans l'audit |
 

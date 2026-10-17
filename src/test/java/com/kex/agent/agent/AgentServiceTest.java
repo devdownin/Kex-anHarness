@@ -101,7 +101,8 @@ class AgentServiceTest {
 
     @SuppressWarnings("unchecked")
     private AgentService serviceWithLongTermMemory(Duration timeout) {
-        given(longTermMemory.context(anyString(), any(), any())).willReturn("");
+        given(longTermMemory.durable(anyString(), any(), any(), org.mockito.ArgumentMatchers.anyBoolean()))
+                .willReturn(com.kex.agent.memory.DurableContext.EMPTY);
         ObjectProvider<LongTermMemoryService> provider = mock(ObjectProvider.class);
         given(provider.getIfAvailable()).willReturn(longTermMemory);
         return new AgentService(chatClient, chatMemory, properties(timeout), CircuitBreakerRegistry.ofDefaults(),
@@ -323,23 +324,79 @@ class AgentServiceTest {
     void un_rejeu_injecte_la_candidate_sous_l_allowlist_sans_trace_durable() {
         blockingCall();
         given(requestSpec.system(anyString())).willReturn(requestSpec);
-        given(callSpec.chatResponse()).willReturn(response("pong"));
+        org.springframework.ai.tool.ToolCallback[][] offered = new org.springframework.ai.tool.ToolCallback[1][];
+        given(requestSpec.toolCallbacks(any(org.springframework.ai.tool.ToolCallback[].class))).willAnswer(invocation -> {
+            offered[0] = java.util.Arrays.stream(invocation.getArguments())
+                    .map(org.springframework.ai.tool.ToolCallback.class::cast)
+                    .toArray(org.springframework.ai.tool.ToolCallback[]::new);
+            return requestSpec;
+        });
+        // Le modèle lit la candidate pendant l'échange, comme le ferait la boucle d'outils.
+        given(callSpec.chatResponse()).willAnswer(invocation -> {
+            offered[0][0].call("{\"id\":\"s-1\"}");
+            return response("pong");
+        });
         LearningEntry candidate = new LearningEntry("s-1", "ops", "SKILL", "Lag", "Procédure", "Preuve", null,
                 java.time.Instant.EPOCH, "PENDING", null, null, null);
         AgentService service = serviceWithLongTermMemory(Duration.ofSeconds(10));
-        given(longTermMemory.context("ops", "le lag ?", candidate)).willReturn("Compétence candidate");
+        given(longTermMemory.durable("ops", "le lag ?", candidate, true)).willReturn(
+                new com.kex.agent.memory.DurableContext("Index des compétences", Map.of("s-1", "Procédure")));
 
-        AgentAnswer answer = service.probe("ops", "le lag ?", java.util.Set.of("kex_consumer_lag"), candidate);
+        AgentProbe probe = service.probe("ops", "le lag ?", java.util.Set.of("kex_consumer_lag"), candidate);
 
-        assertThat(answer.content()).isEqualTo("pong");
+        assertThat(probe.answer().content()).isEqualTo("pong");
+        assertThat(probe.skillsRead()).containsExactly("s-1");
+        assertThat(offered[0]).extracting(tool -> tool.getToolDefinition().name()).containsExactly(SkillReaderTool.NAME);
         verify(longTermMemory, never()).recordSuccessfulTask(any(), any(), any(), any(), any());
+        // La lecture d'un rejeu n'est l'usage de personne.
+        verify(longTermMemory, never()).recordSkillRead(any());
         verify(chatMemory).clear(anyString());
         ArgumentCaptor<String> system = ArgumentCaptor.forClass(String.class);
         verify(requestSpec).system(system.capture());
-        assertThat(system.getValue()).contains("prompt", "Compétence candidate");
+        assertThat(system.getValue()).contains("prompt", "Index des compétences");
         ArgumentCaptor<Map<String, Object>> context = ArgumentCaptor.forClass(Map.class);
         verify(requestSpec).toolContext(context.capture());
         assertThat(context.getValue().get(TaskToolPolicy.ALLOWED_TOOLS)).isEqualTo(java.util.Set.of("kex_consumer_lag"));
+    }
+
+    @Test
+    void une_lecture_d_un_vrai_echange_compte_comme_usage() {
+        blockingCall();
+        given(requestSpec.system(anyString())).willReturn(requestSpec);
+        org.springframework.ai.tool.ToolCallback[][] offered = new org.springframework.ai.tool.ToolCallback[1][];
+        given(requestSpec.toolCallbacks(any(org.springframework.ai.tool.ToolCallback[].class))).willAnswer(invocation -> {
+            offered[0] = java.util.Arrays.stream(invocation.getArguments())
+                    .map(org.springframework.ai.tool.ToolCallback.class::cast)
+                    .toArray(org.springframework.ai.tool.ToolCallback[]::new);
+            return requestSpec;
+        });
+        given(callSpec.chatResponse()).willAnswer(invocation -> {
+            assertThat(offered[0][0].call("{\"id\":\"inventee\"}")).contains("Aucune compétence");
+            assertThat(offered[0][0].call("{\"id\":\"s-1\"}")).isEqualTo("Procédure");
+            return response("pong");
+        });
+        AgentService service = serviceWithLongTermMemory(Duration.ofSeconds(10));
+        given(longTermMemory.durable("kex-internal", "ping", null, true)).willReturn(
+                new com.kex.agent.memory.DurableContext("Index", Map.of("s-1", "Procédure")));
+
+        service.ask("conv-1", "ping");
+
+        verify(longTermMemory).recordSkillRead("s-1");
+        verify(longTermMemory, org.mockito.Mockito.times(1)).recordSkillRead(any());
+    }
+
+    /** Une allowlist vide interdit tout appel : les procédures sont recopiées, jamais indexées. */
+    @Test
+    void sans_outil_permis_aucun_index_ni_lecteur() {
+        blockingCall();
+        given(callSpec.responseEntity(any(StructuredOutputConverter.class))).willReturn(
+                new ResponseEntity<>(response("{}"), Map.of()));
+        AgentService service = serviceWithLongTermMemory(Duration.ofSeconds(10));
+
+        service.askStructuredReadOnly("ops", "conv-1", "plan ?", Map.of("type", "object"), java.util.Set.of());
+
+        verify(longTermMemory).durable("ops", "plan ?", null, false);
+        verify(requestSpec, never()).toolCallbacks(any(org.springframework.ai.tool.ToolCallback[].class));
     }
 
     @Test

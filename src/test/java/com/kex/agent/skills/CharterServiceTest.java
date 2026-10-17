@@ -147,5 +147,10 @@ class CharterServiceTest {
                     .filter(entry -> kind.equals(entry.kind()) && "PENDING".equals(entry.status()))
                     .toList();
         }
+
+        @Override
+        public boolean recordRead(String id, Instant at) {
+            return false;
+        }
     }
 }

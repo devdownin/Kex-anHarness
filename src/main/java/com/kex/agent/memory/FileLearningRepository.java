@@ -61,7 +61,9 @@ public final class FileLearningRepository implements LearningRepository {
             LearningEntry prior = next.get(i);
             if (prior.id().equals(replacement.id()) && prior.owner().equals(replacement.owner())
                     && prior.status().equals(expectedStatus)) {
-                next.set(i, replacement);
+                // L'usage ne fait pas partie de ce qu'une transition remplace : relu avant la
+                // transition, il perdrait les lectures arrivées entre-temps.
+                next.set(i, replacement.withUsage(prior.reads(), prior.lastReadAt()));
                 save(next);
                 return true;
             }
@@ -90,6 +92,20 @@ public final class FileLearningRepository implements LearningRepository {
                 .filter(entry -> kind.equals(entry.kind()) && "PENDING".equals(entry.status()))
                 .sorted(Comparator.comparing(LearningEntry::createdAt))
                 .toList();
+    }
+
+    @Override
+    public synchronized boolean recordRead(String id, Instant at) {
+        List<LearningEntry> next = new ArrayList<>(entries);
+        for (int i = 0; i < next.size(); i++) {
+            LearningEntry entry = next.get(i);
+            if (entry.id().equals(id) && "SKILL".equals(entry.kind()) && "APPROVED".equals(entry.status())) {
+                next.set(i, entry.withUsage(entry.reads() + 1, at));
+                save(next);
+                return true;
+            }
+        }
+        return false;
     }
 
     private void save(List<LearningEntry> next) {

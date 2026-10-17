@@ -422,4 +422,12 @@ JDK 21 au minimum (la CI et l'image tournent en 21). La CI construit aussi l'ima
   importée ou écrite hors de `SkillsService.propose` garde sa casse et ses accents : « Lettre morte »
   ne correspondait jamais à une demande normalisée. `matches` normalise les deux côtés.
 
+- **Un index n'a de sens que là où l'on peut lire.** `read_skill` remplace le texte des compétences
+  de domaine par une ligne d'index ; une tâche à allowlist vide (planification) ne peut appeler aucun
+  outil, et y aurait reçu des procédures qu'elle ne pouvait pas ouvrir. L'index n'est donc posé que
+  si un outil est permis, et une invariante reste toujours recopiée en entier.
+
+- **`invocation.getArgument(0)` sur une méthode à varargs rend le premier élément, pas le tableau.**
+  Capturer `toolCallbacks(ToolCallback...)` dans un stub Mockito passe par `getArguments()`.
+
 Le détail et les raisons sont dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).

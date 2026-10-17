@@ -18,6 +18,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 import com.kex.agent.config.AgentProperties;
+import com.kex.agent.memory.DurableContext;
 import com.kex.agent.memory.LearningEntry;
 import com.kex.agent.memory.LongTermMemoryService;
 import com.kex.agent.tools.ToolSelectionService;
@@ -136,12 +137,12 @@ public class AgentService {
      * @param candidate la compétence en attente à injecter comme si elle était approuvée ;
      *                  {@code null} pour l'exécution de référence
      */
-    public AgentAnswer probe(String owner, String message, Set<String> allowedTools, LearningEntry candidate) {
+    public AgentProbe probe(String owner, String message, Set<String> allowedTools, LearningEntry candidate) {
         Conversation probe = conversation(owner, null, "CHAT", Set.copyOf(allowedTools)).probing(candidate);
         AgentAnswer answer = ask(probe, message);
         // Sur échec ou délai, `bounded` purge déjà — après la fin de la tâche orpheline pour un délai.
         chatMemory.clear(knowledgeMemoryId(probe.memoryId(), probe.knowledgeAccess()));
-        return answer;
+        return new AgentProbe(answer, java.util.List.copyOf(probe.skillsRead()));
     }
 
     private AgentAnswer ask(Conversation conversation, String message) {
@@ -280,26 +281,41 @@ public class AgentService {
             context.put(TaskToolPolicy.ALLOWED_TOOLS, conversation.allowedTools());
         }
         ChatClient.ChatClientRequestSpec request = chatClient.prompt().user(message);
+        // Une allowlist vide interdit tout appel : un index à lire par outil y serait une procédure perdue.
+        boolean readable = conversation.allowedTools() == null || !conversation.allowedTools().isEmpty();
+        DurableContext durable = longTermMemory == null ? DurableContext.EMPTY
+                : longTermMemory.durable(conversation.owner(), message, conversation.candidate(), readable);
+        java.util.List<org.springframework.ai.tool.ToolCallback> tools = new java.util.ArrayList<>();
         if (toolSelection != null) {
             var selected = toolSelection.select(message, conversation.allowedTools());
-            request = request.toolCallbacks(selected.toArray(org.springframework.ai.tool.ToolCallback[]::new));
+            tools.addAll(selected);
             // Une seconde garde limite aussi les tours suivants et les appels issus d'une ancienne mémoire.
             context.put(TaskToolPolicy.ALLOWED_TOOLS, selected.stream()
                     .map(tool -> tool.getToolDefinition().name()).collect(java.util.stream.Collectors.toSet()));
         }
+        if (!durable.skills().isEmpty()) {
+            tools.add(new SkillReaderTool(durable.skills(), id -> read(conversation, id)));
+        }
+        if (toolSelection != null || !tools.isEmpty()) {
+            request = request.toolCallbacks(tools.toArray(org.springframework.ai.tool.ToolCallback[]::new));
+        }
         String kafkaProcedure = KafkaOperationalPlaybooks.forRequest(message);
-        String durable = longTermMemory == null ? ""
-                : longTermMemory.context(conversation.owner(), message, conversation.candidate());
         java.util.List<com.kex.agent.knowledge.KnowledgeMatch> matches = knowledge == null ? java.util.List.of()
                 : knowledge.search(message, null, conversation.knowledgeAccess());
         conversation.evidence().set(matches.stream().map(com.kex.agent.knowledge.KnowledgeSource::from).toList());
         String references = knowledge == null ? "" : knowledge.contextFrom(matches);
-        if (!kafkaProcedure.isBlank() || !durable.isBlank() || !references.isBlank()) {
+        if (!kafkaProcedure.isBlank() || !durable.text().isBlank() || !references.isBlank()) {
             // system(...) remplace le prompt du ChatClient ; conserver la gouvernance avant les références.
-            request = request.system(systemPrompt + "\n\n" + kafkaProcedure + "\n\n" + durable + "\n\n" + references);
+            request = request.system(systemPrompt + "\n\n" + kafkaProcedure + "\n\n" + durable.text() + "\n\n" + references);
         }
         return request.toolContext(context)
                 .advisors(advisor -> advisor.param(ChatMemory.CONVERSATION_ID, knowledgeMemoryId(conversation.memoryId(), conversation.knowledgeAccess())));
+    }
+
+    /** Un rejeu n'a pas d'usage à mesurer : seule la lecture d'un vrai échange compte. */
+    private void read(Conversation conversation, String id) {
+        conversation.skillsRead().add(id);
+        if (conversation.remembered()) longTermMemory.recordSkillRead(id);
     }
 
     /**
@@ -362,15 +378,18 @@ public class AgentService {
      * @param generated  l'appelant n'a pas fourni d'identifiant : celui-ci a été tiré ici
      * @param candidate  compétence en attente injectée pour un rejeu, {@code null} sinon
      * @param remembered l'échange nourrit la mémoire long-terme ; faux pour un rejeu
+     * @param skillsRead compétences lues par {@code read_skill} pendant l'échange — la boucle d'outils
+     *                   du flux tourne sur des threads Reactor, d'où un ensemble concurrent
      */
     private record Conversation(String id, String memoryId, boolean generated, String owner,
                                 String task, Set<String> allowedTools, com.kex.agent.knowledge.KnowledgeAccess knowledgeAccess,
                                 java.util.concurrent.atomic.AtomicReference<java.util.List<com.kex.agent.knowledge.KnowledgeSource>> evidence,
-                                LearningEntry candidate, boolean remembered) {
+                                LearningEntry candidate, boolean remembered, Set<String> skillsRead) {
         java.util.List<com.kex.agent.knowledge.KnowledgeSource> sources() { return evidence.get(); }
 
         Conversation probing(LearningEntry skill) {
-            return new Conversation(id, memoryId, generated, owner, task, allowedTools, knowledgeAccess, evidence, skill, false);
+            return new Conversation(id, memoryId, generated, owner, task, allowedTools, knowledgeAccess, evidence,
+                    skill, false, skillsRead);
         }
     }
 
@@ -385,7 +404,8 @@ public class AgentService {
         }
         boolean generated = !StringUtils.hasText(conversationId);
         String id = generated ? UUID.randomUUID().toString() : conversationId;
-        return new Conversation(id, memoryId(owner, id), generated, owner, route, allowedTools, com.kex.agent.knowledge.KnowledgeAccess.current(owner), new java.util.concurrent.atomic.AtomicReference<>(java.util.List.of()), null, true);
+        return new Conversation(id, memoryId(owner, id), generated, owner, route, allowedTools, com.kex.agent.knowledge.KnowledgeAccess.current(owner), new java.util.concurrent.atomic.AtomicReference<>(java.util.List.of()), null, true,
+                java.util.concurrent.ConcurrentHashMap.newKeySet());
     }
 
     private static String memoryId(String owner, String conversationId) {

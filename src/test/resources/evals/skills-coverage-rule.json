@@ -1,0 +1,13 @@
+[
+  {
+    "title": "Une couverture incomplète n'autorise aucun verdict sain",
+    "scope": "INVARIANT",
+    "markdown": "# Règle de méthode\n\n## Quand l'utiliser\nÀ chaque analyse.\n\n## Conduite à tenir\nAvant de rendre un état OK, vérifier que chaque topic et groupe attendus ont été mesurés. Un topic non atteint, une erreur d'outil ou une mesure absente rendent l'état UNKNOWN, jamais OK. Citer l'outil qui fonde chaque constat."
+  },
+  {
+    "title": "Lire une prévision sans la confondre avec la mesure",
+    "scope": "DOMAIN",
+    "triggers": ["prevision", "forecast"],
+    "markdown": "# Procédure\n\n## Quand l'utiliser\nQuand une prévision accompagne une mesure actuelle.\n\n## Étapes\nLa mesure actuelle décide de l'état. Une prévision SHADOW, STALE ou rassurante ne masque jamais un incident constaté."
+  }
+]

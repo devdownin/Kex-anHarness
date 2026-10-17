@@ -34,4 +34,10 @@ public interface LearningRepository {
      * d'administration, transverse par construction.
      */
     List<LearningEntry> pending(String kind);
+
+    /**
+     * Une lecture de plus par {@code read_skill}. Seule une compétence approuvée compte : la
+     * candidate d'un rejeu est {@code PENDING}, et sa lecture n'est l'usage de personne.
+     */
+    boolean recordRead(String id, Instant at);
 }
