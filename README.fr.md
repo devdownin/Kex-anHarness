@@ -28,7 +28,7 @@
 
 ## Un agent généraliste à gouvernance forte
 
-Kafka est une intégration de référence, pas une limite : Kex peut exploiter des serveurs MCP pour des fichiers, GitHub, SQL ou des systèmes métier. Sa différenciation reste la gouvernance — autonomie par capacité, seuils de confiance, validation humaine et audit. Voir [la vision et les extensions](docs/GOVERNED-GENERAL-AGENT.md).
+Kafka est une intégration de référence, pas une limite : Kex peut exploiter des serveurs MCP pour des fichiers, GitHub, SQL ou des systèmes métier. Sa différenciation reste la gouvernance — autonomie par capacité, seuils de confiance, validation humaine et audit. Les compétences réutilisables sont revues par un humain, avec portée, index et rejeu contrastif avant décision. Voir [la vision et les extensions](docs/GOVERNED-GENERAL-AGENT.md).
 
 ## ✨ Pourquoi Kex-anHarness ?
 
