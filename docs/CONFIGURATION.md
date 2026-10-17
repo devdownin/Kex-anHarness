@@ -189,6 +189,11 @@ compétence — jamais active d'elle-même. Elle appartient à l'opérateur dont
 provoquée. Sans `kex.agent.memory.enabled`, personne n'écoute : les refus ne font alors que durcir le
 plancher, comme avant.
 
+La règle proposée est de portée `DOMAIN`, avec pour déclencheurs les noms des processus visés par les
+refus : elle n'entre dans le contexte que quand la demande nomme l'un d'eux, comme le fait le prompt
+du cycle pour chaque processus surveillé. Le nom de la capacité n'y sert pas de déclencheur : il ne
+figure que dans le schéma de sortie du cycle, jamais dans le texte qu'on compare.
+
 ### `kex.agent.memory.skills.*`
 
 Ce que la bibliothèque de compétences approuvées pèse dans le prompt.

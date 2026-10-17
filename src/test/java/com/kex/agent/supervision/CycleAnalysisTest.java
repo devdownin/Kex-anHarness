@@ -254,4 +254,75 @@ class CycleAnalysisTest {
                 .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.list(Observation.class))
                 .singleElement().isEqualTo(new Observation("lag", "12421"));
     }
+
+    /* ── Une anomalie doit citer une mesure réellement relevée ─────────── */
+
+    private static Map<String, Object> cited(String title, String tool) {
+        Map<String, Object> observation = new HashMap<>(Map.of("label", "lag", "value", "12421"));
+        if (tool != null) observation.put("tool", tool);
+        return Map.of("processId", "orders", "title", title, "severity", "ERROR", "confidence", 0.9,
+                "observations", List.of(observation));
+    }
+
+    private static com.kex.agent.agent.AgentEvent.ToolCall call(String tool, boolean failed) {
+        return new com.kex.agent.agent.AgentEvent.ToolCall(tool, 5, failed);
+    }
+
+    @Test
+    void une_anomalie_sans_mesure_citee_est_ecartee_et_n_affirme_aucune_gravite() {
+        Map<String, Object> answer = Map.of(
+                "processes", List.of(Map.of("processId", "orders", "state", "ERROR")),
+                "anomalies", List.of(cited("Lag inventé", null), cited("Lag d'un outil jamais appelé", "kex_dlq_review")));
+
+        CycleAnalysis.Findings findings = CycleAnalysis.findings(answer, KNOWN, "c", NOW,
+                List.of(call("kafka-explorer__kex_consumer_lag", false)));
+
+        assertThat(findings.sourced()).isEmpty();
+        assertThat(findings.unsourced()).extracting(Anomaly::title)
+                .containsExactly("Lag inventé", "Lag d'un outil jamais appelé");
+        assertThat(CycleAnalysis.withoutUnsourcedSeverity(CycleAnalysis.snapshots(answer, KNOWN), findings))
+                .singleElement().satisfies(snapshot -> {
+                    assertThat(snapshot.state()).isEqualTo(ProcessState.UNKNOWN);
+                    assertThat(snapshot.note()).contains("sans mesure d'outil citée", "Lag inventé");
+                });
+    }
+
+    /** Un appel en échec n'a rien mesuré : c'est le scénario mcp-error des évaluations. */
+    @Test
+    void un_appel_en_echec_ne_fonde_aucune_observation() {
+        Map<String, Object> answer = Map.of("processes", List.of(), "anomalies",
+                List.of(cited("Lag", "kex_consumer_lag")));
+
+        assertThat(CycleAnalysis.findings(answer, KNOWN, "c", NOW, List.of(call("kex_consumer_lag", true)))
+                .sourced()).isEmpty();
+    }
+
+    @Test
+    void une_anomalie_citant_un_appel_abouti_tient_et_garde_sa_gravite() {
+        Map<String, Object> answer = Map.of(
+                "processes", List.of(Map.of("processId", "orders", "state", "ERROR")),
+                "anomalies", List.of(cited("Lag", "kex_consumer_lag"), cited("Autre", null)));
+
+        CycleAnalysis.Findings findings = CycleAnalysis.findings(answer, KNOWN, "c", NOW,
+                List.of(call("kafka-explorer__kex_consumer_lag", false)));
+
+        assertThat(findings.sourced()).singleElement().satisfies(anomaly ->
+                assertThat(anomaly.observations().getFirst().tool()).isEqualTo("kex_consumer_lag"));
+        // Une anomalie mesurée sur le processus suffit : celle qui ne l'est pas n'efface pas la gravité.
+        assertThat(CycleAnalysis.withoutUnsourcedSeverity(CycleAnalysis.snapshots(answer, KNOWN), findings))
+                .singleElement().extracting(ProcessSnapshot::state).isEqualTo(ProcessState.ERROR);
+    }
+
+    @Test
+    void la_citation_accepte_le_nom_court_ou_prefixe_jamais_une_sous_chaine() {
+        java.util.Set<String> measured = java.util.Set.of("kafka-explorer__kex_consumer_lag");
+
+        assertThat(CycleAnalysis.cites("kex_consumer_lag", measured)).isTrue();
+        assertThat(CycleAnalysis.cites(" KAFKA-EXPLORER__KEX_CONSUMER_LAG ", measured)).isTrue();
+        assertThat(CycleAnalysis.cites("lag", measured)).isFalse();
+        assertThat(CycleAnalysis.cites("consumer_lag", measured)).isFalse();
+        assertThat(CycleAnalysis.cites("kex_consumer_lag", java.util.Set.of("alt_2_kex_consumer_lag"))).isTrue();
+        assertThat(CycleAnalysis.cites("", measured)).isFalse();
+        assertThat(CycleAnalysis.cites(null, measured)).isFalse();
+    }
 }

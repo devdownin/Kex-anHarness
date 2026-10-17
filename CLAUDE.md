@@ -445,4 +445,14 @@ JDK 21 au minimum (la CI et l'image tournent en 21). La CI construit aussi l'ima
   chargement, cassait ce test — masqué en CI tant qu'un script navigateur antérieur échouait, la
   séquence s'arrêtant au premier échec. Les imports à effet de bord vivent chez l'appelant (`tools.js`).
 
+- **Une anomalie sans outil cité n'est qu'une affirmation.** `CycleAnalysis.findings` exige qu'une
+  observation cite un appel abouti du cycle ; sinon ni alerte ni décision, et le processus redevient
+  `UNKNOWN`. Une fixture de test qui simule une anomalie doit donc porter l'appel (`MEASURED`) et le
+  `tool` de l'observation — sans eux, elle teste désormais l'écartement, pas l'anomalie.
+
+- **Un déclencheur se choisit dans le texte réellement comparé.** Les règles tirées des refus
+  auraient pris la capacité pour déclencheur ; mais le prompt du cycle ne nomme jamais les
+  capacités, seulement les processus — la règle ne se serait jamais activée. Ses déclencheurs sont
+  donc les noms des processus visés par les refus.
+
 Le détail et les raisons sont dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).

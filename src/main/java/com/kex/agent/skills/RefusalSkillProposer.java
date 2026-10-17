@@ -4,6 +4,7 @@ package com.kex.agent.skills;
 
 import java.util.List;
 
+import com.kex.agent.memory.SkillScope;
 import com.kex.agent.supervision.Decision;
 import com.kex.agent.supervision.RepeatedRefusals;
 import org.springframework.context.event.EventListener;
@@ -38,7 +39,20 @@ public final class RefusalSkillProposer {
         if (known) {
             return;
         }
-        skills.propose(refusals.actor(), title, markdown, evidence(refusals), null);
+        skills.propose(refusals.actor(), title, markdown, evidence(refusals), null, null, SkillScope.DOMAIN,
+                triggers(refusals));
+    }
+
+    /**
+     * Les processus visés par les refus, pas la capacité : le prompt du cycle nomme chaque
+     * processus surveillé, jamais les capacités, qui ne vivent que dans le schéma de sortie. Un
+     * déclencheur sur la capacité n'aurait donc jamais correspondu, et la règle se serait tue
+     * précisément là où elle devait agir ; sans déclencheur, elle pesait sur toutes les conversations.
+     */
+    private static List<String> triggers(RepeatedRefusals refusals) {
+        return refusals.decisions().stream().map(Decision::processName)
+                .filter(name -> name != null && name.strip().length() >= 2 && name.strip().length() <= 60)
+                .map(String::strip).distinct().limit(10).toList();
     }
 
     private static String procedure(RepeatedRefusals refusals) {

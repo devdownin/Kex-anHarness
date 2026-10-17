@@ -5,10 +5,16 @@ package com.kex.agent.supervision;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+
+import com.kex.agent.agent.AgentEvent;
 
 /**
  * Contrat entre l'agent et le modèle pour un cycle : le schéma qu'on lui impose, et la lecture de
@@ -74,10 +80,13 @@ final class CycleAnalysis {
                                         "severity", enumField(List.of("WARNING", "ERROR"), "Gravité du symptôme"),
                                         "observations", array(Map.of(
                                                 "type", "object",
-                                                "required", List.of("label", "value"),
+                                                "required", List.of("label", "value", "tool"),
                                                 "properties", ordered(
                                                         "label", field("string", "Ce qui est mesuré"),
-                                                        "value", field("string", "La mesure, telle que rendue par l'outil")))),
+                                                        "value", field("string", "La mesure, telle que rendue par l'outil"),
+                                                        "tool", field("string",
+                                                                "Nom exact de l'outil appelé pendant ce cycle dont le "
+                                                                        + "résultat porte cette mesure")))),
                                         "analysis", field("string", "Ce que ces mesures impliquent, en deux phrases"),
                                         "probableCause", field("string", "Cause probable, ou omis si elle n'est pas étayée"),
                                         "confidence", field("number",
@@ -168,10 +177,75 @@ final class CycleAnalysis {
         for (Map<String, Object> entry : rows(row, "observations")) {
             String label = string(entry, "label");
             if (label != null) {
-                observations.add(new Observation(label, String.valueOf(entry.get("value"))));
+                observations.add(new Observation(label, String.valueOf(entry.get("value")), string(entry, "tool")));
             }
         }
         return List.copyOf(observations);
+    }
+
+    /**
+     * Les anomalies séparées selon qu'au moins une de leurs observations cite un outil réellement
+     * appelé, et abouti, pendant le cycle. Une anomalie sans mesure citée est une affirmation : elle
+     * ne déclenche ni alerte ni décision, comme un relevé illisible ne vaut jamais {@code OK}.
+     *
+     * @param unsourced écartées, gardées pour le déroulé du cycle — les taire ferait croire à un
+     *                  processus sain là où le modèle a vu, ou cru voir, quelque chose
+     */
+    record Findings(List<Anomaly> sourced, List<Anomaly> unsourced) {
+        Findings {
+            sourced = List.copyOf(sourced);
+            unsourced = List.copyOf(unsourced);
+        }
+    }
+
+    static Findings findings(Map<String, Object> answer, List<MonitoredProcess> known, String cycleId,
+                             Instant at, Collection<AgentEvent.ToolCall> calls) {
+        // Un appel en échec n'a rien mesuré : il ne peut fonder aucune observation.
+        Set<String> measured = calls.stream().filter(call -> !call.failed())
+                .map(call -> call.tool().toLowerCase(Locale.ROOT)).collect(Collectors.toSet());
+        List<Anomaly> sourced = new ArrayList<>();
+        List<Anomaly> unsourced = new ArrayList<>();
+        for (Anomaly anomaly : anomalies(answer, known, cycleId, at)) {
+            boolean cited = anomaly.observations().stream().anyMatch(observation -> cites(observation.tool(), measured));
+            (cited ? sourced : unsourced).add(anomaly);
+        }
+        return new Findings(sourced, unsourced);
+    }
+
+    /**
+     * Le modèle voit l'outil sous le nom que lui donne le client — préfixé par la connexion
+     * ({@code kafka-explorer__kex_consumer_lag}), ou par Spring AI en cas de doublon
+     * ({@code alt_1_kex_consumer_lag}) — mais le cite volontiers sous son nom court, celui des
+     * consignes. Ces deux préfixes seuls : les noms d'outils contiennent eux-mêmes des {@code _},
+     * et un suffixe quelconque ferait de {@code lag} une citation de {@code kex_consumer_lag}.
+     */
+    static boolean cites(String tool, Set<String> measured) {
+        if (tool == null || tool.isBlank()) return false;
+        String cited = tool.strip().toLowerCase(Locale.ROOT);
+        return measured.stream().anyMatch(name -> name.equals(cited) || name.endsWith("__" + cited)
+                || name.matches("alt_\\d+_" + java.util.regex.Pattern.quote(cited)));
+    }
+
+    /**
+     * Un processus que le modèle classe en {@code WARNING} ou {@code ERROR} sur la seule foi
+     * d'anomalies sans mesure citée redevient {@code UNKNOWN} : la gravité n'est pas établie, et
+     * l'afficher en rouge déclencherait une recherche de panne sur une affirmation.
+     */
+    static List<ProcessSnapshot> withoutUnsourcedSeverity(List<ProcessSnapshot> snapshots, Findings findings) {
+        Set<String> sourced = findings.sourced().stream().map(Anomaly::processId).collect(Collectors.toSet());
+        Map<String, String> unsourced = new LinkedHashMap<>();
+        findings.unsourced().forEach(anomaly -> unsourced.merge(anomaly.processId(), anomaly.title(),
+                (left, right) -> left + " · " + right));
+        return snapshots.stream().map(snapshot -> {
+            boolean severe = snapshot.state() == ProcessState.WARNING || snapshot.state() == ProcessState.ERROR;
+            if (!severe || sourced.contains(snapshot.processId()) || !unsourced.containsKey(snapshot.processId())) {
+                return snapshot;
+            }
+            return new ProcessSnapshot(snapshot.processId(), snapshot.name(), ProcessState.UNKNOWN,
+                    snapshot.lastRun(), snapshot.durationMillis(), snapshot.delayMillis(),
+                    "Anomalie signalée sans mesure d'outil citée : " + unsourced.get(snapshot.processId()),
+                    snapshot.coverage());
+        }).toList();
     }
 
     @SuppressWarnings("unchecked")
