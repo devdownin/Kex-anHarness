@@ -60,7 +60,7 @@ page.on('console', (message) => {
 });
 
 /**
- * Trois échecs de requête sont attendus et déjà traités par la console, donc pas des défauts :
+ * Des échecs de requête sont attendus et déjà traités par la console, donc pas des défauts :
  * le `401` avant la saisie du jeton, le `404` d'une métrique qu'aucun appel n'a encore créée — la
  * vue Intégrations l'affiche « — », comme le veut la règle « une mesure absente n'est pas zéro » —, et
  * le `404` de la base de connaissance quand `kex.agent.knowledge.enabled` vaut false, comme dans ce
@@ -74,7 +74,10 @@ function expected(message) {
     || (message.text().includes('404') && message.location().url.includes('/api/agent/automations'))
     // The generic browser job deliberately runs with the embedded MCP server disabled. Its
     // configuration probe therefore returns 404; dedicated MCP browser coverage exercises it enabled.
-    || (message.text().includes('404') && message.location().url.includes('/api/agent/mcp-server'));
+    || (message.text().includes('404') && message.location().url.includes('/api/agent/mcp-server'))
+    // Sans allowlist d'outils, le rejeu d'une compétence est éteint et répond 409 : le test du
+    // bouton Rejouer le provoque exprès pour vérifier le corps envoyé.
+    || (message.text().includes('409') && /\/api\/agent\/skills\/[^/]+\/probe$/.test(message.location().url));
 }
 
 /** Le strict nécessaire pour que decisionRow() (supervision.js) rende une carte sélectionnable. */
@@ -1222,6 +1225,23 @@ await check('la file de revue affiche la compétence proposée, tous propriétai
   await page.waitForSelector('#skills-review-queue article.card');
   assert.match(await page.$eval('#skills-review-queue', (node) => node.textContent),
     /Vérifier le lag avant un redémarrage/);
+});
+
+// Le rejeu reste éteint en CI (aucune allowlist d'outils) : le point sous test est que la demande
+// saisie part bien dans le corps, et que la carte dit la portée avant toute décision.
+await check('la carte dit la portée et le rejeu envoie la demande saisie', async () => {
+  assert.match(await page.$eval('#skills-review-queue article.card', (node) => node.textContent),
+    /Domaine — sans déclencheur/);
+  await page.click('#skills-review-queue article.card button:has-text("Rejouer")');
+  await page.waitForSelector('dialog#confirm[open]');
+  await page.fill('#confirm-reason', 'Le lag de billing est-il stable ?');
+  const probed = page.waitForResponse((response) =>
+    response.url().endsWith(`/api/agent/skills/${proposed.id}/probe`));
+  await page.click('#confirm-accept');
+  const response = await probed;
+  assert.equal(response.status(), 409);
+  assert.deepEqual(response.request().postDataJSON(), { request: 'Le lag de billing est-il stable ?' });
+  await page.waitForSelector('dialog#confirm', { state: 'hidden' });
 });
 
 await check('approuver la fait disparaître de la file et apparaître dans la bibliothèque', async () => {

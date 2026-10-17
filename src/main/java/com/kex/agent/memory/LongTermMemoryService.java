@@ -110,6 +110,15 @@ public final class LongTermMemoryService {
 
     /** Reference data: never grants capabilities and never replaces the governance system prompt. */
     public String context(String owner) {
+        return context(owner, null, null);
+    }
+
+    /**
+     * @param request   la demande en cours, qui décide des compétences de domaine pertinentes
+     * @param candidate une compétence en attente injectée comme si elle était approuvée, pour le
+     *                  seul rejeu contrastif ; {@code null} partout ailleurs
+     */
+    public String context(String owner, String request, LearningEntry candidate) {
         MemoryIdentity.require(owner);
         StringBuilder result = new StringBuilder();
         // En tête du bloc : la charte dit sous quelles consignes l'exploitant veut que l'agent
@@ -122,10 +131,9 @@ public final class LongTermMemoryService {
         summaries(owner).stream().filter(e -> e.verification() != null && e.verification().usable(clock.instant()))
                 .limit(5).forEach(entry -> result.append("\nRésumé antérieur :\n")
                 .append(entry.markdown()).append('\n'));
-        // `ranked` et pas `approved` : la troncature reste, mais elle porte désormais sur un ordre
-        // explicite — la plus récemment approuvée d'abord — au lieu de l'ordre de stockage du dépôt.
-        // Ce qui tombe au-delà du plafond est visible dans le rapport de curation, pas perdu en silence.
-        skills.ranked(owner).stream().limit(properties.skills().injected())
+        // La troncature porte sur un ordre explicite, par portée, au lieu de l'ordre de stockage du
+        // dépôt. Ce qui tombe au-delà d'un plafond est visible dans le rapport de curation.
+        skills.injectable(owner, request, candidate, properties.skills())
                 .forEach(entry -> result.append("\nCompétence approuvée : ").append(entry.title()).append('\n')
                         .append(bounded(entry.markdown(), properties.skills().charactersPerSkill())).append('\n'));
         if (result.isEmpty()) return "";

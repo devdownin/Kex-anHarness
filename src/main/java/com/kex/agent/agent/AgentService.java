@@ -18,6 +18,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 import com.kex.agent.config.AgentProperties;
+import com.kex.agent.memory.LearningEntry;
 import com.kex.agent.memory.LongTermMemoryService;
 import com.kex.agent.tools.ToolSelectionService;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
@@ -125,13 +126,31 @@ public class AgentService {
         return ask(conversation(owner, conversationId, "TRIAGE", Set.copyOf(allowedTools)), message);
     }
 
+    /**
+     * Une exécution de rejeu contrastif : même chemin que {@link #askReadOnly}, sous la même
+     * allowlist de serveur, mais sans trace durable. Rien n'en entre en mémoire long-terme — un
+     * rejeu n'est pas un échange avec quelqu'un, et son résumé {@code UNVERIFIED} se mêlerait à
+     * ceux des vraies conversations — et sa fenêtre de conversation est purgée en sortie, puisque
+     * personne d'autre n'en connaît l'identifiant.
+     *
+     * @param candidate la compétence en attente à injecter comme si elle était approuvée ;
+     *                  {@code null} pour l'exécution de référence
+     */
+    public AgentAnswer probe(String owner, String message, Set<String> allowedTools, LearningEntry candidate) {
+        Conversation probe = conversation(owner, null, "CHAT", Set.copyOf(allowedTools)).probing(candidate);
+        AgentAnswer answer = ask(probe, message);
+        // Sur échec ou délai, `bounded` purge déjà — après la fin de la tâche orpheline pour un délai.
+        chatMemory.clear(knowledgeMemoryId(probe.memoryId(), probe.knowledgeAccess()));
+        return answer;
+    }
+
     private AgentAnswer ask(Conversation conversation, String message) {
         ToolCallRecorder recorder = new ToolCallRecorder();
         AgentExecution execution = new AgentExecution();
         ChatResponse response = bounded(conversation, execution, CircuitBreaker.decorateSupplier(modelCircuitBreaker,
                 () -> request(conversation, message, recorder, execution).call().chatResponse()));
         AgentUsage usage = AgentUsage.from(response);
-        if (longTermMemory != null) {
+        if (longTermMemory != null && conversation.remembered()) {
             longTermMemory.recordSuccessfulTask(conversation.owner(), conversation.id(), message, text(response), recorder.calls());
         }
         return new AgentAnswer(conversation.id(), text(response), recorder.calls(), usage, finishReason(response), conversation.sources());
@@ -269,7 +288,8 @@ public class AgentService {
                     .map(tool -> tool.getToolDefinition().name()).collect(java.util.stream.Collectors.toSet()));
         }
         String kafkaProcedure = KafkaOperationalPlaybooks.forRequest(message);
-        String durable = longTermMemory == null ? "" : longTermMemory.context(conversation.owner());
+        String durable = longTermMemory == null ? ""
+                : longTermMemory.context(conversation.owner(), message, conversation.candidate());
         java.util.List<com.kex.agent.knowledge.KnowledgeMatch> matches = knowledge == null ? java.util.List.of()
                 : knowledge.search(message, null, conversation.knowledgeAccess());
         conversation.evidence().set(matches.stream().map(com.kex.agent.knowledge.KnowledgeSource::from).toList());
@@ -338,11 +358,20 @@ public class AgentService {
         }
     }
 
-    /** @param generated l'appelant n'a pas fourni d'identifiant : celui-ci a été tiré ici */
+    /**
+     * @param generated  l'appelant n'a pas fourni d'identifiant : celui-ci a été tiré ici
+     * @param candidate  compétence en attente injectée pour un rejeu, {@code null} sinon
+     * @param remembered l'échange nourrit la mémoire long-terme ; faux pour un rejeu
+     */
     private record Conversation(String id, String memoryId, boolean generated, String owner,
                                 String task, Set<String> allowedTools, com.kex.agent.knowledge.KnowledgeAccess knowledgeAccess,
-                                java.util.concurrent.atomic.AtomicReference<java.util.List<com.kex.agent.knowledge.KnowledgeSource>> evidence) {
+                                java.util.concurrent.atomic.AtomicReference<java.util.List<com.kex.agent.knowledge.KnowledgeSource>> evidence,
+                                LearningEntry candidate, boolean remembered) {
         java.util.List<com.kex.agent.knowledge.KnowledgeSource> sources() { return evidence.get(); }
+
+        Conversation probing(LearningEntry skill) {
+            return new Conversation(id, memoryId, generated, owner, task, allowedTools, knowledgeAccess, evidence, skill, false);
+        }
     }
 
     private static Conversation conversation(String owner, String conversationId) {
@@ -356,7 +385,7 @@ public class AgentService {
         }
         boolean generated = !StringUtils.hasText(conversationId);
         String id = generated ? UUID.randomUUID().toString() : conversationId;
-        return new Conversation(id, memoryId(owner, id), generated, owner, route, allowedTools, com.kex.agent.knowledge.KnowledgeAccess.current(owner), new java.util.concurrent.atomic.AtomicReference<>(java.util.List.of()));
+        return new Conversation(id, memoryId(owner, id), generated, owner, route, allowedTools, com.kex.agent.knowledge.KnowledgeAccess.current(owner), new java.util.concurrent.atomic.AtomicReference<>(java.util.List.of()), null, true);
     }
 
     private static String memoryId(String owner, String conversationId) {

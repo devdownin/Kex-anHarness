@@ -8,10 +8,24 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 
 /** Schéma posé par {@code db/migration/V1__baseline.sql}, index compris. */
 public final class JdbcLearningRepository implements LearningRepository {
     private static final com.fasterxml.jackson.databind.ObjectMapper JSON = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+    private static final RowMapper<LearningEntry> ROW = (rs, row) -> {
+        Timestamp reviewedAt = rs.getTimestamp("reviewed_at");
+        String scope = rs.getString("scope");
+        return new LearningEntry(rs.getString("id"), rs.getString("owner"), rs.getString("kind"),
+                rs.getString("title"), rs.getString("markdown"), rs.getString("evidence"),
+                rs.getString("conversation_id"), rs.getTimestamp("created_at").toInstant(),
+                rs.getString("status"), rs.getString("reviewed_by"),
+                reviewedAt == null ? null : reviewedAt.toInstant(), rs.getString("review_reason"),
+                decode(rs.getString("verification"), LearningEvidence.class),
+                scope == null ? null : SkillScope.valueOf(scope),
+                List.of(decode(rs.getString("triggers"), String[].class, new String[0])),
+                List.of(decode(rs.getString("probes"), SkillProbe[].class, new SkillProbe[0])));
+    };
     private final JdbcTemplate jdbc;
     private final int capacity;
 
@@ -24,11 +38,12 @@ public final class JdbcLearningRepository implements LearningRepository {
     public void add(LearningEntry entry) {
         jdbc.update("""
                 INSERT INTO kex_agent_learning (id, owner, kind, title, markdown, evidence, conversation_id,
-                  created_at, status, reviewed_by, reviewed_at, review_reason, verification)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                  created_at, status, reviewed_by, reviewed_at, review_reason, verification, scope, triggers, probes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 entry.id(), entry.owner(), entry.kind(), entry.title(), entry.markdown(), entry.evidence(),
                 entry.conversationId(), Timestamp.from(entry.createdAt()), entry.status(), entry.reviewedBy(),
-                entry.reviewedAt() == null ? null : Timestamp.from(entry.reviewedAt()), entry.reviewReason(), encode(entry.verification()));
+                entry.reviewedAt() == null ? null : Timestamp.from(entry.reviewedAt()), entry.reviewReason(), encode(entry.verification()),
+                entry.scope() == null ? null : entry.scope().name(), encode(entry.triggers()), encode(entry.probes()));
         jdbc.update("""
                 DELETE FROM kex_agent_learning WHERE kind = ? AND id NOT IN (
                   SELECT id FROM kex_agent_learning WHERE kind = ? ORDER BY created_at DESC, id DESC LIMIT ?)
@@ -39,14 +54,7 @@ public final class JdbcLearningRepository implements LearningRepository {
     public List<LearningEntry> list(String owner, String kind, Instant since) {
         return jdbc.query("""
                 SELECT * FROM kex_agent_learning WHERE owner = ? AND kind = ? AND created_at >= ?
-                ORDER BY created_at DESC, id DESC""", (rs, row) -> {
-                    Timestamp reviewedAt = rs.getTimestamp("reviewed_at");
-                    return new LearningEntry(rs.getString("id"), rs.getString("owner"), rs.getString("kind"),
-                            rs.getString("title"), rs.getString("markdown"), rs.getString("evidence"),
-                            rs.getString("conversation_id"), rs.getTimestamp("created_at").toInstant(),
-                            rs.getString("status"), rs.getString("reviewed_by"),
-                            reviewedAt == null ? null : reviewedAt.toInstant(), rs.getString("review_reason"), decode(rs.getString("verification")));
-                }, owner, kind, Timestamp.from(since));
+                ORDER BY created_at DESC, id DESC""", ROW, owner, kind, Timestamp.from(since));
     }
 
     @Override
@@ -60,18 +68,23 @@ public final class JdbcLearningRepository implements LearningRepository {
     @Override
     public boolean replace(LearningEntry entry, String expectedStatus) {
         return jdbc.update("""
-                UPDATE kex_agent_learning SET status = ?, reviewed_by = ?, reviewed_at = ?, review_reason = ?, verification = ?
+                UPDATE kex_agent_learning SET status = ?, reviewed_by = ?, reviewed_at = ?, review_reason = ?, verification = ?, probes = ?
                 WHERE id = ? AND owner = ? AND status = ?""",
                 entry.status(), entry.reviewedBy(), entry.reviewedAt() == null ? null : Timestamp.from(entry.reviewedAt()),
-                entry.reviewReason(), encode(entry.verification()), entry.id(), entry.owner(), expectedStatus) == 1;
+                entry.reviewReason(), encode(entry.verification()), encode(entry.probes()), entry.id(), entry.owner(), expectedStatus) == 1;
     }
 
-    private static String encode(LearningEvidence evidence) {
-        try { return evidence == null ? null : JSON.writeValueAsString(evidence); }
+    /** Une liste vide s'écrit {@code NULL} : rien à relire ne se distingue alors d'une ligne antérieure. */
+    private static String encode(Object value) {
+        if (value == null || value instanceof List<?> list && list.isEmpty()) return null;
+        try { return JSON.writeValueAsString(value); }
         catch (Exception ex) { throw new IllegalArgumentException("Preuve non sérialisable", ex); }
     }
-    private static LearningEvidence decode(String value) {
-        try { return value == null ? null : JSON.readValue(value, LearningEvidence.class); }
+    private static <T> T decode(String value, Class<T> type) {
+        return decode(value, type, null);
+    }
+    private static <T> T decode(String value, Class<T> type, T absent) {
+        try { return value == null ? absent : JSON.readValue(value, type); }
         catch (Exception ex) { throw new IllegalStateException("Preuve persistée illisible", ex); }
     }
 
@@ -90,13 +103,6 @@ public final class JdbcLearningRepository implements LearningRepository {
     public List<LearningEntry> pending(String kind) {
         return jdbc.query("""
                 SELECT * FROM kex_agent_learning WHERE kind = ? AND status = 'PENDING'
-                ORDER BY created_at ASC, id ASC""", (rs, row) -> {
-                    Timestamp reviewedAt = rs.getTimestamp("reviewed_at");
-                    return new LearningEntry(rs.getString("id"), rs.getString("owner"), rs.getString("kind"),
-                            rs.getString("title"), rs.getString("markdown"), rs.getString("evidence"),
-                            rs.getString("conversation_id"), rs.getTimestamp("created_at").toInstant(),
-                            rs.getString("status"), rs.getString("reviewed_by"),
-                            reviewedAt == null ? null : reviewedAt.toInstant(), rs.getString("review_reason"), decode(rs.getString("verification")));
-                }, kind);
+                ORDER BY created_at ASC, id ASC""", ROW, kind);
     }
 }

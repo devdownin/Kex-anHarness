@@ -65,7 +65,7 @@ class AgentToolSelectionIntegrationTest {
         when(model.getOptions()).thenReturn(ToolCallingChatOptions.builder().build());
         when(model.call(any(Prompt.class))).thenReturn(new ChatResponse(List.of(new Generation(new AssistantMessage("ok")))));
         LongTermMemoryService durable = mock(LongTermMemoryService.class);
-        when(durable.context("owner")).thenReturn("Donnée de référence durable");
+        when(durable.context("owner", "bonjour", null)).thenReturn("Donnée de référence durable");
         @SuppressWarnings("unchecked")
         ObjectProvider<LongTermMemoryService> memory = mock(ObjectProvider.class);
         when(memory.getIfAvailable()).thenReturn(durable);

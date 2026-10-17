@@ -259,12 +259,20 @@ kex:
       retention: 30d
       skills:
         # Ce que la bibliothèque de compétences approuvées pèse dans le prompt. Elle ne fait que
-        # grandir — chaque tâche aux résultats vérifiés peut en proposer une — alors que seules les `injected` premières
-        # agissent : ce sont les plus récemment approuvées, et GET /api/agent/skills/curation dit
-        # lesquelles dorment au-delà. Le retrait reste un geste humain, jamais une purge planifiée.
-        injected: 5
+        # grandir — chaque tâche aux résultats vérifiés peut en proposer une — alors que seules les
+        # premières de chaque portée agissent. Deux plafonds séparés : une procédure de domaine
+        # récente n'évince plus une règle invariante. GET /api/agent/skills/curation dit ce qui agit
+        # partout, ce qui attend un déclencheur et ce qui dort au-delà. Le retrait reste un geste
+        # humain, jamais une purge planifiée.
+        injected: 5                 # compétences de domaine, par demande
+        invariant-injected: 3       # compétences invariantes, dans toute conversation
         characters-per-skill: 3000
         stale-after: 90d
+        probe:
+          # Rejeu contrastif avant revue (POST /api/agent/skills/{id}/probe) : la même demande avec
+          # et sans la compétence. Il appelle le modèle et les outils pour de vrai ; vide, il est
+          # éteint. N'y lister que des outils sans effet.
+          read-only-tools: []
 
     supervision:
       # Le Control Center : observer, comprendre, décider, agir, vérifier. Allumé par défaut — il

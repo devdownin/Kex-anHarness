@@ -7,6 +7,7 @@ import java.util.List;
 
 import com.kex.agent.config.ActorIdentity;
 import com.kex.agent.memory.LearningEntry;
+import com.kex.agent.memory.SkillScope;
 import com.kex.agent.supervision.SupervisionService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -23,11 +24,14 @@ import org.springframework.web.server.ResponseStatusException;
 class SkillsController {
     private final SkillsService skills;
     private final SkillCurator curator;
+    private final SkillProbeService probes;
     private final SupervisionService supervision;
 
-    SkillsController(SkillsService skills, SkillCurator curator, SupervisionService supervision) {
+    SkillsController(SkillsService skills, SkillCurator curator, SkillProbeService probes,
+                     SupervisionService supervision) {
         this.skills = skills;
         this.curator = curator;
+        this.probes = probes;
         this.supervision = supervision;
     }
 
@@ -76,8 +80,20 @@ class SkillsController {
     @ResponseStatus(HttpStatus.CREATED)
     LearningEntry propose(@Valid @RequestBody Proposal proposal, Principal principal) {
         LearningEntry entry = skills.propose(tenant(principal), proposal.title(), proposal.markdown(),
-                proposal.evidence(), proposal.conversationId());
+                proposal.evidence(), proposal.conversationId(), null, proposal.scope(), proposal.triggers());
         supervision.auditAction(actor(principal), "Compétence proposée", entry.id());
+        return entry;
+    }
+
+    /**
+     * Même niveau d'accès que trancher : le rejeu dépense du budget de modèle et appelle des
+     * outils réels au nom du locataire propriétaire, pas de celui qui le demande.
+     */
+    @PostMapping("/{id}/probe")
+    LearningEntry probe(@PathVariable String id, @Valid @RequestBody ProbeRequest request, Principal principal) {
+        String actor = actor(principal);
+        LearningEntry entry = probes.probe(id, request.request(), actor);
+        supervision.auditAction(actor, "Compétence rejouée", id);
         return entry;
     }
 
@@ -126,7 +142,10 @@ class SkillsController {
     record Proposal(@NotBlank @Size(max = 200) String title,
                     @NotBlank @Size(max = 12000) String markdown,
                     @NotBlank @Size(max = 4000) String evidence,
-                    @Size(max = 255) String conversationId) { }
+                    @Size(max = 255) String conversationId,
+                    SkillScope scope,
+                    @Size(max = 10) List<@Size(max = 60) String> triggers) { }
+    record ProbeRequest(@NotBlank @Size(max = 4000) String request) { }
     record Review(@Size(max = 2000) String reason) { }
     /** Motif obligatoire, contrairement à une revue : un retrait sans raison est irrelisable. */
     record Retirement(@NotBlank @Size(max = 2000) String reason) { }

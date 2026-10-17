@@ -11,6 +11,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import com.kex.agent.config.AgentProperties;
+import com.kex.agent.memory.LearningEntry;
 import com.kex.agent.memory.LongTermMemoryService;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
@@ -100,7 +101,7 @@ class AgentServiceTest {
 
     @SuppressWarnings("unchecked")
     private AgentService serviceWithLongTermMemory(Duration timeout) {
-        given(longTermMemory.context(anyString())).willReturn("");
+        given(longTermMemory.context(anyString(), any(), any())).willReturn("");
         ObjectProvider<LongTermMemoryService> provider = mock(ObjectProvider.class);
         given(provider.getIfAvailable()).willReturn(longTermMemory);
         return new AgentService(chatClient, chatMemory, properties(timeout), CircuitBreakerRegistry.ofDefaults(),
@@ -311,6 +312,34 @@ class AgentServiceTest {
         serviceWithLongTermMemory(Duration.ofSeconds(10)).ask("conv-1", "ping");
 
         verify(longTermMemory).recordSuccessfulTask(eq("kex-internal"), eq("conv-1"), eq("ping"), eq("pong"), any());
+    }
+
+    /**
+     * Un rejeu n'est l'échange de personne : son résumé UNVERIFIED se mêlerait à ceux des vraies
+     * conversations, et sa fenêtre resterait en mémoire sous un identifiant que nul ne connaît.
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void un_rejeu_injecte_la_candidate_sous_l_allowlist_sans_trace_durable() {
+        blockingCall();
+        given(requestSpec.system(anyString())).willReturn(requestSpec);
+        given(callSpec.chatResponse()).willReturn(response("pong"));
+        LearningEntry candidate = new LearningEntry("s-1", "ops", "SKILL", "Lag", "Procédure", "Preuve", null,
+                java.time.Instant.EPOCH, "PENDING", null, null, null);
+        AgentService service = serviceWithLongTermMemory(Duration.ofSeconds(10));
+        given(longTermMemory.context("ops", "le lag ?", candidate)).willReturn("Compétence candidate");
+
+        AgentAnswer answer = service.probe("ops", "le lag ?", java.util.Set.of("kex_consumer_lag"), candidate);
+
+        assertThat(answer.content()).isEqualTo("pong");
+        verify(longTermMemory, never()).recordSuccessfulTask(any(), any(), any(), any(), any());
+        verify(chatMemory).clear(anyString());
+        ArgumentCaptor<String> system = ArgumentCaptor.forClass(String.class);
+        verify(requestSpec).system(system.capture());
+        assertThat(system.getValue()).contains("prompt", "Compétence candidate");
+        ArgumentCaptor<Map<String, Object>> context = ArgumentCaptor.forClass(Map.class);
+        verify(requestSpec).toolContext(context.capture());
+        assertThat(context.getValue().get(TaskToolPolicy.ALLOWED_TOOLS)).isEqualTo(java.util.Set.of("kex_consumer_lag"));
     }
 
     @Test

@@ -114,4 +114,22 @@ class FileRepositoriesTest {
         boolean deleted = repo.delete("user1", "l-3");
         assertThat(deleted).isTrue();
     }
+
+    /** Un fichier écrit avant la portée doit se relire tel quel, sans champ inventé. */
+    @Test
+    void file_learning_repository_relit_un_fichier_anterieur_a_la_portee() throws IOException {
+        Path path = tempDir.resolve("learning.json");
+        Files.writeString(path, """
+                [{"id":"l-1","owner":"user1","kind":"SKILL","title":"T","markdown":"M","evidence":"E",
+                  "conversationId":null,"createdAt":"2026-09-20T10:00:00Z","status":"APPROVED",
+                  "reviewedBy":"admin","reviewedAt":"2026-09-21T10:00:00Z","reviewReason":"ok"}]
+                """);
+
+        LearningEntry entry = new FileLearningRepository(mapper, path, 10).list("user1", "SKILL", Instant.EPOCH).getFirst();
+
+        assertThat(entry.scope()).isNull();
+        assertThat(entry.triggers()).isEmpty();
+        assertThat(entry.probes()).isEmpty();
+        assertThat(entry.effectiveScope()).isEqualTo(SkillScope.DOMAIN);
+    }
 }

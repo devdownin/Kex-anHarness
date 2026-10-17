@@ -413,6 +413,15 @@ JDK 21 au minimum (la CI et l'image tournent en 21). La CI construit aussi l'ima
   sur `gen_ai_token_type`. Le compteur naît au premier appel : son `404` est un vrai zéro, pas une
   mesure absente.
 
+- **Un rejeu n'est l'échange de personne.** `ask` écrit un résumé `UNVERIFIED` en mémoire
+  long-terme après chaque réponse : un rejeu contrastif passé par ce chemin en déposerait deux à
+  chaque essai, mêlés à ceux des vraies conversations. `AgentService.probe` porte
+  `remembered = false` et purge sa fenêtre de conversation, dont personne ne connaît l'identifiant.
+
+- **Un déclencheur se renormalise à la comparaison, pas seulement à la proposition.** Une entrée
+  importée ou écrite hors de `SkillsService.propose` garde sa casse et ses accents : « Lettre morte »
+  ne correspondait jamais à une demande normalisée. `matches` normalise les deux côtés.
+
 - **Sous `scroll-snap-type`, `scrollIntoView({ inline: 'nearest' })` ne garantit pas la visibilité.**
   Le défilement s'arrête à moitié, puis l'aimantation recale sur le début de l'entrée voisine : sur
   mobile, l'entrée courante de la navigation restait coupée au bord droit. L'alignement demandé doit
