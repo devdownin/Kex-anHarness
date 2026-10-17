@@ -41,6 +41,10 @@ import static org.mockito.BDDMockito.given;
 @ActiveProfiles("mcp-it")
 class SupervisionCycleIntegrationTest {
 
+    /** L'appel dont les observations des fixtures citent le résultat : sans lui, l'anomalie serait écartée. */
+    private static final List<com.kex.agent.agent.AgentEvent.ToolCall> MEASURED =
+            List.of(new com.kex.agent.agent.AgentEvent.ToolCall("kafka-explorer__kex_consumer_lag", 5, false));
+
     private static final FakeMcpServer SERVER = start();
 
     @Autowired
@@ -83,7 +87,7 @@ class SupervisionCycleIntegrationTest {
     @Test
     void un_cycle_mene_l_anomalie_jusqu_a_un_appel_d_outil_reel() {
         given(agentService.askStructured(anyString(), anyString(), any()))
-                .willReturn(new AgentStructuredAnswer("cycle", analysis(), List.of(), null, "end_turn"));
+                .willReturn(new AgentStructuredAnswer("cycle", analysis(), MEASURED, null, "end_turn"));
 
         CycleReport report = supervision.runCycle("test-integration");
 
@@ -121,7 +125,7 @@ class SupervisionCycleIntegrationTest {
     void une_capacite_sans_outil_lie_echoue_sans_toucher_au_reseau() {
         // MODIFY_CONFIGURATION n'est lié à aucun outil : l'échec doit le dire, pas partir à moitié.
         given(agentService.askStructured(anyString(), anyString(), any()))
-                .willReturn(new AgentStructuredAnswer("cycle", analysis("MODIFY_CONFIGURATION"), List.of(), null, "end_turn"));
+                .willReturn(new AgentStructuredAnswer("cycle", analysis("MODIFY_CONFIGURATION"), MEASURED, null, "end_turn"));
 
         CycleReport report = supervision.runCycle("test-integration");
 
@@ -150,7 +154,7 @@ class SupervisionCycleIntegrationTest {
                         "processId", "order-integration",
                         "title", "Retard de traitement",
                         "severity", "WARNING",
-                        "observations", List.of(Map.of("label", "Consumer lag", "value", "12421")),
+                        "observations", List.of(Map.of("label", "Consumer lag", "value", "12421", "tool", "kex_consumer_lag")),
                         "analysis", "Consommation plus lente que la production",
                         "confidence", 0.97,
                         "recommendation", "Redémarrer Consumer Integration-02",

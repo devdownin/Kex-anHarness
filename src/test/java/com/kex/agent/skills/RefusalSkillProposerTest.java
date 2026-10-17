@@ -34,7 +34,7 @@ class RefusalSkillProposerTest {
         org.mockito.ArgumentCaptor<String> markdown = org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.ArgumentCaptor<String> evidence = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(skills).propose(eq("opérateur"), eq("Refus répétés sur RESTART_CONSUMER"), markdown.capture(),
-                evidence.capture(), any());
+                evidence.capture(), any(), any(), eq(com.kex.agent.memory.SkillScope.DOMAIN), eq(List.of("Processus")));
         assertThat(markdown.getValue())
                 .contains("Trop risqué en heures ouvrées")
                 .contains("Le consumer rattrape seul")
@@ -53,7 +53,7 @@ class RefusalSkillProposerTest {
         proposer.onRepeatedRefusals(refusals);
 
         verify(skills, org.mockito.Mockito.times(1))
-                .propose(any(), any(), any(), any(), any());
+                .propose(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     /** Une règle déjà rejetée décrivait l'état d'alors : de nouveaux refus méritent un nouvel avis. */
@@ -68,7 +68,7 @@ class RefusalSkillProposerTest {
 
         proposer.onRepeatedRefusals(refusals);
 
-        verify(skills, org.mockito.Mockito.times(2)).propose(any(), any(), any(), any(), any());
+        verify(skills, org.mockito.Mockito.times(2)).propose(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -82,10 +82,30 @@ class RefusalSkillProposerTest {
         verify(skills, never()).retire(any(), any(), any());
     }
 
+    /**
+     * Le cycle nomme ses processus, jamais les capacités : un déclencheur sur la capacité n'aurait
+     * jamais correspondu, et la règle se serait tue là même où elle devait agir.
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void la_regle_se_declenche_sur_les_processus_vises_par_les_refus() {
+        given(skills.list("opérateur")).willReturn(List.of());
+        List<Decision> decisions = List.of(decision("d1", "non", "Order Integration"),
+                decision("d2", "non", "Order Integration"), decision("d3", "non", "Billing"),
+                decision("d4", "non", " "), decision("d5", "non", null));
+
+        proposer.onRepeatedRefusals(new RepeatedRefusals("opérateur", Capability.RESTART_CONSUMER, decisions));
+
+        org.mockito.ArgumentCaptor<List<String>> triggers = org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(skills).propose(any(), any(), any(), any(), any(), any(),
+                eq(com.kex.agent.memory.SkillScope.DOMAIN), triggers.capture());
+        assertThat(triggers.getValue()).containsExactly("Order Integration", "Billing");
+    }
+
     private String capturedMarkdown() {
         org.mockito.ArgumentCaptor<String> markdown = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(skills, org.mockito.Mockito.atLeastOnce())
-                .propose(any(), any(), markdown.capture(), any(), any());
+                .propose(any(), any(), markdown.capture(), any(), any(), any(), any(), any());
         return markdown.getValue();
     }
 
@@ -103,7 +123,11 @@ class RefusalSkillProposerTest {
     }
 
     private static Decision decision(String id, String reason) {
-        return new Decision(id, "cycle", "anomalie", "p1", "Processus", Capability.RESTART_CONSUMER, "objectif",
+        return decision(id, reason, "Processus");
+    }
+
+    private static Decision decision(String id, String reason, String processName) {
+        return new Decision(id, "cycle", "anomalie", "p1", processName, Capability.RESTART_CONSUMER, "objectif",
                 "contexte", "Redémarrer le consumer", List.of(), "impact", 0.9,
                 DecisionStatus.REJECTED, reason, "policy-v1", "corr", "opérateur",
                 Instant.EPOCH, Instant.EPOCH, null);

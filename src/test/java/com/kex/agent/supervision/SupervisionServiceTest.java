@@ -37,6 +37,10 @@ import static org.mockito.Mockito.when;
 
 class SupervisionServiceTest {
 
+    /** L'appel dont les observations des fixtures citent le résultat : sans lui, l'anomalie serait écartée. */
+    private static final List<com.kex.agent.agent.AgentEvent.ToolCall> MEASURED =
+            List.of(new com.kex.agent.agent.AgentEvent.ToolCall("kafka-explorer__kex_consumer_lag", 5, false));
+
     private static final MonitoredProcess ORDERS =
             new MonitoredProcess("order-integration", "Order Integration", "Commandes", "topic integration.events", null);
 
@@ -338,7 +342,7 @@ class SupervisionServiceTest {
             release.await();
             return new AgentStructuredAnswer("cycle", Map.of("processes",
                     List.of(Map.of("processId", "order-integration", "state", "OK")),
-                    "anomalies", List.of()), List.of(), null, "end_turn");
+                    "anomalies", List.of()), MEASURED, null, "end_turn");
         });
         SupervisionService service = service(properties(List.of(ORDERS), Map.of(), Map.of()));
 
@@ -577,9 +581,9 @@ class SupervisionServiceTest {
     void une_erreur_passe_devant_un_avertissement_qui_se_repete() {
         analysisReturns(Map.of("processes", List.of(), "anomalies", List.of(
                 Map.of("processId", "order-integration", "title", "Retard", "severity", "WARNING",
-                        "confidence", 0.8),
+                        "confidence", 0.8, "observations", List.of(Map.of("label", "lag", "value", "12421", "tool", "kex_consumer_lag"))),
                 Map.of("processId", "order-integration", "title", "Timeout", "severity", "ERROR",
-                        "confidence", 0.9))));
+                        "confidence", 0.9, "observations", List.of(Map.of("label", "lag", "value", "12421", "tool", "kex_consumer_lag"))))));
         SupervisionService service = service(properties(List.of(ORDERS), Map.of(), Map.of()));
         service.runCycle("test");
         service.runCycle("test");
@@ -674,12 +678,33 @@ class SupervisionServiceTest {
         });
     }
 
+    /** Une affirmation sans mesure ne réveille personne : ni alerte, ni décision, mais elle se lit. */
+    @Test
+    void une_anomalie_sans_mesure_citee_ne_declenche_ni_alerte_ni_decision() {
+        when(agentService.askStructured(anyString(), anyString(), any())).thenReturn(new AgentStructuredAnswer("cycle",
+                Map.of("processes", List.of(Map.of("processId", "order-integration", "state", "ERROR")),
+                        "anomalies", List.of(Map.of("processId", "order-integration", "title", "Lag supposé",
+                                "severity", "ERROR", "confidence", 0.9, "capability", "RESTART_CONSUMER",
+                                "observations", List.of(Map.of("label", "lag", "value", "12421"))))),
+                List.of(), null, "end_turn"));
+        SupervisionService service = service(properties(List.of(ORDERS), Map.of(), Map.of()));
+
+        CycleReport report = service.runCycle("test");
+
+        assertThat(report.anomaliesDetected()).isZero();
+        assertThat(service.alerts()).isEmpty();
+        assertThat(service.decisions()).isEmpty();
+        assertThat(report.events()).extracting(CycleEvent::label).contains("1 anomalie(s) écartée(s)");
+        assertThat(service.snapshots()).singleElement()
+                .extracting(ProcessSnapshot::state).isEqualTo(ProcessState.UNKNOWN);
+    }
+
     @Test
     void une_anomalie_sans_capacite_retombe_sur_la_notification() {
         analysisReturns(Map.of("processes", List.of(Map.of("processId", "order-integration", "state", "WARNING")),
                 "anomalies", List.of(Map.of("processId", "order-integration", "title", "Retard",
                         "severity", "WARNING", "confidence", 0.8,
-                        "observations", List.of(Map.of("label", "lag", "value", "12421"))))));
+                        "observations", List.of(Map.of("label", "lag", "value", "12421", "tool", "kex_consumer_lag"))))));
         SupervisionService service = service(properties(List.of(ORDERS), Map.of(), Map.of()));
 
         service.runCycle("test");
@@ -1161,7 +1186,7 @@ class SupervisionServiceTest {
     void une_note_de_connaissance_citee_par_le_modele_se_retrouve_sur_l_alerte() {
         analysisReturns(Map.of("processes", List.of(), "anomalies", List.of(
                 Map.of("processId", "order-integration", "title", "Retard", "severity", "WARNING",
-                        "confidence", 0.8, "knowledgeReference", "Runbook consumer-lag-2024"))));
+                        "confidence", 0.8, "knowledgeReference", "Runbook consumer-lag-2024", "observations", List.of(Map.of("label", "lag", "value", "12421", "tool", "kex_consumer_lag"))))));
         SupervisionService service = service(properties(List.of(ORDERS), Map.of(), Map.of()));
 
         service.runCycle("test");
@@ -1268,7 +1293,7 @@ class SupervisionServiceTest {
 
     private void analysisReturns(Map<String, Object> content) {
         when(agentService.askStructured(anyString(), anyString(), any()))
-                .thenReturn(new AgentStructuredAnswer("cycle", content, List.of(), null, "end_turn"));
+                .thenReturn(new AgentStructuredAnswer("cycle", content, MEASURED, null, "end_turn"));
     }
 
     private static Map<String, Object> anomalyPayload(String capability, double confidence) {
@@ -1279,7 +1304,7 @@ class SupervisionServiceTest {
                         "processId", "order-integration",
                         "title", "Retard de traitement",
                         "severity", "WARNING",
-                        "observations", List.of(Map.of("label", "Consumer lag", "value", "12421")),
+                        "observations", List.of(Map.of("label", "Consumer lag", "value", "12421", "tool", "kex_consumer_lag")),
                         "analysis", "Le rythme de consommation est inférieur au rythme de production",
                         "probableCause", "Consumer sous-dimensionné",
                         "confidence", confidence,
@@ -1326,7 +1351,8 @@ class SupervisionServiceTest {
     }
 
     private static Map<String, Object> anomalyRow(String processId, String title) {
-        return Map.of("processId", processId, "title", title, "severity", "WARNING", "confidence", 0.8);
+        return Map.of("processId", processId, "title", title, "severity", "WARNING", "confidence", 0.8,
+                "observations", List.of(Map.of("label", "lag", "value", "12421", "tool", "kex_consumer_lag")));
     }
 
     /** Horloge pilotable : l'expiration et la péremption se testent en avançant, pas en attendant. */

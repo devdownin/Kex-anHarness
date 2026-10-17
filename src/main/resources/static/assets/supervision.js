@@ -562,7 +562,10 @@ function evidenceNode(alert, processes) {
   if (alert.observations?.length) {
     const observations = el('ul', 'observations');
     alert.observations.forEach((observation) => {
-      observations.append(el('li', null, `${observation.label} : ${observation.value}`));
+      // L'outil cité est ce qui a permis de retenir l'anomalie : le montrer laisse vérifier la mesure.
+      observations.append(el('li', null, observation.tool
+        ? `${observation.label} : ${observation.value} — ${observation.tool}`
+        : `${observation.label} : ${observation.value}`));
     });
     body.append(observations);
   } else {

@@ -600,9 +600,12 @@ public class SupervisionService {
         }
 
         Instant at = clock.instant();
-        snapshots = CycleAnalysis.snapshots(answer.content(), monitored);
+        CycleAnalysis.Findings findings = CycleAnalysis.findings(answer.content(), monitored, cycleId, at,
+                answer.tools());
+        snapshots = CycleAnalysis.withoutUnsourcedSeverity(CycleAnalysis.snapshots(answer.content(), monitored),
+                findings);
         snapshotHistory.add(new SnapshotSet(cycleId, at, snapshots));
-        List<Anomaly> detected = CycleAnalysis.anomalies(answer.content(), monitored, cycleId, at);
+        List<Anomaly> detected = findings.sourced();
 
         // Une fenêtre de maintenance mute l'alerte et la décision, jamais l'observation : le
         // relevé ci-dessus reste honnête, seule la suite (alertes, décisions) se tait.
@@ -614,6 +617,12 @@ public class SupervisionService {
                 answer.tools().size() + " appels d'outils"));
         events.add(new CycleEvent(at, detected.size() + " anomalies détectées",
                 detected.stream().map(Anomaly::title).reduce((a, b) -> a + " · " + b).orElse("Aucune")));
+        if (!findings.unsourced().isEmpty()) {
+            events.add(new CycleEvent(at, findings.unsourced().size() + " anomalie(s) écartée(s)",
+                    "Aucune observation ne cite un outil appelé avec succès pendant le cycle : "
+                            + findings.unsourced().stream().map(a -> a.processName() + " — " + a.title())
+                            .reduce((a, b) -> a + " · " + b).orElse("")));
+        }
         if (!muted.isEmpty()) {
             events.add(new CycleEvent(at, muted.size() + " anomalie(s) ignorée(s)",
                     "Fenêtre de maintenance active : " + muted.stream().map(Anomaly::processName)
@@ -720,7 +729,9 @@ public class SupervisionService {
         prompt.append("""
 
                 Signale une anomalie quand un de ces seuils est franchi, et cite la mesure qui le \
-                montre dans les observations. Un processus qui déclare ses propres seuils ci-dessus \
+                montre dans les observations, avec dans `tool` le nom exact de l'outil appelé dont le \
+                résultat la porte. Une anomalie dont aucune observation ne cite un outil appelé avec \
+                succès pendant ce cycle est écartée : sans mesure, rends plutôt l'état UNKNOWN. Un processus qui déclare ses propres seuils ci-dessus \
                 les utilise à leur place ; pour tout autre, ce sont ceux-ci qui s'appliquent :
                 %s
                 Juge les tendances sur une fenêtre de %s.

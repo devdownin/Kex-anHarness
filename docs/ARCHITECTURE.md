@@ -1768,6 +1768,23 @@ fois et ne retient comme écart que ce qui tient à chaque passe. Les rapports d
 le coût à côté du score, comme l'article publie le nombre d'étapes à côté de chaque résultat, et
 comparent deux harnesses avec le même modèle.
 
+### Une anomalie cite la mesure qui la fonde
+
+Le cas d'étude de *Harness²* tient en une faute de méthode : des chiffres jamais rapprochés de leur
+source. Le cycle de supervision avait la même faille sous une autre forme — une anomalie se
+contentait d'observations en texte libre, et rien ne vérifiait qu'un outil les avait rendues. Le
+modèle pouvait donc ouvrir une alerte, voire une décision, sur une valeur qu'il n'avait pas lue.
+
+Chaque observation porte désormais `tool`, le nom de l'outil dont le résultat la contient.
+`CycleAnalysis.findings` ne retient une anomalie que si l'une de ses observations cite un appel
+enregistré par `ToolCallRecorder` et abouti — un appel en échec n'a rien mesuré. Le nom court
+(`kex_consumer_lag`) ou préfixé (`kafka-explorer__…`, `alt_<n>_…`) suffit ; un suffixe quelconque, non,
+les noms d'outils contenant eux-mêmes des `_`. L'anomalie écartée ne déclenche ni alerte ni décision
+mais reste dans le déroulé du cycle, et un processus que le modèle classait en `WARNING` ou `ERROR` sur
+la seule foi de telles anomalies redevient `UNKNOWN`. C'est la règle « un état illisible vaut
+`UNKNOWN` », appliquée à une affirmation sans mesure. Le contrôle est déterministe et ne demande aucun
+second appel au modèle.
+
 ## Ce que les tests couvrent
 
 | Test | Ce qu'il verrouille |

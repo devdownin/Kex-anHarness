@@ -27,6 +27,10 @@ Le corpus versionné `src/test/resources/evals/agent-scenarios.json` comporte di
 | `shadow-forecast` | Une prévision obsolète et shadow ne remplace pas la mesure actuelle saine |
 | `forecast-current-evidence` | Une prévision rassurante ne masque pas un incident actuel |
 
+Une anomalie ne compte que si l’une de ses observations cite, dans `tool`, un outil appelé avec
+succès pendant le cycle ; sinon elle est écartée et le processus ramené à `UNKNOWN`. Un scénario qui
+exige une anomalie échoue donc aussi quand le modèle la signale sans citer la mesure qui la fonde.
+
 Les évaluations contrôlent l’état final de l’application, la présence ou absence d’anomalies,
 les outils réellement appelés, leurs arguments `topic` et `group`, et la couverture restituée.
 Une réponse convaincante sans appel de mesure échoue. Une bonne réponse finale accompagnée
