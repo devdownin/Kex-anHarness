@@ -5,7 +5,7 @@
   <parent>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
-    <version>4.1.1</version>
+    <version>4.1.2</version>
     <relativePath/>
   </parent>
 
@@ -23,7 +23,7 @@
     <jacoco.version>0.8.15</jacoco.version>
     <cyclonedx.version>2.9.3</cyclonedx.version>
     <maven.compiler.release>21</maven.compiler.release>
-    <spring-ai.version>2.0.1</spring-ai.version>
+    <spring-ai.version>2.0.2</spring-ai.version>
     <resilience4j.version>2.4.0</resilience4j.version>
     <json-schema-validator.version>3.0.8</json-schema-validator.version>
     <!-- CVE-2026-65182, CVE-2026-65905, CVE-2026-68525 : Spring Boot 4.1.1 gère 11.0.24, corrigé
