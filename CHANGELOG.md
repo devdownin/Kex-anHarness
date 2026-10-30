@@ -5,6 +5,14 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
 
 ## [Non publié]
 
+### Intégrations
+
+- **MCP autoroutes optionnel** : surcouche Docker `compose/autoroutes.yml`, connexion `mcpautoroute`
+  et bearer limité à son URL. L'agent reçoit une procédure de rapprochement entre preuves d'audit,
+  événements et gares uniquement lorsque les outils sont autorisés : lecture de sa source,
+  publication de son état complet avec garde de version et vérification de propagation. Les cycles
+  de supervision en lecture seule restent sans publication automatique.
+
 ### CI
 
 - **Contrat réel avec Kafka SQL Explorer à chaque pull request** : le job `explorer-contract`

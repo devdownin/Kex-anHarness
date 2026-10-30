@@ -300,13 +300,16 @@ public class AgentService {
             request = request.toolCallbacks(tools.toArray(org.springframework.ai.tool.ToolCallback[]::new));
         }
         String kafkaProcedure = KafkaOperationalPlaybooks.forRequest(message);
+        String autoroutesProcedure = AutoroutesOperationalPlaybook.forTools(tools.stream()
+                .map(tool -> tool.getToolDefinition().name()).toList());
         java.util.List<com.kex.agent.knowledge.KnowledgeMatch> matches = knowledge == null ? java.util.List.of()
                 : knowledge.search(message, null, conversation.knowledgeAccess());
         conversation.evidence().set(matches.stream().map(com.kex.agent.knowledge.KnowledgeSource::from).toList());
         String references = knowledge == null ? "" : knowledge.contextFrom(matches);
-        if (!kafkaProcedure.isBlank() || !durable.text().isBlank() || !references.isBlank()) {
+        if (!kafkaProcedure.isBlank() || !autoroutesProcedure.isBlank() || !durable.text().isBlank() || !references.isBlank()) {
             // system(...) remplace le prompt du ChatClient ; conserver la gouvernance avant les références.
-            request = request.system(systemPrompt + "\n\n" + kafkaProcedure + "\n\n" + durable.text() + "\n\n" + references);
+            request = request.system(systemPrompt + "\n\n" + kafkaProcedure + "\n\n" + autoroutesProcedure
+                    + "\n\n" + durable.text() + "\n\n" + references);
         }
         return request.toolContext(context)
                 .advisors(advisor -> advisor.param(ChatMemory.CONVERSATION_ID, knowledgeMemoryId(conversation.memoryId(), conversation.knowledgeAccess())));

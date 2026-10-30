@@ -62,6 +62,10 @@ sensible est contrôlée, et chaque résultat se retrace.
 
 ## 🟠 Prêt pour Kafka dès l'installation
 
+L'[intégration optionnelle mcpautoroute](docs/AUTOROUTES.md) permet de déclarer des anomalies de gare
+à partir des preuves d'audit et des événements recueillis, en préservant les incidents de sa source
+et en vérifiant leur propagation. Elle exige une gare identifiée et des outils d'écriture autorisés.
+
 Il est livré branché sur [Kafka SQL Explorer](https://github.com/devdownin/Kafkaexplorer), dont le
 serveur MCP expose 21 outils en lecture sur Kafka : liste des topics, SQL Flink, inférence de schéma,
 traçage d'une clé à travers les topics, audits de cluster, santé des processus, activité des topics,

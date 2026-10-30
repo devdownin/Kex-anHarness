@@ -1,0 +1,17 @@
+# Connexion optionnelle au MCP autoroutes déjà démarré avec les profils full et mcp.
+# docker compose -f docker-compose.yml -f compose/autoroutes.yml up -d --build agent
+# Le réseau partagé évite d'exposer le port MCP hors de la boucle locale de l'hôte.
+services:
+  agent:
+    environment:
+      AUTOROUTES_MCP_URL: ${AUTOROUTES_MCP_URL:-http://mcp-anomalies:8090}
+      AUTOROUTES_MCP_TOKEN: ${AUTOROUTES_MCP_TOKEN:-}
+      SPRING_AI_MCP_CLIENT_STREAMABLEHTTP_CONNECTIONS_MCPAUTOROUTE_URL: ${AUTOROUTES_MCP_URL:-http://mcp-anomalies:8090}
+      SPRING_AI_MCP_CLIENT_STREAMABLEHTTP_CONNECTIONS_MCPAUTOROUTE_ENDPOINT: /mcp
+    networks:
+      - default
+      - autoroutes
+networks:
+  autoroutes:
+    external: true
+    name: ${AUTOROUTES_NETWORK:-autoroutes_default}
