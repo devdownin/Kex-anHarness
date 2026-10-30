@@ -62,6 +62,10 @@ controlled, and every result can be traced.
 
 ## 🟠 Kafka ready out of the box
 
+The optional [Autoroutes MCP integration](docs/AUTOROUTES.md) lets the agent turn verified audit
+and event evidence into toll-station anomaly reports, preserving its existing source state and
+verifying propagation. It requires an explicit station mapping and authorized write tools.
+
 It ships wired to [Kafka SQL Explorer](https://github.com/devdownin/Kafkaexplorer), whose MCP server
 exposes 21 read-only tools over Kafka: topic listing, Flink SQL, schema inference, cross-topic key
 tracing, cluster audits, process health, topic activity, consumer diagnosis, flow health,

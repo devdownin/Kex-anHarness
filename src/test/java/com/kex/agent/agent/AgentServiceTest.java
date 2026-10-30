@@ -132,6 +132,33 @@ class AgentServiceTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void injecte_la_procedure_autoroutes_sans_elargir_les_outils_autorises() {
+        blockingCall();
+        given(callSpec.chatResponse()).willReturn(response("État lu"));
+        given(requestSpec.system(anyString())).willReturn(requestSpec);
+        given(requestSpec.toolCallbacks(any(org.springframework.ai.tool.ToolCallback[].class))).willReturn(requestSpec);
+        var tool = mock(org.springframework.ai.tool.ToolCallback.class);
+        given(tool.getToolDefinition()).willReturn(org.springframework.ai.tool.definition.DefaultToolDefinition.builder()
+                .name("mcpautoroute__consulter_anomalies").description("Lecture").inputSchema("{}").build());
+        var selection = mock(com.kex.agent.tools.ToolSelectionService.class);
+        given(selection.select(anyString(), any())).willReturn(List.of(tool));
+        ObjectProvider<LongTermMemoryService> memory = mock(ObjectProvider.class);
+        var service = new AgentService(chatClient, chatMemory, properties(Duration.ofSeconds(10)),
+                CircuitBreakerRegistry.ofDefaults(), tokenBudget, memory, selection);
+
+        service.ask("autoroutes", "Analyse les preuves de l'audit");
+
+        var system = ArgumentCaptor.forClass(String.class);
+        verify(requestSpec).system(system.capture());
+        assertThat(system.getValue()).contains("prompt", "mcpautoroute__consulter_anomalies", "version_attendue");
+        ArgumentCaptor<Map<String, Object>> context = ArgumentCaptor.forClass(Map.class);
+        verify(requestSpec).toolContext(context.capture());
+        assertThat(context.getValue().get(TaskToolPolicy.ALLOWED_TOOLS))
+                .isEqualTo(java.util.Set.of("mcpautoroute__consulter_anomalies"));
+    }
+
+    @Test
     void reutilise_l_identifiant_de_conversation_fourni() {
         AgentAnswer answer = agentService().ask("conv-1", "ping");
 

@@ -136,6 +136,9 @@ kex:
       - url-prefix: ${SPECTRALLM_URL:}
         token: ${SPECTRA_API_KEY:}
         header: X-API-Key
+      # Connexion optionnelle déclarée par compose/autoroutes.yml ; aucun jeton hors de cette URL.
+      - url-prefix: ${AUTOROUTES_MCP_URL:}
+        token: ${AUTOROUTES_MCP_TOKEN:}
     runtime:
       # Les serveurs ajoutés dans la console ne sont persistés que si cette clé est fournie.
       # Le fichier est chiffré en AES-GCM ; sans clé, aucune valeur sensible ne touche le disque.

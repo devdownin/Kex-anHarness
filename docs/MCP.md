@@ -1,5 +1,9 @@
 # MCP, de zéro
 
+Pour déclarer des anomalies de gare à partir des preuves d'audit et des événements récupérés,
+voir [l'intégration mcpautoroute](AUTOROUTES.md) : connexion optionnelle, rapprochement avec la gare,
+préservation de la source, garde de version et vérification de propagation.
+
 ## Revues opérationnelles Kafka
 
 Pour une demande portant sur la configuration des topics, le lag ou les DLQ, l'agent
