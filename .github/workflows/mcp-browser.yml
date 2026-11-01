@@ -5,7 +5,8 @@ on:
     branches: [main]
 jobs:
   mcp-browser:
-    runs-on: ubuntu-latest
+    # Playwright 1.56.1 prend en charge 24.04 ; ubuntu-latest peut avancer vers un OS incompatible.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
