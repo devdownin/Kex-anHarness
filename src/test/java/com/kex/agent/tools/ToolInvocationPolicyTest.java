@@ -80,6 +80,15 @@ class ToolInvocationPolicyTest {
     }
 
     @Test
+    void conserve_le_debut_et_le_bilan_final_sans_presenter_un_resultat_complet() {
+        String result = "DEBUT\n" + "x".repeat(500) + "\nBILAN: couverture partielle";
+
+        assertThat(policy().boundResult("read", result)).hasSizeLessThanOrEqualTo(256)
+                .startsWith("DEBUT\n").endsWith("\nBILAN: couverture partielle")
+                .contains("TRUNCATED", "originalCharacters=" + result.length(), "sha256=");
+    }
+
+    @Test
     void refuse_un_secret_meme_apres_la_partie_qui_serait_tronquee() {
         assertThatThrownBy(() -> policy().boundResult("read", "x".repeat(500) + "SECRET-42"))
                 .isInstanceOf(SecurityException.class).hasMessageNotContaining("SECRET-42");

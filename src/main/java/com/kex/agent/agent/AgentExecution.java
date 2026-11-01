@@ -11,13 +11,25 @@ public final class AgentExecution {
     public static final String CONTEXT_KEY = "kex.execution";
 
     private final AtomicBoolean cancelled = new AtomicBoolean();
+    private final AgentExecution parent;
+    private final long deadline;
+
+    public AgentExecution() { this(null, Long.MAX_VALUE); }
+    private AgentExecution(AgentExecution parent, long deadline) {
+        this.parent = parent; this.deadline = deadline;
+    }
+    public AgentExecution child(java.time.Duration timeout) {
+        return new AgentExecution(this, System.nanoTime() + timeout.toNanos());
+    }
 
     public void cancel() {
         cancelled.set(true);
     }
 
     public void ensureActive() {
-        if (cancelled.get() || Thread.currentThread().isInterrupted()) {
+        if (parent != null) parent.ensureActive();
+        if (cancelled.get() || Thread.currentThread().isInterrupted()
+                || deadline != Long.MAX_VALUE && System.nanoTime() - deadline >= 0) {
             throw new CancellationException("Échange annulé");
         }
     }

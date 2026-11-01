@@ -26,11 +26,16 @@ class BudgetConfig {
     }
     @Bean @Profile("shared-memory")
     BudgetRepository sharedBudgets(JdbcTemplate jdbc) { return new JdbcBudgetRepository(jdbc); }
-    @Bean static BeanPostProcessor budgetModels(ObjectProvider<TokenBudgetService> budgets) {
+    @Bean static BeanPostProcessor budgetModels(ObjectProvider<TokenBudgetService> budgets,
+            ObjectProvider<com.kex.agent.harness.ContextCompactor> compactor, org.springframework.core.env.Environment environment) {
         return new BeanPostProcessor() {
             @Override public Object postProcessAfterInitialization(Object bean, String name) {
-                if (bean instanceof ChatModel model && !(bean instanceof RoutingChatModel)
-                        && !(bean instanceof BudgetedChatModel)) return new BudgetedChatModel(model, budgets::getObject);
+                if (bean instanceof ChatModel model && !(bean instanceof com.kex.agent.harness.ContextManagingChatModel)) {
+                    ChatModel budgeted = bean instanceof RoutingChatModel || bean instanceof BudgetedChatModel
+                            ? model : new BudgetedChatModel(model, budgets::getObject);
+                    return environment.getProperty("kex.agent.harness.compaction.enabled", Boolean.class, false)
+                            ? new com.kex.agent.harness.ContextManagingChatModel(budgeted, compactor::getObject) : budgeted;
+                }
                 return bean;
             }
         };

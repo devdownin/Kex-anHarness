@@ -522,3 +522,7 @@ bin/forecast-stack.sh
 ```
 
 [Configuration et démarrage](docs/FORECAST-STACK.md).
+
+## Context and diagnostic specialists
+
+Optional paginated tool results, conversation compaction, read-only diagnostic specialists and progressive tool discovery extend the existing governed harness. Each feature is off by default and keeps tenant permissions and shared budgets. See [configuration and limits](docs/HARNESS-CONTEXT.md).

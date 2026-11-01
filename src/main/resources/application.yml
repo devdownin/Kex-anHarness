@@ -383,6 +383,38 @@ kex:
     max-message-characters: 4000
     log-interactions: false
 
+    # Évolutions du harness, chacune activable séparément. Voir docs/HARNESS-CONTEXT.md.
+    harness:
+      results:
+        enabled: false
+        store-path: "${user.home}/.kex-agent-ai/tool-results.json"
+        retention: 1h
+        max-result-characters: 2000000
+        tenant-characters: 10000000
+        tenant-results: 100
+        page-characters: 4000
+      compaction:
+        enabled: false
+        # Choisir la plus petite fenêtre d'entrée des modèles et destinations de secours.
+        context-tokens: 64000
+        trigger-fraction: 0.75
+        output-reservation: 4096
+        keep-recent-messages: 6
+        summary-tokens: 1024
+        max-history-characters: 2000000
+      discovery:
+        enabled: false
+        max-results: 8
+        keywords: {}
+      delegation:
+        enabled: false
+        max-concurrent: 2
+        max-calls: 3
+        max-tool-calls: 8
+        max-report-characters: 4000
+        timeout: 30s
+        specialists: {}
+
     token-budget:
       # 0 désactive un plafond. Réservations avant chaque tour LLM et outil.
       # shared-memory utilise JDBC pour partager les compteurs entre répliques.

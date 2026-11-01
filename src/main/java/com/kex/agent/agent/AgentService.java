@@ -62,6 +62,12 @@ public class AgentService {
     private final LongTermMemoryService longTermMemory;
     private final ToolSelectionService toolSelection;
     private com.kex.agent.knowledge.KnowledgeService knowledge;
+    private com.kex.agent.harness.HarnessTools harness;
+    private com.kex.agent.harness.StoredToolResults storedResults;
+    @Autowired
+    void harness(com.kex.agent.harness.HarnessTools harness, com.kex.agent.harness.StoredToolResults storedResults) {
+        this.harness = harness; this.storedResults = storedResults;
+    }
     @Autowired
     void knowledge(org.springframework.beans.factory.ObjectProvider<com.kex.agent.knowledge.KnowledgeService> provider) {
         knowledge = provider.getIfAvailable();
@@ -141,7 +147,7 @@ public class AgentService {
         Conversation probe = conversation(owner, null, "CHAT", Set.copyOf(allowedTools)).probing(candidate);
         AgentAnswer answer = ask(probe, message);
         // Sur échec ou délai, `bounded` purge déjà — après la fin de la tâche orpheline pour un délai.
-        chatMemory.clear(knowledgeMemoryId(probe.memoryId(), probe.knowledgeAccess()));
+        forget(probe);
         return new AgentProbe(answer, java.util.List.copyOf(probe.skillsRead()));
     }
 
@@ -264,7 +270,11 @@ public class AgentService {
     }
 
     public void clear(String owner, String conversationId) {
-        chatMemory.clear(knowledgeMemoryId(memoryId(owner, conversationId), com.kex.agent.knowledge.KnowledgeAccess.current(owner)));
+        var access = com.kex.agent.knowledge.KnowledgeAccess.current(owner);
+        String id = memoryId(owner, conversationId);
+        String scope = knowledgeMemoryId(id, access);
+        chatMemory.clear(scope);
+        if (storedResults != null) storedResults.clear(owner, resultScope(id, access));
     }
 
     private ChatClient.ChatClientRequestSpec request(Conversation conversation, String message,
@@ -274,6 +284,10 @@ public class AgentService {
         context.put(CONVERSATION_ID_CONTEXT_KEY, conversation.id());
         context.put(AgentExecution.CONTEXT_KEY, execution);
         context.put("kex.owner", conversation.owner());
+        String scope = knowledgeMemoryId(conversation.memoryId(), conversation.knowledgeAccess());
+        context.put(com.kex.agent.harness.StoredToolResults.SCOPE, resultScope(conversation.memoryId(), conversation.knowledgeAccess()));
+        context.put(com.kex.agent.harness.ContextSession.MEMORY, scope);
+        context.put(com.kex.agent.harness.ContextSession.KEY, new com.kex.agent.harness.ContextSession());
         context.put(TokenBudgetService.CONTEXT_KEY, tokenBudget);
         context.put(TokenBudgetService.TASK_KEY, UUID.randomUUID().toString());
         context.put("kex.model-task", conversation.task());
@@ -287,7 +301,13 @@ public class AgentService {
                 : longTermMemory.durable(conversation.owner(), message, conversation.candidate(), readable);
         java.util.List<org.springframework.ai.tool.ToolCallback> tools = new java.util.ArrayList<>();
         if (toolSelection != null) {
-            var selected = toolSelection.select(message, conversation.allowedTools());
+            // Les suivis courts bénéficient des deux derniers échanges, sans donner de droits à l'historique.
+            var history = chatMemory.get(scope);
+            String previous = history.subList(Math.max(0, history.size() - 4), history.size()).stream().filter(m -> m.getText() != null)
+                    .map(org.springframework.ai.chat.messages.Message::getText)
+                    .reduce("", (a, b) -> a + "\n" + b);
+            previous = previous.substring(Math.max(0, previous.length() - 4000));
+            var selected = toolSelection.select(previous + "\n" + message, conversation.allowedTools());
             tools.addAll(selected);
             // Une seconde garde limite aussi les tours suivants et les appels issus d'une ancienne mémoire.
             context.put(TaskToolPolicy.ALLOWED_TOOLS, selected.stream()
@@ -295,6 +315,9 @@ public class AgentService {
         }
         if (!durable.skills().isEmpty()) {
             tools.add(new SkillReaderTool(durable.skills(), id -> read(conversation, id)));
+        }
+        if (harness != null && readable) {
+            tools = new java.util.ArrayList<>(harness.prepare(tools, conversation.allowedTools(), context));
         }
         if (toolSelection != null || !tools.isEmpty()) {
             request = request.toolCallbacks(tools.toArray(org.springframework.ai.tool.ToolCallback[]::new));
@@ -346,7 +369,7 @@ public class AgentService {
                         Thread.currentThread().interrupt();
                     }
                     finally {
-                        chatMemory.clear(knowledgeMemoryId(conversation.memoryId(), conversation.knowledgeAccess()));
+                        forget(conversation);
                     }
                 });
             }
@@ -373,8 +396,13 @@ public class AgentService {
      */
     private void discardIfUnreachable(Conversation conversation) {
         if (conversation.generated()) {
-            chatMemory.clear(knowledgeMemoryId(conversation.memoryId(), conversation.knowledgeAccess()));
+            forget(conversation);
         }
+    }
+
+    private void forget(Conversation conversation) {
+        chatMemory.clear(knowledgeMemoryId(conversation.memoryId(), conversation.knowledgeAccess()));
+        if (storedResults != null) storedResults.clear(conversation.owner(), resultScope(conversation.memoryId(), conversation.knowledgeAccess()));
     }
 
     /**
@@ -427,6 +455,11 @@ public class AgentService {
 
     private String knowledgeMemoryId(String id, com.kex.agent.knowledge.KnowledgeAccess access) {
         return knowledge == null ? id : memoryId(id, "knowledge:" + access.roles().stream().sorted().collect(java.util.stream.Collectors.joining(",")));
+    }
+
+    private static String resultScope(String id, com.kex.agent.knowledge.KnowledgeAccess access) {
+        // Même sans base documentaire, une révocation de rôle ferme les anciennes références.
+        return memoryId(id, "tool-results:" + access.roles().stream().sorted().collect(java.util.stream.Collectors.joining(",")));
     }
 
     private static String text(ChatResponse response) {
