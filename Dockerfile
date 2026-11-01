@@ -47,7 +47,8 @@ ENV KEX_AGENT_MEMORY_STORAGE_DIRECTORY=/var/lib/kex/memory \
     KEX_AGENT_SUPERVISION_PROCESS_STORE_PATH=/var/lib/kex/processes.json \
     KEX_AGENT_FORECASTS_STORE_PATH=/var/lib/kex/forecast-associations.json \
     KEX_AGENT_TASKS_STORE_PATH=/var/lib/kex/tasks \
-    KEX_AGENT_TOKEN_BUDGET_STORE_PATH=/var/lib/kex/budgets.json
+    KEX_AGENT_TOKEN_BUDGET_STORE_PATH=/var/lib/kex/budgets.json \
+    KEX_AGENT_HARNESS_RESULTS_STORE_PATH=/var/lib/kex/tool-results.json
 # `chown` et pas `install -o` : `install` résout son propriétaire par `getpwnam`, et le refuse
 # quand il est numérique et absent de /etc/passwd — soit exactement la situation que le paragraphe
 # ci-dessus décrit. `chown` accepte un uid numérique sans entrée correspondante. Le coreutils de

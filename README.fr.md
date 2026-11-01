@@ -520,3 +520,7 @@ bin/forecast-stack.sh
 ```
 
 [Configuration et démarrage](docs/FORECAST-STACK.md).
+
+## Contexte et spécialistes de diagnostic
+
+Résultats d’outils paginés, compaction des conversations, spécialistes de diagnostic en lecture seule et découverte progressive enrichissent le harness gouverné existant. Chaque fonction est désactivée par défaut et conserve les permissions du locataire et les budgets partagés. Voir [la configuration et les limites](docs/HARNESS-CONTEXT.md).

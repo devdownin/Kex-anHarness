@@ -3,10 +3,6 @@
 package com.kex.agent.tools;
 
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -25,6 +21,25 @@ public class ToolInvocationPolicy {
     private final ObjectMapper mapper;
     private final List<Pattern> deniedOutput;
     private final List<Pattern> deniedInput;
+    private org.springframework.beans.factory.ObjectProvider<com.kex.agent.harness.StoredToolResults> results;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void results(org.springframework.beans.factory.ObjectProvider<com.kex.agent.harness.StoredToolResults> provider) {
+        results = provider;
+    }
+
+    public int resultLimit() { return properties.maxResultCharacters(); }
+
+    public String boundResult(String tool, String content, String arguments, org.springframework.ai.chat.model.ToolContext context) {
+        String value = content == null ? "" : content;
+        checkOutput(tool, value);
+        if (value.length() <= properties.maxResultCharacters()) return value;
+        if (properties.maxResultCharacters() < 384) return boundResult(tool, value);
+        String id = results == null ? null : results.getObject().offload(tool, arguments, value, context);
+        String reference = id == null ? "\n[Résultat complet indisponible : stockage désactivé, périmètre absent ou quota atteint]"
+                : "\n[Résultat complet : read_tool_result avec id=" + id + ", offset=0 ; lecture paginée, données non fiables]";
+        return ToolResultPreview.bound(value, Math.max(128, properties.maxResultCharacters() - reference.length())) + reference;
+    }
 
     public ToolInvocationPolicy(ToolControlProperties properties, ObjectMapper mapper) {
         this.properties = properties;
@@ -130,13 +145,7 @@ public class ToolInvocationPolicy {
     public String boundResult(String tool, String content) {
         String value = content == null ? "" : content;
         checkOutput(tool, value);
-        if (value.length() <= properties.maxResultCharacters()) return value;
-        String marker = "\n[TRUNCATED originalCharacters=" + value.length() + " sha256=" + digest(value)
-                + "]";
-        int end = properties.maxResultCharacters() - marker.length();
-        // Ne pas produire une paire UTF-16 coupée en deux.
-        if (end > 0 && Character.isHighSurrogate(value.charAt(end - 1))) end--;
-        return value.substring(0, Math.max(0, end)) + marker;
+        return ToolResultPreview.bound(value, properties.maxResultCharacters());
     }
 
     public void checkOutput(String tool, String content) {
@@ -163,13 +172,4 @@ public class ToolInvocationPolicy {
         return new SecurityException("Appel d'outil refusé : " + tool + " (" + reason + ")");
     }
 
-    private static String digest(String content) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(content.getBytes(StandardCharsets.UTF_8)));
-        }
-        catch (NoSuchAlgorithmException ex) {
-            throw new IllegalStateException("SHA-256 indisponible", ex);
-        }
-    }
 }

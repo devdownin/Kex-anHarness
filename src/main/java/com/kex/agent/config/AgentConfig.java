@@ -89,7 +89,10 @@ class AgentConfig {
     }
 
     @Bean
-    ChatMemory chatMemory(ChatMemoryRepository repository, AgentProperties properties) {
+    ChatMemory chatMemory(ChatMemoryRepository repository, AgentProperties properties,
+                          com.kex.agent.harness.HarnessProperties harness, com.kex.agent.harness.ConversationLock locks) {
+        if (harness.compaction().enabled()) return new com.kex.agent.harness.CompactingChatMemory(repository,
+                locks, harness.compaction().maxHistoryCharacters());
         ChatMemory window = MessageWindowChatMemory.builder()
                 .chatMemoryRepository(repository)
                 .maxMessages(properties.maxHistoryMessages())
