@@ -21,6 +21,11 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    groups:
+      # CodeQL refuse une analyse si init et analyze ne viennent pas de la même version.
+      codeql:
+        patterns:
+          - "github/codeql-action/*"
 
   - package-ecosystem: docker
     directory: /
