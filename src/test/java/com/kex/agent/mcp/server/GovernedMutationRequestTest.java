@@ -16,7 +16,7 @@ class GovernedMutationRequestTest {
 
         assertThat(properties.governedMutationsEnabled()).isFalse();
         assertThat(GovernedMutationRequest.RESERVED_TOOL_NAMES)
-                .containsExactly("kex_approve_decision", "kex_reject_decision");
+                .containsExactly("harness_approve_decision", "harness_reject_decision");
         assertThat(GovernedMutationRequest.INPUT_SCHEMA.get("additionalProperties")).isEqualTo(false);
     }
 }

@@ -5,6 +5,17 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
 
 ## [Non publié]
 
+### Modifié
+
+- **Serveur MCP : `kex_*` devient `harness_*`** pour les sept outils et le prompt de supervision, qui
+  partageaient leur préfixe avec les outils de Kafka SQL Explorer. Les anciens noms restent acceptés à
+  l'appel pendant une version ; voir `docs/MCP.md`.
+
+### Ajouté
+
+- **`kex.mcp.bearer-tokens[].client-credentials`** : jeton OAuth2 obtenu par `client_credentials` et
+  renouvelé avant son expiration, pour les serveurs MCP à jeton court (Autoroutes : 5 minutes).
+
 ### Intégrations
 
 - **MCP autoroutes optionnel** : surcouche Docker `compose/autoroutes.yml`, connexion `mcpautoroute`

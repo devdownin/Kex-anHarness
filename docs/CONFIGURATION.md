@@ -419,7 +419,26 @@ instances créées sous ces noms.
 | Propriété | Rôle |
 |---|---|
 | `url-prefix` | Préfixe d'URL auquel le jeton s'applique |
-| `token` | Valeur du bearer. Une entrée sans jeton est ignorée |
+| `token` | Valeur du bearer. Une entrée sans jeton ni `client-credentials` est ignorée |
+| `header` | En-tête qui porte le jeton tel quel (`X-API-Key`). Absent : `Authorization: Bearer` |
+| `client-credentials.token-uri` | Endpoint de jeton OAuth2 (Keycloak : `.../protocol/openid-connect/token`). Posé, l'entrée obtient son jeton par `client_credentials` au lieu de `token` |
+| `client-credentials.client-id` / `client-secret` | Identifiants du client |
+| `client-credentials.scope` | Facultatif, séparé par des espaces |
+
+`client-credentials` sert aux serveurs dont le jeton est de courte durée (Autoroutes sous Keycloak :
+5 minutes). Le jeton est gardé jusqu'à 30 secondes avant son expiration puis redemandé, d'un seul appel
+même sous requêtes simultanées. Si le fournisseur d'identité ne répond pas, la requête MCP échoue
+(avertissement `ClientCredentialsTokenSource`) : un jeton périmé n'est jamais renvoyé en silence, et la
+requête suivante retente.
+
+```yaml
+kex.mcp.bearer-tokens[0]:
+  url-prefix: http://autoroutes-mcp:8090
+  client-credentials:
+    token-uri: http://keycloak:8180/realms/supervision/protocol/openid-connect/token
+    client-id: kex-supervisor
+    client-secret: ${KEX_SUPERVISOR_SECRET}
+```
 
 Le filtrage par préfixe évite qu'un jeton parte vers un serveur MCP autre que le sien. Un préfixe
 sans jeton (le défaut pour Kafka SQL Explorer, qui ne demande aucune authentification) est ignoré en
