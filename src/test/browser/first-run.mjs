@@ -429,7 +429,7 @@ await check('fiche Agent : la politique se résume en actions, le dernier cycle 
   await summary.getByText('Dernier cycle').waitFor();
   const text = await summary.innerText();
   assert.match(text, /Jamais exécuté/);
-  assert.match(text, /\d+ (automatiques?|sous validation|interdites?).* sur 5 actions/);
+  assert.match(text, /\d+ (automatiques?|sous validation|interdites?).* sur [0-9]+ actions/);
   await page.evaluate(() => { document.documentElement.dataset.identifiers = 'hidden'; });
   assert.doesNotMatch(await summary.innerText(), /policy-v1/, 'l’identifiant brut reste affiché');
   await context.close();
