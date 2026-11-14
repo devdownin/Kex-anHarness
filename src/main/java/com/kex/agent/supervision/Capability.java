@@ -9,5 +9,9 @@ public enum Capability {
     CREATE_INCIDENT,
     RESTART_CONSUMER,
     REPLAY_MESSAGES,
-    MODIFY_CONFIGURATION
+    MODIFY_CONFIGURATION,
+    /** Déclare l'état d'une source sur un système tiers (anomalie de gare). Arguments proposés, jamais automatique. */
+    DECLARE_ANOMALY,
+    /** Lève ce qu'une source avait déclaré sur un système tiers. Même régime que {@link #DECLARE_ANOMALY}. */
+    CLEAR_ANOMALY
 }

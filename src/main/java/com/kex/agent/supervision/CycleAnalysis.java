@@ -95,8 +95,14 @@ final class CycleAnalysis {
                                         "recommendation", field("string", "L'action à mener, formulée à l'impératif"),
                                         "capability", enumField(
                                                 List.of("NOTIFY", "CREATE_INCIDENT", "RESTART_CONSUMER",
-                                                        "REPLAY_MESSAGES", "MODIFY_CONFIGURATION"),
+                                                        "REPLAY_MESSAGES", "MODIFY_CONFIGURATION", "DECLARE_ANOMALY",
+                                                        "CLEAR_ANOMALY"),
                                                 "Capacité correspondant à la recommandation, omise si aucune ne convient"),
+                                        "actionArguments", Map.of("type", "object", "description",
+                                                "Arguments que l'outil lié à la capacité attend, quand la "
+                                                        + "capacité en demande (DECLARE_ANOMALY, CLEAR_ANOMALY). "
+                                                        + "Seuls ceux que l'administrateur autorise sont retenus, "
+                                                        + "et un humain les valide avant tout appel"),
                                         "knowledgeReference", field("string",
                                                 "Note de connaissance interne ayant réellement informé cette "
                                                         + "analyse, citée brièvement ; omis si aucune ne s'applique"))))));
@@ -167,7 +173,8 @@ final class CycleAnalysis {
             anomalies.add(new Anomaly(UUID.randomUUID().toString(), cycleId, processId, names.get(processId),
                     title, severity(string(row, "severity")), observations(row), string(row, "analysis"),
                     string(row, "probableCause"), confidence(row), string(row, "recommendation"),
-                    capability(string(row, "capability")), at, string(row, "knowledgeReference")));
+                    capability(string(row, "capability")), at, string(row, "knowledgeReference"),
+                    arguments(row.get("actionArguments"))));
         }
         return List.copyOf(anomalies);
     }
@@ -309,6 +316,19 @@ final class CycleAnalysis {
     private static ProcessState severity(String value) {
         ProcessState severity = state(value);
         return severity == ProcessState.UNKNOWN || severity == ProcessState.OK ? ProcessState.WARNING : severity;
+    }
+
+    private static Map<String, Object> arguments(Object value) {
+        if (!(value instanceof Map<?, ?> raw)) {
+            return Map.of();
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        raw.forEach((key, item) -> {
+            if (key instanceof String name && item != null) {
+                result.put(name, item);
+            }
+        });
+        return result;
     }
 
     private static Capability capability(String value) {

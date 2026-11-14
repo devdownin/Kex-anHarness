@@ -1180,6 +1180,112 @@ class SupervisionServiceTest {
                 new McpToolResult("ops", "health", false, List.of(), evidence));
     }
 
+    /* ── Arguments proposés par le modèle ──────────────────────────────── */
+
+    private SupervisionService declarationService(Map<Capability, Autonomy> autonomy, boolean verified) {
+        when(toolCatalog.call(eq("autoroutes"), eq("declarer_anomalies"), any())).thenReturn(
+                new McpToolResult("autoroutes", "declarer_anomalies", false, List.of(),
+                        Map.of("eventId", "evt-42", "gare", "A1-12")));
+        VerificationBinding verifier = null;
+        if (verified) {
+            when(toolCatalog.isReadOnly("autoroutes", "etat_gare")).thenReturn(true);
+            when(toolCatalog.isToolAllowed("autoroutes", "etat_gare")).thenReturn(true);
+            verifier = new VerificationBinding("autoroutes", "etat_gare", Map.of(), "/eventId", null,
+                    null, "/observedAt", Duration.ofMinutes(5), Map.of("eventId", "/eventId"), "/eventId");
+        }
+        ActionBinding binding = new ActionBinding("autoroutes", "declarer_anomalies",
+                Map.of("source", "kex"), verifier, List.of("gare", "anomalies"));
+        return service(properties(ExecutionMode.AUTOMATIC, List.of(ORDERS), autonomy,
+                Map.of(Capability.DECLARE_ANOMALY, binding)));
+    }
+
+    private static Map<String, Object> declarationPayload() {
+        Map<String, Object> payload = new java.util.HashMap<>(anomalyPayload("DECLARE_ANOMALY", 0.97));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> anomaly = new java.util.HashMap<>(((List<Map<String, Object>>) payload.get("anomalies")).get(0));
+        anomaly.put("actionArguments", Map.of("gare", "A1-12", "anomalies", List.of("PANNE"),
+                "source", "pirate", "inconnu", "x"));
+        payload.put("anomalies", List.of(anomaly));
+        return payload;
+    }
+
+    @Test
+    void une_decision_qui_porte_des_arguments_attend_un_humain_meme_en_autonomie_automatique() {
+        analysisReturns(declarationPayload());
+        SupervisionService service = declarationService(Map.of(Capability.DECLARE_ANOMALY, Autonomy.AUTOMATIC), false);
+
+        service.runCycle("test");
+
+        assertThat(service.decisions()).singleElement().satisfies(decision -> {
+            assertThat(decision.status()).isEqualTo(DecisionStatus.PENDING_APPROVAL);
+            assertThat(decision.actionArguments()).containsOnlyKeys("gare", "anomalies");
+        });
+        verify(toolCatalog, never()).call(eq("autoroutes"), eq("declarer_anomalies"), any());
+    }
+
+    @Test
+    void les_arguments_valides_atteignent_l_outil_sans_ecraser_les_arguments_fixes() {
+        analysisReturns(declarationPayload());
+        SupervisionService service = declarationService(Map.of(Capability.DECLARE_ANOMALY, Autonomy.SUPERVISED), false);
+        service.runCycle("test");
+        String id = service.decisions().get(0).id();
+
+        service.approve(id, "opérateur");
+
+        @SuppressWarnings({ "unchecked", "rawtypes" })
+        ArgumentCaptor<Map<String, Object>> sent = (ArgumentCaptor) ArgumentCaptor.forClass(Map.class);
+        verify(toolCatalog).call(eq("autoroutes"), eq("declarer_anomalies"), sent.capture());
+        assertThat(sent.getValue()).containsEntry("gare", "A1-12").containsEntry("source", "kex")
+                .containsEntry("decisionId", id).doesNotContainKey("inconnu");
+    }
+
+    @Test
+    void sans_argument_autorise_par_la_liaison_rien_du_modele_n_est_retenu() {
+        analysisReturns(declarationPayload());
+        ActionBinding closed = new ActionBinding("autoroutes", "declarer_anomalies", Map.of(), null);
+        SupervisionService service = service(properties(ExecutionMode.SUPERVISED, List.of(ORDERS),
+                Map.of(Capability.DECLARE_ANOMALY, Autonomy.SUPERVISED), Map.of(Capability.DECLARE_ANOMALY, closed)));
+
+        service.runCycle("test");
+
+        assertThat(service.decisions()).singleElement()
+                .extracting(Decision::actionArguments).isEqualTo(Map.of());
+    }
+
+    @Test
+    void l_evenement_rendu_par_l_action_devient_l_argument_et_la_valeur_attendue_du_verificateur() {
+        analysisReturns(declarationPayload());
+        SupervisionService service = declarationService(Map.of(Capability.DECLARE_ANOMALY, Autonomy.SUPERVISED), true);
+        service.runCycle("test");
+        when(toolCatalog.call(eq("autoroutes"), eq("etat_gare"), any())).thenReturn(
+                new McpToolResult("autoroutes", "etat_gare", false, List.of(),
+                        Map.of("eventId", "evt-42", "observedAt", clock.instant().toString(),
+                                "coverage", Map.of("complete", true, "stopReason", "EXHAUSTED"))));
+
+        Decision decision = service.approve(service.decisions().get(0).id(), "opérateur");
+
+        assertThat(decision.status()).isEqualTo(DecisionStatus.VERIFIED);
+        @SuppressWarnings({ "unchecked", "rawtypes" })
+        ArgumentCaptor<Map<String, Object>> sent = (ArgumentCaptor) ArgumentCaptor.forClass(Map.class);
+        verify(toolCatalog).call(eq("autoroutes"), eq("etat_gare"), sent.capture());
+        assertThat(sent.getValue()).containsEntry("eventId", "evt-42");
+    }
+
+    @Test
+    void un_evenement_absent_de_la_lecture_independante_laisse_la_decision_non_verifiee() {
+        analysisReturns(declarationPayload());
+        SupervisionService service = declarationService(Map.of(Capability.DECLARE_ANOMALY, Autonomy.SUPERVISED), true);
+        service.runCycle("test");
+        when(toolCatalog.call(eq("autoroutes"), eq("etat_gare"), any())).thenReturn(
+                new McpToolResult("autoroutes", "etat_gare", false, List.of(),
+                        Map.of("eventId", "autre", "observedAt", clock.instant().toString(),
+                                "coverage", Map.of("complete", true, "stopReason", "EXHAUSTED"))));
+
+        Decision decision = service.approve(service.decisions().get(0).id(), "opérateur");
+
+        assertThat(decision.status()).isNotEqualTo(DecisionStatus.VERIFIED);
+    }
+
     /* ── Note de connaissance citée par le modèle ──────────────────────── */
 
     @Test

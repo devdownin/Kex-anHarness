@@ -10,6 +10,7 @@ import java.util.Map;
 import com.fasterxml.jackson.core.JsonPointer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.MissingNode;
 import com.kex.agent.mcp.McpToolCatalog;
 import com.kex.agent.mcp.McpToolResult;
 import org.springframework.util.StringUtils;
@@ -23,7 +24,9 @@ final class ActionVerification {
     }
 
     static Decision verify(Decision decision, ActionBinding action, String actor, Instant actionStarted,
-                           Clock clock, McpToolCatalog tools, String receipt) {
+                           Clock clock, McpToolCatalog tools, String receipt, Object actionStructured) {
+        JsonNode actionEvidence = actionStructured == null ? MissingNode.getInstance()
+                : JSON.valueToTree(actionStructured);
         VerificationBinding verifier = action.verification();
         if (verifier == null) {
             return outcome(decision, DecisionStatus.EXECUTED_UNVERIFIED, actor, clock, receipt,
@@ -39,12 +42,22 @@ final class ActionVerification {
             }
             JsonPointer resultPointer = pointer(verifier.resultPointer());
             JsonPointer timestampPointer = pointer(verifier.observedAtPointer());
-            JsonNode expected = JSON.valueToTree(verifier.expectedValue());
+            JsonNode expected = StringUtils.hasText(verifier.expectedFromActionPointer())
+                    ? actionEvidence.at(pointer(verifier.expectedFromActionPointer()))
+                    : JSON.valueToTree(verifier.expectedValue());
             if (expected == null || expected.isNull() || !expected.isValueNode()
                     || verifier.maxAge().isNegative() || verifier.maxAge().isZero()) {
                 return unknown(decision, actor, clock, receipt, "Contrat de postcondition invalide");
             }
             Map<String, Object> arguments = new HashMap<>(verifier.arguments());
+            for (Map.Entry<String, String> source : verifier.argumentsFromAction().entrySet()) {
+                JsonNode produced = actionEvidence.at(pointer(source.getValue()));
+                if (!produced.isValueNode() || produced.isNull()) {
+                    return unknown(decision, actor, clock, receipt,
+                            "L'action n'a pas rendu la valeur à vérifier (" + source.getValue() + ")");
+                }
+                arguments.put(source.getKey(), produced.isNumber() ? produced.numberValue() : produced.asText());
+            }
             arguments.put("processId", decision.processId());
             arguments.put("decisionId", decision.id());
             McpToolResult result = tools.call(verifier.connection(), verifier.tool(), arguments);

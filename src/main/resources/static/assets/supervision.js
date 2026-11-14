@@ -40,6 +40,8 @@ const CAPABILITIES = {
   RESTART_CONSUMER: 'Redémarrer un consumer',
   REPLAY_MESSAGES: 'Rejouer des messages',
   MODIFY_CONFIGURATION: 'Modifier une configuration',
+  DECLARE_ANOMALY: 'Déclarer une anomalie',
+  CLEAR_ANOMALY: 'Lever une anomalie',
 };
 
 const MODES = {
@@ -1282,6 +1284,9 @@ function approvalCard(decision) {
   card.append(el('p', 'strong', decision.action));
   card.append(definition('Pourquoi', el('span', null, decision.context || decision.objective || '—')));
   card.append(definition('Impact estimé', el('span', null, decision.estimatedImpact || '—')));
+  if (decision.actionArguments && Object.keys(decision.actionArguments).length) {
+    card.append(definition('Arguments', el('code', null, JSON.stringify(decision.actionArguments))));
+  }
   card.append(confidenceBar(decision.confidence, decision.observations?.length));
   card.append(decisionActions(decision));
   return card;
@@ -1412,6 +1417,9 @@ function decisionRow(decision) {
   preview.append(decisionFact('Diagnostic', decision.context || 'Aucun diagnostic détaillé fourni.'));
   preview.append(decisionFact('Action proposée', decision.action));
   preview.append(decisionFact('Impact estimé', decision.estimatedImpact || 'Non renseigné'));
+  if (decision.actionArguments && Object.keys(decision.actionArguments).length) {
+    preview.append(decisionFact('Arguments transmis à l’outil', JSON.stringify(decision.actionArguments)));
+  }
   card.append(preview);
   const open = el('button', 'ghost', 'Comprendre la décision');
   open.type = 'button';
