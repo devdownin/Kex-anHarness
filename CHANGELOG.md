@@ -5,6 +5,13 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
 
 ## [Non publié]
 
+### Corrigé
+
+- **Une action à effet différé ne se lit plus comme un échec.** La vérification relisait une seule
+  fois, aussitôt l'action acceptée ; Autoroutes applique une déclaration d'anomalie après coup, et
+  `VERIFICATION_FAILED` tombait sur une action réussie. `verification.settle` relit une postcondition
+  contredite jusqu'à concordance ou échéance (60 s au plus). Voir `docs/ACTION-VERIFICATION.md`.
+
 ### Modifié
 
 - **Serveur MCP : `kex_*` devient `harness_*`** pour les sept outils et le prompt de supervision, qui

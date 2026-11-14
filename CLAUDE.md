@@ -455,4 +455,10 @@ JDK 21 au minimum (la CI et l'image tournent en 21). La CI construit aussi l'ima
   capacités, seulement les processus — la règle ne se serait jamais activée. Ses déclencheurs sont
   donc les noms des processus visés par les refus.
 
+- **Une postcondition relue aussitôt l'action ne voit pas un effet appliqué en différé.** Autoroutes
+  publie une déclaration sur Kafka et l'applique ensuite : la relecture immédiate rendait l'ancienne
+  version, et `VERIFICATION_FAILED` tombait sur une action réussie. `verification.settle` relit une
+  contradiction — seulement elle — jusqu'à l'échéance. Le banc de bout en bout de la suite Convergence
+  l'a montré ; aucun test unitaire ne le pouvait, le faux outil répondait juste du premier coup.
+
 Le détail et les raisons sont dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).

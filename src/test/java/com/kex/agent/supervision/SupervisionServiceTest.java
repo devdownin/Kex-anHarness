@@ -1180,6 +1180,84 @@ class SupervisionServiceTest {
                 new McpToolResult("ops", "health", false, List.of(), evidence));
     }
 
+    private SupervisionService settlingService(Duration settle) {
+        analysisReturns(anomalyPayload("RESTART_CONSUMER", 0.96));
+        when(toolCatalog.call(eq("ops"), eq("restart"), any())).thenReturn(
+                new McpToolResult("ops", "restart", false, List.of("acceptée"), null));
+        when(toolCatalog.isReadOnly("ops", "health")).thenReturn(true);
+        when(toolCatalog.isToolAllowed("ops", "health")).thenReturn(true);
+        VerificationBinding verifier = new VerificationBinding("ops", "health", Map.of(), "/healthy", true,
+                "/measured", "/observedAt", Duration.ofMinutes(5), Map.of(), null, settle);
+        SupervisionService service = service(properties(ExecutionMode.AUTOMATIC, List.of(ORDERS),
+                Map.of(Capability.RESTART_CONSUMER, Autonomy.AUTOMATIC),
+                Map.of(Capability.RESTART_CONSUMER, new ActionBinding("ops", "restart", Map.of(), verifier))));
+        service.pauseWith(clock::advance);
+        return service;
+    }
+
+    /** L'effet n'est visible qu'à la {@code healthyFrom}-ième relecture : un système qui applique en différé. */
+    private void verificationSettlesAfter(int healthyFrom) {
+        int[] reads = { 0 };
+        when(toolCatalog.call(eq("ops"), eq("health"), any())).thenAnswer(call -> new McpToolResult("ops", "health",
+                false, List.of(), Map.of("healthy", ++reads[0] >= healthyFrom, "measured", true,
+                        "observedAt", clock.instant().toString())));
+    }
+
+    @Test
+    void un_effet_applique_en_differe_est_confirme_pendant_la_fenetre_de_stabilisation() {
+        SupervisionService service = settlingService(Duration.ofSeconds(10));
+        verificationSettlesAfter(3);
+
+        service.runCycle("test");
+
+        assertThat(service.decisions()).singleElement().satisfies(decision -> {
+            assertThat(decision.status()).isEqualTo(DecisionStatus.VERIFIED);
+            assertThat(decision.result()).contains("Vérification confirmée", "3 relectures");
+        });
+        verify(toolCatalog, org.mockito.Mockito.times(1)).call(eq("ops"), eq("restart"), any());
+    }
+
+    @Test
+    void sans_fenetre_de_stabilisation_un_effet_differe_se_lit_comme_un_echec() {
+        SupervisionService service = settlingService(Duration.ZERO);
+        verificationSettlesAfter(2);
+
+        service.runCycle("test");
+
+        assertThat(service.decisions().getFirst().status()).isEqualTo(DecisionStatus.VERIFICATION_FAILED);
+        verify(toolCatalog, org.mockito.Mockito.times(1)).call(eq("ops"), eq("health"), any());
+    }
+
+    @Test
+    void la_fenetre_ecoulee_le_dernier_releve_fait_foi() {
+        SupervisionService service = settlingService(Duration.ofSeconds(3));
+        verificationSettlesAfter(Integer.MAX_VALUE);
+
+        service.runCycle("test");
+
+        assertThat(service.decisions().getFirst().status()).isEqualTo(DecisionStatus.VERIFICATION_FAILED);
+        assertThat(service.decisions().getFirst().result()).contains("4 relectures");
+    }
+
+    @Test
+    void une_preuve_absente_ne_se_relit_pas() {
+        SupervisionService service = settlingService(Duration.ofSeconds(10));
+        when(toolCatalog.call(eq("ops"), eq("health"), any())).thenReturn(
+                new McpToolResult("ops", "health", false, List.of(), null));
+
+        service.runCycle("test");
+
+        assertThat(service.decisions().getFirst().status()).isEqualTo(DecisionStatus.VERIFICATION_UNKNOWN);
+        verify(toolCatalog, org.mockito.Mockito.times(1)).call(eq("ops"), eq("health"), any());
+    }
+
+    @Test
+    void une_fenetre_de_stabilisation_hors_bornes_est_refusee() {
+        assertThatThrownBy(() -> new VerificationBinding("ops", "health", Map.of(), "/healthy", true, null,
+                "/observedAt", Duration.ofMinutes(5), Map.of(), null, Duration.ofMinutes(2)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
     /* ── Arguments proposés par le modèle ──────────────────────────────── */
 
     private SupervisionService declarationService(Map<Capability, Autonomy> autonomy, boolean verified) {
