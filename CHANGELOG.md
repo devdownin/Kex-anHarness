@@ -11,6 +11,11 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
   fois, aussitôt l'action acceptée ; Autoroutes applique une déclaration d'anomalie après coup, et
   `VERIFICATION_FAILED` tombait sur une action réussie. `verification.settle` relit une postcondition
   contredite jusqu'à concordance ou échéance (60 s au plus). Voir `docs/ACTION-VERIFICATION.md`.
+- **Une action gouvernée peut appeler un outil caché au modèle.** `denied`, seul moyen d'empêcher le
+  modèle d'appeler `declarer_anomalies` hors approbation, bloquait aussi l'action approuvée :
+  `FAILED`, « outil non autorisé ». `kex.agent.tools.rules.<outil>.governed-only` cache l'outil au
+  modèle et à l'appel direct, et le laisse aux seules actions de supervision. Voir
+  `docs/TOOL-CONTROLS.md`.
 
 ### Modifié
 

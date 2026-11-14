@@ -533,6 +533,29 @@ public class McpToolCatalog implements AutoCloseable {
 
     public McpToolResult call(String connection, String tool, Map<String, Object> arguments, Map<String, Object> budgetContext) {
         if (!isToolAllowed(connection, tool)) throw new McpToolForbiddenException(connection, tool);
+        return invoke(connection, tool, arguments, budgetContext);
+    }
+
+    /**
+     * Appel d'une action de supervision liée par l'administrateur et approuvée : seul chemin vers un
+     * outil {@code governed-only}. Un refus absolu ({@code denied}) ou une liste blanche du serveur
+     * l'arrêtent comme partout ailleurs.
+     */
+    public McpToolResult callGoverned(String connection, String tool, Map<String, Object> arguments) {
+        if (!isToolAllowed(connection, tool) && !isGovernedOnly(connection, tool)) {
+            throw new McpToolForbiddenException(connection, tool);
+        }
+        return invoke(connection, tool, arguments, Map.of());
+    }
+
+    private boolean isGovernedOnly(String connection, String tool) {
+        if (!toolPolicy.isGovernedOnly(callbackPrefix(connection) + "__" + tool)) return false;
+        McpServerRegistration definition = definitions.get(connection);
+        return definition == null || definition.allowedTools().isEmpty() || definition.allowedTools().contains(tool);
+    }
+
+    private McpToolResult invoke(String connection, String tool, Map<String, Object> arguments,
+                                 Map<String, Object> budgetContext) {
         toolPolicy.check(callbackPrefix(connection) + "__" + tool, arguments);
         CircuitBreaker circuitBreaker = circuitBreakerFor(connection);
         Supplier<McpToolResult> invocation = () -> Observation.createNotStarted("kex.mcp.tool.call", observationRegistry)

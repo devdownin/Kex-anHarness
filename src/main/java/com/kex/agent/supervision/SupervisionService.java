@@ -1023,7 +1023,7 @@ public class SupervisionService {
         arguments.put("processId", decision.processId());
         arguments.put("decisionId", decision.id());
         try {
-            McpToolResult result = toolCatalog.call(binding.connection(), binding.tool(), arguments);
+            McpToolResult result = toolCatalog.callGoverned(binding.connection(), binding.tool(), arguments);
             String output = String.join("\n", result.content());
             String receipt = StringUtils.hasText(output) ? output : "Exécutée par " + actor;
             if (result.error()) {

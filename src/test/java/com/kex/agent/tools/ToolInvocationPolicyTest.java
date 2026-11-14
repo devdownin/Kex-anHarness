@@ -96,4 +96,19 @@ class ToolInvocationPolicyTest {
                 .contains("TRUNCATED", "originalCharacters=500", "sha256=");
         assertThat(policy().boundResult("read", null)).isEmpty();
     }
+
+    @Test
+    void reserve_aux_actions_gouvernees_cache_l_outil_sans_le_refuser_absolument() {
+        var policy = new ToolInvocationPolicy(new ToolControlProperties(false, 3, 256, 1000, Map.of(
+                "declarer", new ToolControlProperties.Rule(false, false, Map.of(), Map.of(), true),
+                "verrouille", new ToolControlProperties.Rule(true, true, Map.of(), Map.of(), true)),
+                List.of()), new ObjectMapper());
+
+        assertThat(policy.isDenied("autoroutes__declarer")).isTrue();
+        assertThat(policy.isGovernedOnly("autoroutes__declarer")).isTrue();
+        // Un refus absolu l'emporte : governed-only n'ouvre rien qu'un denied ferme.
+        assertThat(policy.isDenied("verrouille")).isTrue();
+        assertThat(policy.isGovernedOnly("verrouille")).isFalse();
+        assertThat(policy.isReadOnly("verrouille")).isFalse();
+    }
 }

@@ -114,6 +114,9 @@ kex.agent.supervision.actions:
       settle: 15s   # l'effet est appliqué en différé : relire avant de conclure à l'échec
 ```
 
+- L'outil d'écriture se déclare `governed-only` dans `kex.agent.tools.rules` : caché au modèle, qui ne
+  peut donc pas l'appeler hors approbation, mais appelable par l'action. `denied` le bloquerait aussi
+  pour elle (voir `docs/TOOL-CONTROLS.md`).
 - Les arguments proposés sont figés dans la décision et affichés à l'humain avant validation.
 - Une décision qui en porte n'est jamais exécutée par l'agent seul, quelle que soit l'autonomie.
 - Si l'action ne rend pas la valeur pointée, le résultat reste `VERIFICATION_UNKNOWN`, jamais `VERIFIED`.

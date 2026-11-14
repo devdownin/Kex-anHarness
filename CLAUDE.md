@@ -461,4 +461,9 @@ JDK 21 au minimum (la CI et l'image tournent en 21). La CI construit aussi l'ima
   contradiction — seulement elle — jusqu'à l'échéance. Le banc de bout en bout de la suite Convergence
   l'a montré ; aucun test unitaire ne le pouvait, le faux outil répondait juste du premier coup.
 
+- **Cacher un outil d'écriture au modèle ne doit pas le retirer à l'action qui en a besoin.** `denied`
+  s'appliquait partout, y compris à `McpToolCatalog.call` depuis une décision approuvée : une
+  déclaration d'anomalie gouvernée finissait `FAILED`. `governed-only` cache au modèle et à l'appel
+  direct ; seul `callGoverned`, réservé à `SupervisionService.execute`, l'atteint. `denied` reste absolu.
+
 Le détail et les raisons sont dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).

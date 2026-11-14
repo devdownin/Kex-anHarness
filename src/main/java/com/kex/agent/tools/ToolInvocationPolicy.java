@@ -53,14 +53,21 @@ public class ToolInvocationPolicy {
         });
     }
 
+    /** Hors de portée du modèle et de l'appel direct : refus absolu ou réservé aux actions gouvernées. */
     public boolean isDenied(String tool) {
         ToolControlProperties.Rule rule = rule(tool);
-        return rule != null && rule.denied();
+        return rule != null && (rule.denied() || rule.governedOnly());
+    }
+
+    /** Appelable par une action de supervision approuvée, et par elle seule. */
+    public boolean isGovernedOnly(String tool) {
+        ToolControlProperties.Rule rule = rule(tool);
+        return rule != null && !rule.denied() && rule.governedOnly();
     }
 
     public boolean isReadOnly(String tool) {
         ToolControlProperties.Rule rule = rule(tool);
-        return rule != null && !rule.denied() && rule.readOnly();
+        return rule != null && !rule.denied() && !rule.governedOnly() && rule.readOnly();
     }
 
     public void check(String tool, String input) {
