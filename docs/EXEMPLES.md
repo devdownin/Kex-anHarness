@@ -212,7 +212,7 @@ Quelles décisions attendent un humain ? Résume leur objectif et leur niveau de
 sans en approuver aucune.
 ```
 
-Le serveur publie aussi le prompt `kex_supervision_triage` pour guider une investigation en lecture
+Le serveur publie aussi le prompt `harness_supervision_triage` pour guider une investigation en lecture
 seule. Sa vue de synthèse expose notamment la version du protocole, les requêtes, la latence et les
 sessions clientes actives ou inactives.
 

@@ -76,11 +76,11 @@ class KexMcpServerControllerTest {
                 .andExpect(status().isAccepted()).andExpect(content().string(""));
         mvc.perform(rpc("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}"))
                 .andExpect(jsonPath("$.result.tools.length()").value(7))
-                .andExpect(jsonPath("$.result.tools[0].name").value("kex_status"))
-                .andExpect(jsonPath("$.result.tools[1].name").value("kex_overview"))
-                .andExpect(jsonPath("$.result.tools[2].name").value("kex_alerts"))
-                .andExpect(jsonPath("$.result.tools[3].name").value("kex_incidents"))
-                .andExpect(jsonPath("$.result.tools[4].name").value("kex_pending_decisions"))
+                .andExpect(jsonPath("$.result.tools[0].name").value("harness_status"))
+                .andExpect(jsonPath("$.result.tools[1].name").value("harness_overview"))
+                .andExpect(jsonPath("$.result.tools[2].name").value("harness_alerts"))
+                .andExpect(jsonPath("$.result.tools[3].name").value("harness_incidents"))
+                .andExpect(jsonPath("$.result.tools[4].name").value("harness_pending_decisions"))
                 .andExpect(jsonPath("$.result.tools[0].annotations.readOnlyHint").value(true))
                 .andExpect(jsonPath("$.result.tools[4].annotations.destructiveHint").value(false));
         mvc.perform(rpc("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"ping\"}"))
@@ -136,9 +136,9 @@ class KexMcpServerControllerTest {
     void lists_and_renders_read_only_supervision_triage_prompt() throws Exception {
         mvc.perform(rpc("{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"prompts/list\"}"))
                 .andExpect(jsonPath("$.result.prompts.length()").value(1))
-                .andExpect(jsonPath("$.result.prompts[0].name").value("kex_supervision_triage"));
+                .andExpect(jsonPath("$.result.prompts[0].name").value("harness_supervision_triage"));
         mvc.perform(rpc("{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"prompts/get\","
-                + "\"params\":{\"name\":\"kex_supervision_triage\"}}"))
+                + "\"params\":{\"name\":\"harness_supervision_triage\"}}"))
                 .andExpect(jsonPath("$.result.messages[0].role").value("user"))
                 .andExpect(jsonPath("$.result.messages[0].content.type").value("text"))
                 .andExpect(jsonPath("$.result.messages[0].content.text").value(
@@ -152,7 +152,7 @@ class KexMcpServerControllerTest {
     @Test
     void exposes_only_read_only_supervision_tools() throws Exception {
         when(supervision.pending()).thenReturn(List.of());
-        mvc.perform(rpc(call("kex_pending_decisions", "{}")))
+        mvc.perform(rpc(call("harness_pending_decisions", "{}")))
                 .andExpect(jsonPath("$.result.isError").value(false))
                 .andExpect(jsonPath("$.result.content[0].type").value("text"))
                 .andExpect(jsonPath("$.result.content[0].text").value("[]"));
@@ -161,9 +161,20 @@ class KexMcpServerControllerTest {
     }
 
     @Test
+    void accepts_the_legacy_kex_names_for_one_version_without_listing_them() throws Exception {
+        when(supervision.pending()).thenReturn(List.of());
+        mvc.perform(rpc(call("kex_pending_decisions", "{}")))
+                .andExpect(jsonPath("$.result.isError").value(false))
+                .andExpect(jsonPath("$.result.structuredContent.decisions").isArray());
+        mvc.perform(rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}"))
+                .andExpect(jsonPath("$.result.tools[?(@.name =~ /^kex_.*/)]").isEmpty())
+                .andExpect(jsonPath("$.result.tools[?(@.name =~ /^harness_.*/)]").isNotEmpty());
+    }
+
+    @Test
     void returns_structured_content_for_successful_tools() throws Exception {
         when(supervision.alerts()).thenReturn(List.of());
-        mvc.perform(rpc(call("kex_alerts", "{}")))
+        mvc.perform(rpc(call("harness_alerts", "{}")))
                 .andExpect(jsonPath("$.result.isError").value(false))
                 .andExpect(jsonPath("$.result.content[0].type").value("text"))
                 .andExpect(jsonPath("$.result.content[0].text").value("[]"))
@@ -173,9 +184,9 @@ class KexMcpServerControllerTest {
     @Test
     void rejects_approval_tools_unknown_arguments_and_notification_invocations() throws Exception {
         mvc.perform(rpc(call("approve", "{}"))).andExpect(jsonPath("$.error.code").value(-32602));
-        mvc.perform(rpc(call("kex_status", "{\"bypassPolicy\":true}")))
+        mvc.perform(rpc(call("harness_status", "{\"bypassPolicy\":true}")))
                 .andExpect(jsonPath("$.error.code").value(-32602));
-        mvc.perform(rpc(call("kex_status", "[]"))).andExpect(jsonPath("$.error.code").value(-32602));
+        mvc.perform(rpc(call("harness_status", "[]"))).andExpect(jsonPath("$.error.code").value(-32602));
         mvc.perform(rpc("""
                 {"jsonrpc":"2.0","method":"tools/call","params":{"name":"kex_run_cycle"}}
                 """)).andExpect(status().isBadRequest());
@@ -184,7 +195,7 @@ class KexMcpServerControllerTest {
 
     @Test
     void rejects_ambiguous_protocol_headers_and_non_textual_identifiers() throws Exception {
-        mvc.perform(rpc(call("kex_status", "{}"))
+        mvc.perform(rpc(call("harness_status", "{}"))
                 .header("MCP-Protocol-Version", "2025-06-18", "2025-03-26"))
                 .andExpect(status().isBadRequest());
         mvc.perform(rpc("{\"jsonrpc\":\"2.0\",\"id\":13,\"method\":\"tools/call\","
@@ -211,7 +222,7 @@ class KexMcpServerControllerTest {
         mvc.perform(rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\"}"))
                 .andExpect(jsonPath("$.error.code").value(-32602));
         when(supervision.pending()).thenThrow(new IllegalStateException("https://secret-token@example.test"));
-        mvc.perform(rpc(call("kex_pending_decisions", "{}")))
+        mvc.perform(rpc(call("harness_pending_decisions", "{}")))
                 .andExpect(jsonPath("$.result.isError").value(true))
                 .andExpect(jsonPath("$.result.content[0].text")
                         .value("Kex could not complete the operation. Inspect the operator console."));
@@ -232,7 +243,7 @@ class KexMcpServerControllerTest {
 
     @Test
     void authenticates_every_request_and_checks_roles_origins_and_transport_headers() throws Exception {
-        String body = call("kex_status", "{}");
+        String body = call("harness_status", "{}");
         mvc.perform(unauthenticatedRpc(body)).andExpect(status().isUnauthorized());
         mvc.perform(rpc(body).principal(auth("ROLE_CHAT"))).andExpect(status().isForbidden());
         mvc.perform(rpc(body).header("Origin", "https://evil.example")).andExpect(status().isForbidden());

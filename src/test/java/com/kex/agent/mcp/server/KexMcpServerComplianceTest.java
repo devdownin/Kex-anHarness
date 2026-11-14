@@ -53,12 +53,12 @@ class KexMcpServerComplianceTest {
                 .andExpect(jsonPath("$.result.tools[0].outputSchema.properties.state.type").value("string"))
                 .andExpect(jsonPath("$.result.tools[2].outputSchema.type").value("object"))
                 .andExpect(jsonPath("$.result.tools[2].outputSchema.properties.alerts.type").value("array"))
-                .andExpect(jsonPath("$.result.tools[?(@.name == 'kex_diagnose_topic')].outputSchema.properties.groups.items.properties.recordLag.properties.measured.type").value("boolean"))
-                .andExpect(jsonPath("$.result.tools[?(@.name == 'kex_diagnose_process')].outputSchema.properties.incidents.type").value("array"))
-                .andExpect(jsonPath("$.result.tools[?(@.name == 'kex_diagnose_topic')].outputSchema.additionalProperties").value(false))
-                .andExpect(jsonPath("$.result.tools[?(@.name == 'kex_diagnose_topic')].outputSchema.required.length()").value(9))
-                .andExpect(jsonPath("$.result.tools[?(@.name == 'kex_diagnose_topic')].outputSchema.properties.groups.items.additionalProperties").value(false))
-                .andExpect(jsonPath("$.result.tools[?(@.name == 'kex_diagnose_process')].outputSchema.additionalProperties").value(false))
+                .andExpect(jsonPath("$.result.tools[?(@.name == 'harness_diagnose_topic')].outputSchema.properties.groups.items.properties.recordLag.properties.measured.type").value("boolean"))
+                .andExpect(jsonPath("$.result.tools[?(@.name == 'harness_diagnose_process')].outputSchema.properties.incidents.type").value("array"))
+                .andExpect(jsonPath("$.result.tools[?(@.name == 'harness_diagnose_topic')].outputSchema.additionalProperties").value(false))
+                .andExpect(jsonPath("$.result.tools[?(@.name == 'harness_diagnose_topic')].outputSchema.required.length()").value(9))
+                .andExpect(jsonPath("$.result.tools[?(@.name == 'harness_diagnose_topic')].outputSchema.properties.groups.items.additionalProperties").value(false))
+                .andExpect(jsonPath("$.result.tools[?(@.name == 'harness_diagnose_process')].outputSchema.additionalProperties").value(false))
                 .andExpect(jsonPath("$.result.tools[0].annotations.readOnlyHint").value(true))
                 .andExpect(jsonPath("$.result.tools[0].annotations.destructiveHint").value(false));
     }
@@ -67,7 +67,7 @@ class KexMcpServerComplianceTest {
     void runtime_status_response_matches_the_advertised_closed_schema() throws Exception {
         when(supervision.status()).thenReturn(null);
         mvc.perform(rpc("{\"jsonrpc\":\"2.0\",\"id\":20,\"method\":\"tools/call\","
-                + "\"params\":{\"name\":\"kex_status\",\"arguments\":{}}}"))
+                + "\"params\":{\"name\":\"harness_status\",\"arguments\":{}}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.isError").value(true));
         // Closed schemas are also enforced by the official SDK probe for successful runtime payloads.
@@ -92,7 +92,7 @@ class KexMcpServerComplianceTest {
         mvc.perform(rpc("{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"resources/templates/list\"}"))
                 .andExpect(jsonPath("$.result.resourceTemplates.length()").value(4));
         mvc.perform(rpc("{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"prompts/list\"}"))
-                .andExpect(jsonPath("$.result.prompts[0].name").value("kex_supervision_triage"));
+                .andExpect(jsonPath("$.result.prompts[0].name").value("harness_supervision_triage"));
     }
 
 
@@ -118,7 +118,7 @@ class KexMcpServerComplianceTest {
     @Test
     void notifications_cannot_invoke_request_methods() throws Exception {
         mvc.perform(rpc("{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\","
-                + "\"params\":{\"name\":\"kex_status\"}}"))
+                + "\"params\":{\"name\":\"harness_status\"}}"))
                 .andExpect(status().isBadRequest());
     }
 

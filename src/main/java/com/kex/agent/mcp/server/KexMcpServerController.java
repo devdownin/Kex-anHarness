@@ -49,7 +49,7 @@ public class KexMcpServerController {
     // Phase 1 deliberately exposes observation only. Mutating supervision operations stay behind
     // Kex's operator API/console until MCP-specific approval and audit semantics are defined.
     private static final List<Map<String, Object>> PROMPTS = List.of(
-            Map.of("name", "kex_supervision_triage", "title", "Kex supervision triage",
+            Map.of("name", "harness_supervision_triage", "title", "Kex supervision triage",
                     "description", "Guide a read-only investigation using Kex supervision tools and resources."));
     private static final Map<String, Object> STATUS_SCHEMA = McpServerCatalog.objectSchema(McpServerCatalog.schema(
             "state", McpServerCatalog.stringSchema(), "mode", McpServerCatalog.stringSchema(),
@@ -84,19 +84,35 @@ public class KexMcpServerController {
                     "objective", McpServerCatalog.stringSchema(), "action", McpServerCatalog.stringSchema(), "confidence", McpServerCatalog.numberSchema(),
                     "status", McpServerCatalog.stringSchema(), "correlationId", McpServerCatalog.stringSchema())))));
 
+    /**
+     * Anciens noms, acceptés à l'appel pendant une version pour ne pas casser les clients existants.
+     * Ils ne figurent pas dans {@code tools/list} : l'annoncer en double remettrait dans le catalogue
+     * de la suite les {@code kex_*} que ce renommage en retire (ceux de Kafka Explorer).
+     * À supprimer à la version mineure suivante.
+     */
+    static final Map<String, String> LEGACY_NAMES = Map.of(
+            "kex_status", "harness_status",
+            "kex_overview", "harness_overview",
+            "kex_alerts", "harness_alerts",
+            "kex_incidents", "harness_incidents",
+            "kex_pending_decisions", "harness_pending_decisions",
+            "kex_diagnose_topic", "harness_diagnose_topic",
+            "kex_diagnose_process", "harness_diagnose_process",
+            "kex_supervision_triage", "harness_supervision_triage");
+
     private static final List<Map<String, Object>> TOOLS = List.of(
-            McpServerCatalog.tool("kex_status", "Read Kex supervision status.", STATUS_SCHEMA),
-            McpServerCatalog.tool("kex_overview", "Read the current supervision overview, including process states and counts.",
+            McpServerCatalog.tool("harness_status", "Read Kex supervision status.", STATUS_SCHEMA),
+            McpServerCatalog.tool("harness_overview", "Read the current supervision overview, including process states and counts.",
                     OVERVIEW_SCHEMA),
-            McpServerCatalog.tool("kex_alerts", "Read the currently active supervision alerts.", ALERTS_SCHEMA),
-            McpServerCatalog.tool("kex_incidents", "Read incidents correlated from the latest supervision cycle.", INCIDENTS_SCHEMA),
-            McpServerCatalog.tool("kex_pending_decisions", "Read decisions awaiting human review. Cannot approve them.",
+            McpServerCatalog.tool("harness_alerts", "Read the currently active supervision alerts.", ALERTS_SCHEMA),
+            McpServerCatalog.tool("harness_incidents", "Read incidents correlated from the latest supervision cycle.", INCIDENTS_SCHEMA),
+            McpServerCatalog.tool("harness_pending_decisions", "Read decisions awaiting human review. Cannot approve them.",
                     DECISIONS_SCHEMA),
-            McpServerCatalog.toolWithInput("kex_diagnose_topic", "Read the current Kafka lag diagnosis for one topic.",
+            McpServerCatalog.toolWithInput("harness_diagnose_topic", "Read the current Kafka lag diagnosis for one topic.",
                     Map.of("type", "object", "properties", Map.of("topic", McpServerCatalog.stringSchema()),
                             "required", List.of("topic"), "additionalProperties", false),
                     McpServerCatalog.KAFKA_LAG_SCHEMA),
-            McpServerCatalog.toolWithInput("kex_diagnose_process",
+            McpServerCatalog.toolWithInput("harness_diagnose_process",
                     "Correlate snapshot, alerts and pending decisions for one process.",
                     Map.of("type", "object", "properties", Map.of("processId", McpServerCatalog.stringSchema()),
                             "required", List.of("processId"), "additionalProperties", false),
@@ -290,7 +306,7 @@ public class KexMcpServerController {
 
     private ResponseEntity<Object> call(Object id, JsonNode params) {
         if (!params.path("name").isTextual()) return error(id, -32602, "A textual tool name is required");
-        String name = params.path("name").asText("");
+        String name = LEGACY_NAMES.getOrDefault(params.path("name").asText(""), params.path("name").asText(""));
         if (TOOLS.stream().noneMatch(tool -> tool.get("name").equals(name))) {
             return error(id, -32602, "Unknown tool");
         }
@@ -298,8 +314,8 @@ public class KexMcpServerController {
         if (params.has("arguments") && !arguments.isObject()) {
             return error(id, -32602, "Tool arguments must be an object");
         }
-        if ("kex_diagnose_topic".equals(name)) return diagnoseTopic(id, arguments);
-        if ("kex_diagnose_process".equals(name)) return diagnoseProcess(id, arguments);
+        if ("harness_diagnose_topic".equals(name)) return diagnoseTopic(id, arguments);
+        if ("harness_diagnose_process".equals(name)) return diagnoseProcess(id, arguments);
         if (params.has("arguments") && !arguments.isEmpty()) {
             return error(id, -32602, "This tool accepts an empty arguments object");
         }
@@ -307,11 +323,11 @@ public class KexMcpServerController {
         if (service == null) return toolResult(id, "Supervision is disabled", true);
         try {
             Object value = switch (name) {
-                case "kex_status" -> service.status();
-                case "kex_overview" -> service.overview();
-                case "kex_alerts" -> service.alerts();
-                case "kex_incidents" -> service.incidents();
-                case "kex_pending_decisions" -> service.pending();
+                case "harness_status" -> service.status();
+                case "harness_overview" -> service.overview();
+                case "harness_alerts" -> service.alerts();
+                case "harness_incidents" -> service.incidents();
+                case "harness_pending_decisions" -> service.pending();
                 default -> throw new IllegalStateException("Unreachable tool");
             };
             return toolResult(id, name, value, mapper);
@@ -324,12 +340,12 @@ public class KexMcpServerController {
     private ResponseEntity<Object> diagnoseTopic(Object id, JsonNode arguments) {
         if (!arguments.path("topic").isTextual() || arguments.path("topic").asText().isBlank()
                 || arguments.size() != 1) {
-            return error(id, -32602, "kex_diagnose_topic requires only a non-blank textual topic");
+            return error(id, -32602, "harness_diagnose_topic requires only a non-blank textual topic");
         }
         KafkaViewService service = kafka.getIfAvailable();
         if (service == null) return toolResult(id, "Kafka view is disabled", true);
         try {
-            return toolResult(id, "kex_diagnose_topic", service.lag(arguments.path("topic").asText()), mapper);
+            return toolResult(id, "harness_diagnose_topic", service.lag(arguments.path("topic").asText()), mapper);
         }
         catch (RuntimeException | JsonProcessingException ex) {
             return toolResult(id, "Kex could not complete the operation. Inspect the operator console.", true);
@@ -339,7 +355,7 @@ public class KexMcpServerController {
     private ResponseEntity<Object> diagnoseProcess(Object id, JsonNode arguments) {
         if (!arguments.path("processId").isTextual() || arguments.path("processId").asText().isBlank()
                 || arguments.size() != 1) {
-            return error(id, -32602, "kex_diagnose_process requires only a non-blank textual processId");
+            return error(id, -32602, "harness_diagnose_process requires only a non-blank textual processId");
         }
         SupervisionService service = supervision.getIfAvailable();
         if (service == null) return toolResult(id, "Supervision is disabled", true);
@@ -371,14 +387,14 @@ public class KexMcpServerController {
 
     private ResponseEntity<Object> getPrompt(Object id, JsonNode params) {
         if (!params.path("name").isTextual()) return error(id, -32602, "A textual prompt name is required");
-        String name = params.path("name").asText("");
-        if (!"kex_supervision_triage".equals(name)) return error(id, -32602, "Unknown prompt");
+        String name = LEGACY_NAMES.getOrDefault(params.path("name").asText(""), params.path("name").asText(""));
+        if (!"harness_supervision_triage".equals(name)) return error(id, -32602, "Unknown prompt");
         if (params.has("arguments") && (!params.get("arguments").isObject() || !params.get("arguments").isEmpty())) {
             return error(id, -32602, "This prompt accepts no arguments");
         }
         String text = "Investigate the current Kex supervision state without changing it. "
-                + "Start with kex_status and kex_overview, then inspect kex_alerts and kex_incidents. "
-                + "Use kex_pending_decisions only to identify decisions awaiting human review. "
+                + "Start with harness_status and harness_overview, then inspect harness_alerts and harness_incidents. "
+                + "Use harness_pending_decisions only to identify decisions awaiting human review. "
                 + "Correlate the observations, distinguish facts from hypotheses, and propose diagnostic next steps. "
                 + "Do not approve decisions, pause supervision, run cycles, or perform any state-changing action.";
         return result(id, Map.of(
@@ -568,9 +584,9 @@ public class KexMcpServerController {
     private static ResponseEntity<Object> toolResult(Object id, String name, Object value, ObjectMapper mapper)
             throws JsonProcessingException {
         Object structured = switch (name) {
-            case "kex_alerts" -> Map.of("alerts", value);
-            case "kex_incidents" -> Map.of("incidents", value);
-            case "kex_pending_decisions" -> Map.of("decisions", value);
+            case "harness_alerts" -> Map.of("alerts", value);
+            case "harness_incidents" -> Map.of("incidents", value);
+            case "harness_pending_decisions" -> Map.of("decisions", value);
             default -> value;
         };
         return result(id, Map.of(

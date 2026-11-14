@@ -16,6 +16,22 @@ public record McpAuthProperties(@DefaultValue List<BearerToken> bearerTokens) {
      *               Tous les serveurs n'attendent pas un porteur : SpectraLLM lit {@code X-API-Key}
      *               et répond 401 à un {@code Authorization} qu'il ne regarde pas.
      */
-    public record BearerToken(String urlPrefix, String token, String header) {
+    public record BearerToken(String urlPrefix, String token, String header,
+                              ClientCredentials clientCredentials) {
+
+        public BearerToken(String urlPrefix, String token, String header) {
+            this(urlPrefix, token, header, null);
+        }
+    }
+
+    /**
+     * Jeton obtenu par le flux OAuth2 {@code client_credentials} et renouvelé avant son expiration,
+     * pour les serveurs dont le jeton est de courte durée (Autoroutes : 5 minutes sous Keycloak).
+     * Posé, il remplace {@code token}, qui reste le cas du secret statique.
+     *
+     * @param tokenUri endpoint de jeton du fournisseur d'identité
+     * @param scope    facultatif, séparé par des espaces
+     */
+    public record ClientCredentials(String tokenUri, String clientId, String clientSecret, String scope) {
     }
 }

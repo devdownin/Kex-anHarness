@@ -66,7 +66,7 @@ class KexMcpServerInteropContractTest {
         mvc.perform(rpc("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}",
                 "2025-06-18", session))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.result.tools.length()").value(7))
-                .andExpect(jsonPath("$.result.tools[?(@.name == 'kex_diagnose_topic')].outputSchema.properties.groups").exists());
+                .andExpect(jsonPath("$.result.tools[?(@.name == 'harness_diagnose_topic')].outputSchema.properties.groups").exists());
         mvc.perform(rpc("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"resources/list\"}",
                 "2025-06-18", session))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.result.resources").isArray());
@@ -77,7 +77,7 @@ class KexMcpServerInteropContractTest {
                 "2025-06-18", session))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.result.prompts.length()").value(1));
         mvc.perform(rpc("{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"tools/call\",\"params\":"
-                + "{\"name\":\"kex_diagnose_topic\",\"arguments\":{\"topic\":\"orders\"}}}",
+                + "{\"name\":\"harness_diagnose_topic\",\"arguments\":{\"topic\":\"orders\"}}}",
                 "2025-06-18", session))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.result.isError").value(false))
                 .andExpect(jsonPath("$.result.structuredContent.topic").value("orders"));
@@ -85,7 +85,7 @@ class KexMcpServerInteropContractTest {
                 + "{\"uri\":\"kex://kafka/topics\"}}", "2025-06-18", session))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.result.contents[0].uri").value("kex://kafka/topics"));
         mvc.perform(rpc("{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"prompts/get\",\"params\":"
-                + "{\"name\":\"kex_supervision_triage\",\"arguments\":{}}}", "2025-06-18", session))
+                + "{\"name\":\"harness_supervision_triage\",\"arguments\":{}}}", "2025-06-18", session))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.result.messages[0].role").value("user"));
     }
 
@@ -109,7 +109,7 @@ class KexMcpServerInteropContractTest {
                 ProcessState.WARNING, List.of("lag"), List.of("alert-1"))));
 
         mvc.perform(rpc("{\"jsonrpc\":\"2.0\",\"id\":10,\"method\":\"tools/call\",\"params\":"
-                + "{\"name\":\"kex_diagnose_process\",\"arguments\":{\"processId\":\"orders\"}}}",
+                + "{\"name\":\"harness_diagnose_process\",\"arguments\":{\"processId\":\"orders\"}}}",
                 "2025-06-18", null))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.result.isError").value(false))
                 .andExpect(jsonPath("$.result.structuredContent.processId").value("orders"))
@@ -120,8 +120,8 @@ class KexMcpServerInteropContractTest {
     void mutating_tools_are_not_discoverable_by_default() throws Exception {
         mvc.perform(rpc("{\"jsonrpc\":\"2.0\",\"id\":11,\"method\":\"tools/list\"}",
                 "2025-06-18", null))
-                .andExpect(jsonPath("$.result.tools[?(@.name == 'kex_approve_decision')]").isEmpty())
-                .andExpect(jsonPath("$.result.tools[?(@.name == 'kex_reject_decision')]").isEmpty());
+                .andExpect(jsonPath("$.result.tools[?(@.name == 'harness_approve_decision')]").isEmpty())
+                .andExpect(jsonPath("$.result.tools[?(@.name == 'harness_reject_decision')]").isEmpty());
     }
 
     private String initialize(String version) throws Exception {

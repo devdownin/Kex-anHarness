@@ -7,6 +7,8 @@ import java.net.http.HttpRequest;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import io.modelcontextprotocol.client.transport.customizer.McpSyncHttpClientRequestCustomizer;
 import io.modelcontextprotocol.common.McpTransportContext;
@@ -24,14 +26,22 @@ class McpBearerTokenCustomizer implements McpSyncHttpClientRequestCustomizer {
 
     private static final Logger log = LoggerFactory.getLogger(McpBearerTokenCustomizer.class);
 
-    private record Credential(URI base, String header, String value) {
+    private record Credential(URI base, String header, Function<String, String> format,
+                              Supplier<String> value) {
     }
 
     private final List<Credential> credentials;
 
     McpBearerTokenCustomizer(List<McpAuthProperties.BearerToken> tokens) {
+        this(tokens, oauth -> new ClientCredentialsTokenSource(oauth, java.net.http.HttpClient.newHttpClient(),
+                new com.fasterxml.jackson.databind.ObjectMapper(), java.time.Clock.systemUTC()));
+    }
+
+    /** @param sources fabrique des sources de jeton {@code client_credentials}, substituable en test. */
+    McpBearerTokenCustomizer(List<McpAuthProperties.BearerToken> tokens,
+                             Function<McpAuthProperties.ClientCredentials, Supplier<String>> sources) {
         this.credentials = tokens.stream()
-                .map(McpBearerTokenCustomizer::credential)
+                .map(token -> credential(token, sources))
                 .filter(Objects::nonNull)
                 .sorted(Comparator.comparingInt(
                         (Credential credential) -> normalizedPath(credential.base()).length()).reversed())
@@ -46,9 +56,12 @@ class McpBearerTokenCustomizer implements McpSyncHttpClientRequestCustomizer {
      * l'entrée mal renseignée qui se découvrait jusqu'ici par un 401 du serveur distant, sans qu'un
      * journal ne rapproche l'un de l'autre.
      */
-    private static Credential credential(McpAuthProperties.BearerToken token) {
+    private static Credential credential(McpAuthProperties.BearerToken token,
+                                         Function<McpAuthProperties.ClientCredentials, Supplier<String>> sources) {
         boolean prefix = StringUtils.hasText(token.urlPrefix());
-        boolean value = StringUtils.hasText(token.token());
+        McpAuthProperties.ClientCredentials oauth = token.clientCredentials();
+        boolean dynamic = oauth != null && StringUtils.hasText(oauth.tokenUri());
+        boolean value = dynamic || StringUtils.hasText(token.token());
         if (value && !prefix) {
             log.warn("Entrée kex.mcp.bearer-tokens ignorée : un jeton est déclaré sans url-prefix, "
                     + "il ne s'appliquera à aucune requête");
@@ -62,9 +75,10 @@ class McpBearerTokenCustomizer implements McpSyncHttpClientRequestCustomizer {
                     || base.getQuery() != null || base.getFragment() != null) {
                 throw new IllegalArgumentException("URL absolue sans userinfo, query ni fragment requise");
             }
+            Supplier<String> supplier = dynamic ? sources.apply(oauth) : () -> token.token();
             return StringUtils.hasText(token.header())
-                    ? new Credential(base, token.header().trim(), token.token())
-                    : new Credential(base, "Authorization", "Bearer " + token.token());
+                    ? new Credential(base, token.header().trim(), Function.identity(), supplier)
+                    : new Credential(base, "Authorization", raw -> "Bearer " + raw, supplier);
         }
         catch (IllegalArgumentException ex) {
             log.warn("Entrée kex.mcp.bearer-tokens ignorée : url-prefix invalide ({})", ex.getMessage());
@@ -78,7 +92,8 @@ class McpBearerTokenCustomizer implements McpSyncHttpClientRequestCustomizer {
         credentials.stream()
                 .filter(credential -> matches(credential.base(), uri))
                 .findFirst()
-                .ifPresent(credential -> builder.header(credential.header(), credential.value()));
+                .ifPresent(credential -> builder.header(credential.header(),
+                        credential.format().apply(credential.value().get())));
     }
 
     private static boolean matches(URI base, URI request) {
