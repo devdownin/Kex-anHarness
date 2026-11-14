@@ -762,13 +762,19 @@ public class SupervisionService {
         Autonomy autonomy = current.effectiveAutonomy(capability);
         double floor = current.confidenceThresholdOf(capability);
         Instant at = clock.instant();
+        Map<String, Object> proposed = allowedArguments(capability, anomaly.actionArguments());
+        if (!proposed.isEmpty() && autonomy == Autonomy.AUTOMATIC) {
+            // Ce que le modèle a écrit n'atteint jamais un outil sans qu'un humain l'ait lu.
+            autonomy = Autonomy.SUPERVISED;
+        }
 
         Decision decision = new Decision(UUID.randomUUID().toString(), cycleId, anomaly.id(),
                 anomaly.processId(), anomaly.processName(), capability,
                 "Ramener %s sous les seuils de surveillance".formatted(anomaly.processName()),
                 anomaly.analysis(), action(capability, anomaly), anomaly.observations(),
                 impact(capability), anomaly.confidence(), DecisionStatus.PENDING_APPROVAL, null,
-                current.version(), anomaly.id(), null, at, null, at.plus(properties.approvalTimeout()));
+                current.version(), anomaly.id(), null, at, null, at.plus(properties.approvalTimeout()),
+                proposed);
 
         if (autonomy == Autonomy.FORBIDDEN) {
             decision = decision.resolvedAs(DecisionStatus.BLOCKED,
@@ -945,6 +951,27 @@ public class SupervisionService {
         }
     }
 
+    /** Plafond de ce qu'une proposition peut porter : l'humain doit pouvoir la relire en entier. */
+    private static final int MAX_ARGUMENT_CHARS = 4_000;
+
+    /**
+     * Garde de la proposition du modèle que les noms autorisés par la liaison ; le reste est écarté sans
+     * bruit, et une proposition trop longue pour être relue l'est entièrement.
+     */
+    private Map<String, Object> allowedArguments(Capability capability, Map<String, Object> proposed) {
+        ActionBinding binding = properties.actions().get(capability);
+        if (binding == null || binding.allowedArguments().isEmpty() || proposed == null || proposed.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> kept = new java.util.LinkedHashMap<>();
+        proposed.forEach((name, value) -> {
+            if (binding.allowedArguments().contains(name)) {
+                kept.put(name, value);
+            }
+        });
+        return String.valueOf(kept).length() > MAX_ARGUMENT_CHARS ? Map.of() : kept;
+    }
+
     private Decision execute(Decision decision, String actor) {
         ActionBinding binding = properties.actions().get(decision.capability());
         Instant at = clock.instant();
@@ -960,6 +987,9 @@ public class SupervisionService {
                 || decision.confidence() < current.confidenceThresholdOf(decision.capability()))) {
             return decision.withResult("Politique modifiée avant exécution : validation humaine requise ("
                     + current.version() + ")");
+        }
+        if (AGENT.equals(actor) && !decision.actionArguments().isEmpty()) {
+            return decision.withResult("Arguments proposés par le modèle : validation humaine requise");
         }
         if (binding == null || !StringUtils.hasText(binding.connection()) || !StringUtils.hasText(binding.tool())) {
             // NOTIFY est la seule capacité dont WebhookNotifier sait tenir lieu d'outil : son
@@ -984,7 +1014,10 @@ public class SupervisionService {
             return decision.resolvedAs(DecisionStatus.FAILED,
                     "Aucun outil MCP lié à la capacité " + decision.capability(), actor, at);
         }
-        Map<String, Object> arguments = new HashMap<>(binding.arguments());
+        // Ce que le modèle a proposé passe d'abord : un argument fixe de la liaison, puis l'identité de la
+        // décision, l'emportent toujours dessus.
+        Map<String, Object> arguments = new HashMap<>(decision.actionArguments());
+        arguments.putAll(binding.arguments());
         arguments.put("processId", decision.processId());
         arguments.put("decisionId", decision.id());
         try {
@@ -994,7 +1027,8 @@ public class SupervisionService {
             if (result.error()) {
                 return decision.resolvedAs(DecisionStatus.FAILED, receipt, actor, clock.instant());
             }
-            return ActionVerification.verify(decision, binding, actor, clock.instant(), clock, toolCatalog, receipt);
+            return ActionVerification.verify(decision, binding, actor, clock.instant(), clock, toolCatalog, receipt,
+                    result.structuredContent());
         }
         catch (RuntimeException ex) {
             log.warn("Exécution de la décision {} en échec", decision.id(), ex);
@@ -1011,6 +1045,8 @@ public class SupervisionService {
                     case RESTART_CONSUMER -> "Redémarrer le consumer";
                     case REPLAY_MESSAGES -> "Rejouer les messages en attente";
                     case MODIFY_CONFIGURATION -> "Modifier la configuration";
+                    case DECLARE_ANOMALY -> "Déclarer l'anomalie sur le système tiers";
+                    case CLEAR_ANOMALY -> "Lever l'anomalie sur le système tiers";
                 };
     }
 
@@ -1021,6 +1057,8 @@ public class SupervisionService {
             case RESTART_CONSUMER -> "Faible : interruption de quelques secondes de la consommation";
             case REPLAY_MESSAGES -> "Modéré : des messages peuvent être traités deux fois";
             case MODIFY_CONFIGURATION -> "Élevé : effet durable sur le système surveillé";
+            case DECLARE_ANOMALY, CLEAR_ANOMALY ->
+                    "Modéré : l'état d'une source change sur un système tiers, visible de ses utilisateurs";
         };
     }
 

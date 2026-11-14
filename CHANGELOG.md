@@ -16,6 +16,13 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
 - **`kex.mcp.bearer-tokens[].client-credentials`** : jeton OAuth2 obtenu par `client_credentials` et
   renouvelé avant son expiration, pour les serveurs MCP à jeton court (Autoroutes : 5 minutes).
 
+- **Actions à arguments dynamiques** : capacités `DECLARE_ANOMALY` et `CLEAR_ANOMALY`, et
+  `actions.<capacité>.allowed-arguments`. Le modèle propose des arguments (`actionArguments`), seuls
+  les noms autorisés sont retenus, un argument fixe de la liaison l'emporte, et toute décision qui en
+  porte attend une validation humaine, même en autonomie `AUTOMATIC`. Le vérificateur peut lire ce que
+  l'action a rendu (`arguments-from-action`, `expected-from-action-pointer`), par exemple l'identifiant
+  d'événement à retrouver. Voir `docs/ACTION-VERIFICATION.md`.
+
 ### Intégrations
 
 - **MCP autoroutes optionnel** : surcouche Docker `compose/autoroutes.yml`, connexion `mcpautoroute`
