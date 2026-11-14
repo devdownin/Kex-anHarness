@@ -106,6 +106,7 @@ class SupervisionServiceTest {
                 });
         // Rien n'a été exécuté tant qu'un humain n'a pas tranché.
         verify(toolCatalog, never()).call(anyString(), anyString(), any());
+        verify(toolCatalog, never()).callGoverned(anyString(), anyString(), any());
     }
 
     @Test
@@ -119,12 +120,13 @@ class SupervisionServiceTest {
         assertThat(service.decisions()).singleElement()
                 .extracting(Decision::status).isEqualTo(DecisionStatus.BLOCKED);
         verify(toolCatalog, never()).call(anyString(), anyString(), any());
+        verify(toolCatalog, never()).callGoverned(anyString(), anyString(), any());
     }
 
     @Test
     void une_capacite_automatique_s_execute_au_dessus_du_seuil() {
         analysisReturns(anomalyPayload("RESTART_CONSUMER", 0.96));
-        when(toolCatalog.call(eq("kafka-explorer"), eq("restart"), any()))
+        when(toolCatalog.callGoverned(eq("kafka-explorer"), eq("restart"), any()))
                 .thenReturn(new McpToolResult("kafka-explorer", "restart", false, List.of("lag 850"), null));
 
         SupervisionService service = service(properties(ExecutionMode.AUTOMATIC, List.of(ORDERS),
@@ -151,6 +153,7 @@ class SupervisionServiceTest {
         assertThat(service.pending()).singleElement()
                 .extracting(Decision::result).asString().contains("sous le plancher de 85 %");
         verify(toolCatalog, never()).call(anyString(), anyString(), any());
+        verify(toolCatalog, never()).callGoverned(anyString(), anyString(), any());
     }
 
     @Test
@@ -168,12 +171,13 @@ class SupervisionServiceTest {
                 .extracting(Decision::result).asString()
                 .contains("sous le plancher de 95 %").contains("RESTART_CONSUMER");
         verify(toolCatalog, never()).call(anyString(), anyString(), any());
+        verify(toolCatalog, never()).callGoverned(anyString(), anyString(), any());
     }
 
     @Test
     void au_dessus_du_plancher_de_la_capacite_l_action_part() {
         analysisReturns(anomalyPayload("RESTART_CONSUMER", 0.97));
-        when(toolCatalog.call(anyString(), anyString(), any()))
+        when(toolCatalog.callGoverned(anyString(), anyString(), any()))
                 .thenReturn(new McpToolResult("kafka-explorer", "restart", false, List.of("lag 850"), null));
         SupervisionService service = service(properties(ExecutionMode.AUTOMATIC, List.of(ORDERS),
                 Map.of(Capability.RESTART_CONSUMER, Autonomy.AUTOMATIC),
@@ -312,7 +316,7 @@ class SupervisionServiceTest {
 
         CountDownLatch entered = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
-        when(toolCatalog.call(eq("faux"), eq("tool"), any())).thenAnswer(invocation -> {
+        when(toolCatalog.callGoverned(eq("faux"), eq("tool"), any())).thenAnswer(invocation -> {
             entered.countDown();
             release.await();
             return new McpToolResult("faux", "tool", false, List.of("pong"), null);
@@ -330,7 +334,7 @@ class SupervisionServiceTest {
 
         assertThat(service.decisions()).singleElement()
                 .extracting(Decision::status).isEqualTo(DecisionStatus.EXECUTED_UNVERIFIED);
-        verify(toolCatalog, org.mockito.Mockito.times(1)).call(eq("faux"), eq("tool"), any());
+        verify(toolCatalog, org.mockito.Mockito.times(1)).callGoverned(eq("faux"), eq("tool"), any());
     }
 
     @Test
@@ -620,7 +624,7 @@ class SupervisionServiceTest {
     void une_execution_autonome_n_entre_pas_dans_le_taux_de_pertinence() {
         // L'agent ne se confirme pas lui-même : seul un verdict humain compte.
         analysisReturns(anomalyPayload("NOTIFY", 0.99));
-        when(toolCatalog.call(anyString(), anyString(), any()))
+        when(toolCatalog.callGoverned(anyString(), anyString(), any()))
                 .thenReturn(new McpToolResult("c", "t", false, List.of("prévenu"), null));
         SupervisionService service = service(properties(ExecutionMode.AUTOMATIC, List.of(ORDERS),
                 Map.of(Capability.NOTIFY, Autonomy.AUTOMATIC),
@@ -664,7 +668,7 @@ class SupervisionServiceTest {
     @Test
     void un_outil_en_erreur_ne_passe_pas_pour_une_reussite() {
         analysisReturns(anomalyPayload("NOTIFY", 0.99));
-        when(toolCatalog.call(anyString(), anyString(), any()))
+        when(toolCatalog.callGoverned(anyString(), anyString(), any()))
                 .thenReturn(new McpToolResult("c", "t", true, List.of("destinataire inconnu"), null));
         SupervisionService service = service(properties(ExecutionMode.AUTOMATIC, List.of(ORDERS),
                 Map.of(Capability.NOTIFY, Autonomy.AUTOMATIC),
@@ -979,7 +983,7 @@ class SupervisionServiceTest {
             assertThat(decision.result()).contains("acceptée", "Vérification confirmée", "/healthy");
         });
         var order = org.mockito.Mockito.inOrder(toolCatalog);
-        order.verify(toolCatalog).call(eq("ops"), eq("restart"), any());
+        order.verify(toolCatalog).callGoverned(eq("ops"), eq("restart"), any());
         order.verify(toolCatalog).call(eq("ops"), eq("health"), any());
         assertThat(service.performance().actionsExecuted()).isEqualTo(1);
     }
@@ -996,7 +1000,7 @@ class SupervisionServiceTest {
         assertThat(decision.result()).contains("Vérification échouée");
         assertThatThrownBy(() -> service.approve(decision.id(), "opérateur"))
                 .isInstanceOf(DecisionNotPendingException.class);
-        verify(toolCatalog, org.mockito.Mockito.times(1)).call(eq("ops"), eq("restart"), any());
+        verify(toolCatalog, org.mockito.Mockito.times(1)).callGoverned(eq("ops"), eq("restart"), any());
         // The mutation was accepted even though its business outcome did not pass.
         assertThat(service.performance().actionsExecuted()).isEqualTo(1);
         assertThat(service.performance().actionsFailed()).isZero();
@@ -1014,7 +1018,7 @@ class SupervisionServiceTest {
             assertThat(decision.status()).isEqualTo(DecisionStatus.VERIFICATION_UNKNOWN);
             assertThat(decision.result()).contains("acceptée", "indéterminée");
         });
-        verify(toolCatalog, org.mockito.Mockito.times(1)).call(eq("ops"), eq("restart"), any());
+        verify(toolCatalog, org.mockito.Mockito.times(1)).callGoverned(eq("ops"), eq("restart"), any());
     }
 
     @Test
@@ -1027,7 +1031,7 @@ class SupervisionServiceTest {
 
         assertThat(service.decisions()).singleElement()
                 .extracting(Decision::status).isEqualTo(DecisionStatus.VERIFICATION_UNKNOWN);
-        verify(toolCatalog, org.mockito.Mockito.times(1)).call(eq("ops"), eq("restart"), any());
+        verify(toolCatalog, org.mockito.Mockito.times(1)).callGoverned(eq("ops"), eq("restart"), any());
     }
 
     @Test
@@ -1045,7 +1049,7 @@ class SupervisionServiceTest {
     @Test
     void le_meme_outil_ne_peut_pas_servir_de_verificateur_et_rejouer_la_mutation() {
         analysisReturns(anomalyPayload("RESTART_CONSUMER", 0.96));
-        when(toolCatalog.call(eq("ops"), eq("restart"), any())).thenReturn(
+        when(toolCatalog.callGoverned(eq("ops"), eq("restart"), any())).thenReturn(
                 new McpToolResult("ops", "restart", false, List.of("acceptée"), null));
         when(toolCatalog.isReadOnly("ops", "restart")).thenReturn(true);
         when(toolCatalog.isToolAllowed("ops", "restart")).thenReturn(true);
@@ -1059,7 +1063,7 @@ class SupervisionServiceTest {
 
         assertThat(service.decisions()).singleElement()
                 .extracting(Decision::status).isEqualTo(DecisionStatus.VERIFICATION_UNKNOWN);
-        verify(toolCatalog, org.mockito.Mockito.times(1)).call(eq("ops"), eq("restart"), any());
+        verify(toolCatalog, org.mockito.Mockito.times(1)).callGoverned(eq("ops"), eq("restart"), any());
     }
 
     @Test
@@ -1120,7 +1124,7 @@ class SupervisionServiceTest {
     @Test
     void ne_verifie_pas_une_mutation_qui_a_echoue() {
         SupervisionService service = verificationService();
-        when(toolCatalog.call(eq("ops"), eq("restart"), any())).thenReturn(
+        when(toolCatalog.callGoverned(eq("ops"), eq("restart"), any())).thenReturn(
                 new McpToolResult("ops", "restart", true, List.of("refusée"), null));
 
         service.runCycle("test");
@@ -1146,6 +1150,7 @@ class SupervisionServiceTest {
         assertThat(blocked.status()).isEqualTo(DecisionStatus.BLOCKED);
         assertThat(blocked.result()).contains("policy-v2");
         verify(toolCatalog, never()).call(anyString(), anyString(), any());
+        verify(toolCatalog, never()).callGoverned(anyString(), anyString(), any());
     }
 
     @Test
@@ -1160,11 +1165,12 @@ class SupervisionServiceTest {
 
         assertThat(service.approve(id, "opérateur").status()).isEqualTo(DecisionStatus.BLOCKED);
         verify(toolCatalog, never()).call(anyString(), anyString(), any());
+        verify(toolCatalog, never()).callGoverned(anyString(), anyString(), any());
     }
 
     private SupervisionService verificationService() {
         analysisReturns(anomalyPayload("RESTART_CONSUMER", 0.96));
-        when(toolCatalog.call(eq("ops"), eq("restart"), any())).thenReturn(
+        when(toolCatalog.callGoverned(eq("ops"), eq("restart"), any())).thenReturn(
                 new McpToolResult("ops", "restart", false, List.of("acceptée"), null));
         when(toolCatalog.isReadOnly("ops", "health")).thenReturn(true);
         when(toolCatalog.isToolAllowed("ops", "health")).thenReturn(true);
@@ -1180,10 +1186,88 @@ class SupervisionServiceTest {
                 new McpToolResult("ops", "health", false, List.of(), evidence));
     }
 
+    private SupervisionService settlingService(Duration settle) {
+        analysisReturns(anomalyPayload("RESTART_CONSUMER", 0.96));
+        when(toolCatalog.callGoverned(eq("ops"), eq("restart"), any())).thenReturn(
+                new McpToolResult("ops", "restart", false, List.of("acceptée"), null));
+        when(toolCatalog.isReadOnly("ops", "health")).thenReturn(true);
+        when(toolCatalog.isToolAllowed("ops", "health")).thenReturn(true);
+        VerificationBinding verifier = new VerificationBinding("ops", "health", Map.of(), "/healthy", true,
+                "/measured", "/observedAt", Duration.ofMinutes(5), Map.of(), null, settle);
+        SupervisionService service = service(properties(ExecutionMode.AUTOMATIC, List.of(ORDERS),
+                Map.of(Capability.RESTART_CONSUMER, Autonomy.AUTOMATIC),
+                Map.of(Capability.RESTART_CONSUMER, new ActionBinding("ops", "restart", Map.of(), verifier))));
+        service.pauseWith(clock::advance);
+        return service;
+    }
+
+    /** L'effet n'est visible qu'à la {@code healthyFrom}-ième relecture : un système qui applique en différé. */
+    private void verificationSettlesAfter(int healthyFrom) {
+        int[] reads = { 0 };
+        when(toolCatalog.call(eq("ops"), eq("health"), any())).thenAnswer(call -> new McpToolResult("ops", "health",
+                false, List.of(), Map.of("healthy", ++reads[0] >= healthyFrom, "measured", true,
+                        "observedAt", clock.instant().toString())));
+    }
+
+    @Test
+    void un_effet_applique_en_differe_est_confirme_pendant_la_fenetre_de_stabilisation() {
+        SupervisionService service = settlingService(Duration.ofSeconds(10));
+        verificationSettlesAfter(3);
+
+        service.runCycle("test");
+
+        assertThat(service.decisions()).singleElement().satisfies(decision -> {
+            assertThat(decision.status()).isEqualTo(DecisionStatus.VERIFIED);
+            assertThat(decision.result()).contains("Vérification confirmée", "3 relectures");
+        });
+        verify(toolCatalog, org.mockito.Mockito.times(1)).callGoverned(eq("ops"), eq("restart"), any());
+    }
+
+    @Test
+    void sans_fenetre_de_stabilisation_un_effet_differe_se_lit_comme_un_echec() {
+        SupervisionService service = settlingService(Duration.ZERO);
+        verificationSettlesAfter(2);
+
+        service.runCycle("test");
+
+        assertThat(service.decisions().getFirst().status()).isEqualTo(DecisionStatus.VERIFICATION_FAILED);
+        verify(toolCatalog, org.mockito.Mockito.times(1)).call(eq("ops"), eq("health"), any());
+    }
+
+    @Test
+    void la_fenetre_ecoulee_le_dernier_releve_fait_foi() {
+        SupervisionService service = settlingService(Duration.ofSeconds(3));
+        verificationSettlesAfter(Integer.MAX_VALUE);
+
+        service.runCycle("test");
+
+        assertThat(service.decisions().getFirst().status()).isEqualTo(DecisionStatus.VERIFICATION_FAILED);
+        assertThat(service.decisions().getFirst().result()).contains("4 relectures");
+    }
+
+    @Test
+    void une_preuve_absente_ne_se_relit_pas() {
+        SupervisionService service = settlingService(Duration.ofSeconds(10));
+        when(toolCatalog.call(eq("ops"), eq("health"), any())).thenReturn(
+                new McpToolResult("ops", "health", false, List.of(), null));
+
+        service.runCycle("test");
+
+        assertThat(service.decisions().getFirst().status()).isEqualTo(DecisionStatus.VERIFICATION_UNKNOWN);
+        verify(toolCatalog, org.mockito.Mockito.times(1)).call(eq("ops"), eq("health"), any());
+    }
+
+    @Test
+    void une_fenetre_de_stabilisation_hors_bornes_est_refusee() {
+        assertThatThrownBy(() -> new VerificationBinding("ops", "health", Map.of(), "/healthy", true, null,
+                "/observedAt", Duration.ofMinutes(5), Map.of(), null, Duration.ofMinutes(2)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
     /* ── Arguments proposés par le modèle ──────────────────────────────── */
 
     private SupervisionService declarationService(Map<Capability, Autonomy> autonomy, boolean verified) {
-        when(toolCatalog.call(eq("autoroutes"), eq("declarer_anomalies"), any())).thenReturn(
+        when(toolCatalog.callGoverned(eq("autoroutes"), eq("declarer_anomalies"), any())).thenReturn(
                 new McpToolResult("autoroutes", "declarer_anomalies", false, List.of(),
                         Map.of("eventId", "evt-42", "gare", "A1-12")));
         VerificationBinding verifier = null;
@@ -1220,7 +1304,7 @@ class SupervisionServiceTest {
             assertThat(decision.status()).isEqualTo(DecisionStatus.PENDING_APPROVAL);
             assertThat(decision.actionArguments()).containsOnlyKeys("gare", "anomalies");
         });
-        verify(toolCatalog, never()).call(eq("autoroutes"), eq("declarer_anomalies"), any());
+        verify(toolCatalog, never()).callGoverned(eq("autoroutes"), eq("declarer_anomalies"), any());
     }
 
     @Test
@@ -1234,7 +1318,7 @@ class SupervisionServiceTest {
 
         @SuppressWarnings({ "unchecked", "rawtypes" })
         ArgumentCaptor<Map<String, Object>> sent = (ArgumentCaptor) ArgumentCaptor.forClass(Map.class);
-        verify(toolCatalog).call(eq("autoroutes"), eq("declarer_anomalies"), sent.capture());
+        verify(toolCatalog).callGoverned(eq("autoroutes"), eq("declarer_anomalies"), sent.capture());
         assertThat(sent.getValue()).containsEntry("gare", "A1-12").containsEntry("source", "kex")
                 .containsEntry("decisionId", id).doesNotContainKey("inconnu");
     }

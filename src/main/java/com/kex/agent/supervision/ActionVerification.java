@@ -3,9 +3,11 @@
 package com.kex.agent.supervision;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import com.fasterxml.jackson.core.JsonPointer;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -23,8 +25,40 @@ final class ActionVerification {
     private ActionVerification() {
     }
 
+    private static final Duration SETTLE_INTERVAL = Duration.ofSeconds(1);
+
     static Decision verify(Decision decision, ActionBinding action, String actor, Instant actionStarted,
                            Clock clock, McpToolCatalog tools, String receipt, Object actionStructured) {
+        return verify(decision, action, actor, actionStarted, clock, tools, receipt, actionStructured, pause -> { });
+    }
+
+    /**
+     * Relit tant que la postcondition est contredite et que la fenêtre {@code settle} court ; le
+     * dernier relevé fait foi. {@code pause} est l'attente entre deux relectures, injectée pour que
+     * les tests avancent l'horloge plutôt que d'attendre.
+     */
+    static Decision verify(Decision decision, ActionBinding action, String actor, Instant actionStarted,
+                           Clock clock, McpToolCatalog tools, String receipt, Object actionStructured,
+                           Consumer<Duration> pause) {
+        Duration settle = action.verification() == null ? Duration.ZERO : action.verification().settle();
+        Instant deadline = clock.instant().plus(settle);
+        Decision outcome = attempt(decision, action, actor, actionStarted, clock, tools, receipt, actionStructured);
+        int reads = 1;
+        // Interrompu, on s'en tient au dernier relevé : l'action a déjà eu lieu, rien ne doit la rendre rejouable.
+        while (outcome.status() == DecisionStatus.VERIFICATION_FAILED && clock.instant().isBefore(deadline)
+                && !Thread.currentThread().isInterrupted()) {
+            Duration remaining = Duration.between(clock.instant(), deadline);
+            pause.accept(remaining.compareTo(SETTLE_INTERVAL) < 0 ? remaining : SETTLE_INTERVAL);
+            outcome = attempt(decision, action, actor, actionStarted, clock, tools, receipt, actionStructured);
+            reads++;
+        }
+        return reads == 1 ? outcome
+                : outcome.resolvedAs(outcome.status(), outcome.result() + " (" + reads + " relectures)",
+                        outcome.resolvedBy(), outcome.resolvedAt());
+    }
+
+    private static Decision attempt(Decision decision, ActionBinding action, String actor, Instant actionStarted,
+                                    Clock clock, McpToolCatalog tools, String receipt, Object actionStructured) {
         JsonNode actionEvidence = actionStructured == null ? MissingNode.getInstance()
                 : JSON.valueToTree(actionStructured);
         VerificationBinding verifier = action.verification();

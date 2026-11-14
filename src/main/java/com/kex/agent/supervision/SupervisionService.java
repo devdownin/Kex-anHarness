@@ -58,6 +58,8 @@ public class SupervisionService {
     private final McpToolCatalog toolCatalog;
     private final SupervisionProperties properties;
     private final Clock clock;
+    /** Attente entre deux relectures d'une vérification ; remplacée en test pour avancer l'horloge. */
+    private java.util.function.Consumer<Duration> pause = SupervisionService::sleep;
     private final ModelAvailability model;
     private final Tracer tracer;
     private final CircuitBreakerRegistry circuitBreakerRegistry;
@@ -1021,14 +1023,14 @@ public class SupervisionService {
         arguments.put("processId", decision.processId());
         arguments.put("decisionId", decision.id());
         try {
-            McpToolResult result = toolCatalog.call(binding.connection(), binding.tool(), arguments);
+            McpToolResult result = toolCatalog.callGoverned(binding.connection(), binding.tool(), arguments);
             String output = String.join("\n", result.content());
             String receipt = StringUtils.hasText(output) ? output : "Exécutée par " + actor;
             if (result.error()) {
                 return decision.resolvedAs(DecisionStatus.FAILED, receipt, actor, clock.instant());
             }
             return ActionVerification.verify(decision, binding, actor, clock.instant(), clock, toolCatalog, receipt,
-                    result.structuredContent());
+                    result.structuredContent(), pause);
         }
         catch (RuntimeException ex) {
             log.warn("Exécution de la décision {} en échec", decision.id(), ex);
@@ -1081,5 +1083,18 @@ public class SupervisionService {
     private String currentTraceId() {
         Span span = tracer.currentSpan();
         return span == null ? null : span.context().traceId();
+    }
+
+    void pauseWith(java.util.function.Consumer<Duration> pause) {
+        this.pause = pause;
+    }
+
+    private static void sleep(Duration duration) {
+        try {
+            Thread.sleep(duration);
+        }
+        catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+        }
     }
 }

@@ -43,11 +43,26 @@ public record ToolControlProperties(
         return new ToolControlProperties(false, 12, 12000, 32000, Map.of(), List.of());
     }
 
-    /** Les clés d'arguments et de destinations sont des JSON Pointers exacts et obligatoires. */
+    /**
+     * Les clés d'arguments et de destinations sont des JSON Pointers exacts et obligatoires.
+     *
+     * <p>{@code denied} est un refus absolu. {@code governedOnly} retire l'outil au modèle et à l'appel
+     * MCP direct, mais le laisse à une action de supervision liée par l'administrateur et approuvée :
+     * sans lui, cacher un outil d'écriture au modèle (le seul moyen d'empêcher qu'il l'appelle hors
+     * approbation) bloquait aussi l'action gouvernée qui en a besoin.
+     */
     public record Rule(@DefaultValue("false") boolean denied,
                        @DefaultValue("false") boolean readOnly,
                        @DefaultValue Map<String, Set<String>> allowedArguments,
-                       @DefaultValue Map<String, Destination> destinations) {
+                       @DefaultValue Map<String, Destination> destinations,
+                       @DefaultValue("false") boolean governedOnly) {
+
+        public Rule(boolean denied, boolean readOnly, Map<String, Set<String>> allowedArguments,
+                    Map<String, Destination> destinations) {
+            this(denied, readOnly, allowedArguments, destinations, false);
+        }
+
+        @org.springframework.boot.context.properties.bind.ConstructorBinding
         public Rule {
             allowedArguments = allowedArguments == null ? Map.of() : allowedArguments.entrySet().stream()
                     .collect(java.util.stream.Collectors.toUnmodifiableMap(Map.Entry::getKey,
