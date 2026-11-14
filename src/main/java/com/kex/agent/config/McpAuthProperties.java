@@ -5,6 +5,7 @@ package com.kex.agent.config;
 import java.util.List;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /** Jetons à injecter sur les transports MCP HTTP, par préfixe d'URL. */
@@ -18,6 +19,11 @@ public record McpAuthProperties(@DefaultValue List<BearerToken> bearerTokens) {
      */
     public record BearerToken(String urlPrefix, String token, String header,
                               ClientCredentials clientCredentials) {
+
+        /** Binding Spring sur le constructeur canonique : sans cela, deux constructeurs le rendent ambigu. */
+        @ConstructorBinding
+        public BearerToken {
+        }
 
         public BearerToken(String urlPrefix, String token, String header) {
             this(urlPrefix, token, header, null);
