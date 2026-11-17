@@ -9,7 +9,18 @@ quelles métriques existent, où les lire et lesquelles méritent une alerte.
 
 L'endpoint **n'est pas ouvert** : il porte le modèle utilisé, le volume de jetons consommés et les
 outils appelés. Seul `/actuator/health` est en `permitAll`, pour les sondes de conteneur. Le scraper
-doit présenter le même bearer que l'API :
+présente une clé nommée de rôle `METRICS`, qui lit `/actuator/prometheus` et rien d'autre — ni
+l'API, ni les autres endpoints d'actuator. La clé `ADMIN` marche aussi, mais un collecteur n'a pas à
+pouvoir changer la politique de supervision :
+
+```yaml
+kex:
+  agent:
+    api-keys:
+      prometheus: ${KEX_AGENT_METRICS_KEY}
+    api-key-roles:
+      prometheus: METRICS
+```
 
 ```yaml
 scrape_configs:

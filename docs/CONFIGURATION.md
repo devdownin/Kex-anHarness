@@ -54,7 +54,7 @@ arrive.
 | `log-interactions` | `false` | Journalise prompts et réponses — le niveau `DEBUG` que `SimpleLoggerAdvisor` exige est déjà posé, la propriété suffit. Debug uniquement : données sensibles |
 | `api-key` | *(vide)* | Bearer de l'API sous le principal anonyme `kex-agent-api`. Vide = API fermée (`503`) |
 | `api-keys.<nom>` | *(vide)* | Bearers nommés, en plus ou à la place d'`api-key` : chaque nom devient le principal authentifié, donc l'acteur inscrit à l'audit de supervision |
-| `api-key-roles.<nom>` | `CHAT` | Rôle d'un bearer nommé : `CHAT`, `OPERATOR` ou `ADMIN`. La clé historique `api-key` reste administrateur |
+| `api-key-roles.<nom>` | `CHAT` | Rôle d'un bearer nommé : `CHAT`, `OPERATOR`, `ADMIN`, ou `METRICS` (lecture de `/actuator/prometheus` seulement, pour un collecteur). La clé historique `api-key` reste administrateur |
 | `api-key-tenants.<nom>` | *(le nom)* | Locataire d'une clé : l'espace où vivent ses souvenirs, compétences, charte et automatisations. Deux clés du même locataire travaillent au même endroit tout en restant deux acteurs distincts à l'audit |
 | `oidc.username-claim` | `preferred_username` | Claim porteur de l'acteur inscrit à l'audit. Repli sur `sub` |
 | `oidc.roles-claim` | `roles` | Claim des rôles, liste de chaînes ou chaîne séparée par des espaces |
@@ -82,7 +82,8 @@ qu'un cycle puisse partir sans qu'un humain clique :
 
 | Propriété | Défaut | Rôle |
 |---|---|---|
-| `schedule.enabled` | `false` | Départ autonome du cycle. N'a d'effet que sous le profil `shared-memory`, seul endroit où le verrou partagé qu'il exige peut exister |
+| `schedule.enabled` | `false` | Départ autonome du cycle. Exige le profil `shared-memory` (verrou en base) ou `schedule.single-instance` |
+| `schedule.single-instance` | `false` | L'exploitant garantit qu'une seule instance tourne : verrou local, sans base. Deux répliques qui le déclarent lanceraient chacune leur cycle — une déclaration, pas une détection |
 | `schedule.interval` | `5m` | Délai entre deux tentatives — une tentative, pas forcément un cycle : une réplique qui ne tient pas le verrou repart aussitôt |
 | `schedule.lock-at-most-for` | `10m` | Expiration du verrou si la réplique qui le tenait tombe en plein cycle |
 | `notify.webhook-url` | *(vide)* | Débouché par défaut de `NOTIFY` sans outil MCP lié — la seule capacité qui en a un |

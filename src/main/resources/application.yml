@@ -347,9 +347,12 @@ kex:
       # Au-delà, l'interface signale des données potentiellement obsolètes.
       stale-after: 15m
       schedule:
-        # Départ autonome du cycle, derrière un verrou partagé. N'a d'effet que sous le profil
-        # shared-memory, seul endroit où ce verrou (en base) peut exister. Voir SupervisionScheduler.
-        enabled: false
+        # Départ autonome du cycle, derrière un verrou : en base sous le profil shared-memory, ou
+        # local si single-instance est vrai. Voir SupervisionScheduler.
+        enabled: ${KEX_AGENT_SUPERVISION_SCHEDULE_ENABLED:false}
+        # À ne déclarer que si une seule instance de l'agent tourne : deux répliques qui le portent
+        # lanceraient chacune leur cycle, et leurs actions partiraient en double.
+        single-instance: ${KEX_AGENT_SUPERVISION_SCHEDULE_SINGLE_INSTANCE:false}
         interval: 5m
         # Le verrou expire de lui-même après ce délai : sans cela, une réplique qui tombe en plein
         # cycle le garderait pris indéfiniment, et plus aucune autre instance ne pourrait relancer
