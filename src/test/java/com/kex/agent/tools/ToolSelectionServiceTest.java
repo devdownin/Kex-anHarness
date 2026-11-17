@@ -53,6 +53,17 @@ class ToolSelectionServiceTest {
         assertThat(selection(false, () -> tools).select("bonjour", Set.of("absent"))).isEmpty();
     }
 
+    /** Même jeu d'outils, même ordre : sinon le préfixe mis en cache par le fournisseur change. */
+    @Test
+    void le_jeu_retenu_part_dans_un_ordre_independant_du_score() {
+        ToolCallback[] tools = { tool("kex_consumer_lag", ""), tool("kex_list_topics", ""), tool("etat_gare", "") };
+        ToolSelectionService selection = new ToolSelectionService(
+                new ToolControlProperties(true, 3, 256, 1000, Map.of(), List.of()), () -> tools);
+        assertThat(names(selection.select("lag consumer", null)))
+                .isEqualTo(names(selection.select("etat gare", null)))
+                .containsExactly("etat_gare", "kex_consumer_lag", "kex_list_topics");
+    }
+
     private ToolSelectionService selection(boolean enabled, java.util.function.Supplier<ToolCallback[]> tools) {
         return new ToolSelectionService(new ToolControlProperties(enabled, 1, 256, 1000, Map.of(), List.of()), tools);
     }

@@ -48,6 +48,12 @@ class WhoAmIControllerTest {
                 .contains("\"roles\":[\"CHAT\"]");
     }
 
+    /** Une fonction éteinte se déclare : la console n'a plus à l'appeler pour lire son 404. */
+    @Test
+    void declare_les_fonctions_optionnelles_eteintes() throws IOException, InterruptedException {
+        assertThat(body("Bearer jeton-chat")).contains("\"features\":{\"automations\":false,\"tasks\":false}");
+    }
+
     @Test
     void refuse_un_jeton_inconnu() throws IOException, InterruptedException {
         assertThat(status("Bearer inconnu")).isEqualTo(401);

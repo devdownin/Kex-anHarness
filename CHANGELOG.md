@@ -7,6 +7,20 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
 
 ### Corrigé
 
+- **Un cycle en échec ne s'affiche plus « aucune intervention requise ».** La synthèse de la vue
+  d'ensemble gardait son point vert sous un en-tête « EN ERREUR », et comptait « 0 alerte » d'un
+  cycle qui n'avait rien relevé. Un processus inconnu n'est plus compté comme sain.
+- **Une panne du fournisseur se dit en flux comme en bloquant.** Le chat en direct affichait « le flux
+  s'est interrompu » pour une clé refusée ou une limite de débit ; il dit maintenant laquelle, sans
+  recopier le corps renvoyé par le fournisseur, et propose **Réessayer**.
+- **Console plus lisible et plus sobre en requêtes.** La barre du haut tient sur une ligne et son
+  motif d'erreur mène au déroulé ; la barre basse mobile garde cinq entrées et un bouton **Plus** au
+  lieu de dix-sept qui défilaient ; le chat propose des questions d'exploitation et abrège
+  l'identifiant de conversation ; `/app` garde ses onglets sur une ligne et chaque groupe vide mène au
+  geste qui le remplit ; plus aucune commande sous 32 px ni texte sous 12 px sur la vue d'ensemble.
+  `whoami` déclare les fonctions optionnelles montées (`features`) : la console n'appelle plus une
+  route éteinte pour lire son 404.
+
 - **Une action à effet différé ne se lit plus comme un échec.** La vérification relisait une seule
   fois, aussitôt l'action acceptée ; Autoroutes applique une déclaration d'anomalie après coup, et
   `VERIFICATION_FAILED` tombait sur une action réussie. `verification.settle` relit une postcondition
@@ -18,6 +32,13 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
   `docs/TOOL-CONTROLS.md`.
 
 ### Modifié
+
+- **Performances.** Console servie compressée et revalidée par ETag (304) au lieu de `no-store` ;
+  cache Anthropic étendu à l'historique, avec un bloc système stable séparé de ce que la demande
+  déclenche ; sélection d'outils dans un ordre fixe ; `tools/list` des serveurs ajoutés à chaud mis
+  en cache ; un échange par processus dans le cycle (`analysis-parallelism`, défaut `2`) ; routes
+  `kex.models` Anthropic avec le même cache. Voir « Outils, prompt système et historique sont mis en
+  cache » dans `docs/ARCHITECTURE.md`.
 
 - **Serveur MCP : `kex_*` devient `harness_*`** pour les sept outils et le prompt de supervision, qui
   partageaient leur préfixe avec les outils de Kafka SQL Explorer. Les anciens noms restent acceptés à

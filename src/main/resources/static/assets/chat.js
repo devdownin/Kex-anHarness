@@ -23,6 +23,27 @@ const CONTEXT_CONVERSATIONS = 'kex.agent.context-conversations';
 const MAX_HISTORY = 20;
 const MAX_TURNS_STORED = 40;
 
+// Les questions que pose un exploitant, pas seulement la mise en route : seules les amorces de
+// création de processus étaient proposées, et elles restaient affichées après le premier échange.
+const OPS_STARTERS = [
+  {
+    label: 'Lag d’un groupe',
+    prompt: 'Quel est le lag du consumer group [groupe] ? Dis s’il rattrape ou prend du retard, avec la mesure et l’outil qui la fournit.',
+  },
+  {
+    label: 'Rejets et DLQ',
+    prompt: 'Y a-t-il des messages rejetés ou en DLQ sur la dernière heure ? Donne leur part par rapport au topic source et les causes les plus fréquentes.',
+  },
+  {
+    label: 'Topics actifs',
+    prompt: 'Quels topics ont le plus d’activité sur la dernière heure, et lesquels n’en ont aucune ?',
+  },
+  {
+    label: 'Services joignables',
+    prompt: 'Quels serveurs MCP sont joignables en ce moment, et quels outils exposent-ils ?',
+  },
+];
+
 const PROCESS_STARTERS = [
   {
     label: 'Définir un processus',
@@ -83,7 +104,11 @@ try {
 function setConversation(id) {
   conversationId = id || null;
   // Sans conversation, un tiret seul flottait dans l'en-tête : l'identifiant n'apparaît qu'une fois tiré.
-  Object.assign($('#conversation-id'), { textContent: id || '', hidden: !id });
+  // Un UUID entier ne se lit pas et pousse les boutons : son début suffit à le reconnaître, le
+  // reste est au survol et à la copie.
+  const label = id && id.length > 13 ? `${id.slice(0, 8)}…` : id || '';
+  Object.assign($('#conversation-id'), { textContent: label, title: id ? `Conversation ${id}` : '', hidden: !id });
+  $('#conversation-id').dataset.id = id || '';
   $('#clear-conversation').disabled = !id;
   if (workspaceTransfer) return;
   try {
@@ -341,6 +366,25 @@ function addTurn(role, text) {
   return { turn, bubble };
 }
 
+/**
+ * Une panne du fournisseur ou un disjoncteur ouvert sont passagers : sans bouton, il fallait
+ * recopier le message à la main. Le bouton remet le message dans le champ et le renvoie.
+ */
+function offerRetry(turn, message) {
+  if (!message || turn.querySelector('.turn-retry')) return;
+  const retry = el('button', 'ghost turn-retry', 'Réessayer');
+  retry.type = 'button';
+  retry.addEventListener('click', () => {
+    const field = $('#prompt');
+    if ($('#send').disabled) return;
+    field.value = message;
+    resizeComposer(field);
+    retry.remove();
+    $('#composer').requestSubmit();
+  });
+  turn.append(retry);
+}
+
 function addContextTurn(role, text) {
   const turn = el('li', `turn ${role}`);
   turn.append(el('span', 'who', role === 'user' ? 'vous' : role === 'error' ? 'erreur' : 'agent'));
@@ -549,6 +593,7 @@ async function sendStreaming(message) {
         turn.classList.add('error');
         accumulatedText += (accumulatedText ? '\n\n' : '') + event.data;
         updateBubble(bubble, 'error', accumulatedText);
+        offerRetry(turn, message);
       }
     }
   } finally {
@@ -699,7 +744,7 @@ export function wire(onUnauthorized) {
   unauthorized = onUnauthorized;
   setConversation(conversationId);
   wireProcessWizard();
-  $('#chat-process-starters').replaceChildren(...PROCESS_STARTERS.map(({ label, prompt }) => {
+  const starter = ({ label, prompt }) => {
     const button = el('button', 'ghost', label);
     button.type = 'button';
     button.addEventListener('click', () => {
@@ -707,10 +752,16 @@ export function wire(onUnauthorized) {
       field.value = field.value.trim() ? `${field.value.trimEnd()}\n\n${prompt}` : prompt;
       resizeComposer(field);
       field.focus();
-      field.setSelectionRange(field.value.length, field.value.length);
+      // Le premier crochet est ce qu'il reste à compléter : le sélectionner évite de le chercher.
+      const hole = field.value.lastIndexOf('[');
+      const end = hole >= 0 ? field.value.indexOf(']', hole) + 1 : 0;
+      if (hole >= 0 && end > hole) field.setSelectionRange(hole, end);
+      else field.setSelectionRange(field.value.length, field.value.length);
     });
     return button;
-  }));
+  };
+  $('#chat-ops-starters').replaceChildren(...OPS_STARTERS.map(starter));
+  $('#chat-process-starters').replaceChildren(...PROCESS_STARTERS.map(starter));
   registerDrawer('historique', openHistory);
   addEventListener('kex:context-chat', (event) => openContextual(event.detail));
   $('#context-chat-close').addEventListener('click', closeContextual);
@@ -763,7 +814,7 @@ export function wire(onUnauthorized) {
     } catch (error) {
       if (error.name === 'AbortError') addTurn('error', 'Flux interrompu.');
       else {
-        addTurn('error', error.message);
+        offerRetry(addTurn('error', error.message).turn, message);
         report(error);
       }
     } finally {

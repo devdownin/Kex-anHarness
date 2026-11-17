@@ -263,6 +263,16 @@ body {
 
 .freshness { font-size: 12px; color: var(--ink-3); }
 .freshness[data-state="stale"] { color: var(--warn); font-weight: 600; }
+.freshness a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+
+/* Une ligne sur écran large : un motif d'état long passait la barre sur deux lignes et faisait
+   sauter tout le contenu de 56 px. Le texte entier reste dans l'attribut title et dans le lien. */
+@media (min-width: 861px) {
+  .topbar { flex-wrap: nowrap; }
+  .topbar-id { flex: 1 1 auto; }
+  .topbar-right { flex: none; flex-wrap: nowrap; }
+  .crumb, .freshness { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
 
 .offline {
   margin: 0 0 14px;
@@ -401,6 +411,9 @@ main:focus { outline: none; }
 .overview-hero p { margin: 0; color: var(--ink-2); font-size: 14px; text-wrap: pretty; }
 .hero-cycle { display: flex; align-items: center; gap: 8px; margin-top: 15px; color: var(--ink-2); font-size: 12px; font-variant-numeric: tabular-nums; }
 .hero-cycle-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.hero-cycle[data-tone="error"] { color: var(--danger); font-weight: 600; }
+.hero-cycle[data-tone="error"] .hero-cycle-dot { background: var(--danger); }
+.hero-cycle[data-tone="warning"] .hero-cycle-dot { background: var(--warn); }
 .hero-cycle.is-running .hero-cycle-dot { animation: live-pulse 1.6s ease-out infinite; }
 .hero-cycle.is-running::after { content: ""; width: 45px; height: 3px; border-radius: 4px; background: linear-gradient(90deg, var(--accent) 0 30%, var(--line) 30%); background-size: 45px 100%; animation: cycle-track 1.2s linear infinite; }
 @keyframes cycle-track { to { background-position: 45px 0; } }
@@ -2253,4 +2266,62 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
   .rail nav .nav-item[aria-current="page"] { box-shadow: inset 0 -3px var(--accent); }
   .rail nav .nav-item .badge { position: absolute; transform: translate(14px, -6px); }
   .rail nav .nav-item { position: relative; }
+}
+
+/* Sous la bulle d'erreur, aligné sur elle plutôt que sur toute la largeur du fil. */
+.turn .turn-retry { align-self: flex-start; margin-top: 6px; }
+
+/* Une conversation en cours garde l'accès à l'assistant guidé sur une ligne, sans le bloc
+   d'amorces qui repoussait le fil vers le haut à chaque échange. */
+.chat-main .transcript:not(:empty) + .chat-starters { padding-top: 8px; }
+.chat-main .transcript:not(:empty) + .chat-starters :is(h2, .hint, .chat-starter-list) { display: none; }
+.chat-main .transcript:not(:empty) + .chat-starters > button { margin-bottom: 0; }
+.chat-starter-list + .primary { margin-top: 12px; }
+
+/* ── Plancher de lisibilité et de cible (U8) ─────────────────────────────
+   Trente-neuf commandes sous 32 px de haut et des libellés à 10–11 px sur la seule vue d'ensemble :
+   un tri de colonne de 24 px ou un « Déjà fait » de 22 px se manquaient au pavé tactile, et les
+   intitulés en capitales de 10 px se lisaient mal sur un écran de salle de supervision. */
+.ghost.compact, .chip-toggle, .local-nav button { min-height: 32px; }
+table.grid th button.sort { min-height: 32px; display: inline-flex; align-items: center; }
+/* Pas de display: flex ici : sur summary, il retire le triangle de dépliage dans Chromium. */
+.panel summary, details > summary { min-height: 32px; padding-block: 5px; box-sizing: border-box; }
+.nav-section, .panel-kicker, .hero-eyebrow, .brand small, kbd, .chip, .badge, .status,
+.state-mark, table.grid th button.sort { font-size: 12px; }
+@media (min-width: 601px) {
+  .operator-context label { font-size: 12px; }
+}
+
+/* Entrée « Plus » : n'existe que dans la barre basse mobile. */
+.nav-more { display: none; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
+
+@media (max-width: 600px) {
+  .rail nav .nav-more { display: flex; }
+  /* Cinq entrées de pilotage, plus l'entrée courante si elle n'en fait pas partie. */
+  .rail nav:not(.expanded) .nav-item:not(.nav-primary, .nav-more, [aria-current="page"]) { display: none; }
+  /* Six entrées au plus (cinq, « Plus », parfois la courante) se partagent la largeur au lieu de
+     défiler : à 68 px chacune, « Plus » sortait de l'écran sur un téléphone de 390 px. */
+  .rail nav:not(.expanded) { overflow-x: visible; }
+  .rail nav:not(.expanded) .nav-item {
+    flex: 1 1 0; min-width: 0; padding-inline: 2px; overflow: hidden;
+    white-space: normal; line-height: 1.15; hyphens: auto; overflow-wrap: break-word;
+  }
+  .rail nav.expanded .nav-item { white-space: normal; }
+  .rail nav.expanded {
+    flex-wrap: wrap;
+    max-height: 60dvh;
+    overflow-y: auto;
+    scroll-snap-type: none;
+  }
+  .rail nav.expanded .nav-item { flex: 1 0 22%; }
+  .rail nav.expanded .nav-more { order: 99; }
+
+  /* Premier écran : la personnalisation est un geste de bureau, et le contexte tient sur une ligne. */
+  .overview-customizer { display: none; }
+  .operator-context { flex-wrap: nowrap; gap: 6px; padding: 8px 10px; }
+  .operator-context .context-scope { display: none; }
+  .operator-context label { font-size: 0; flex: 1 1 0; min-width: 0; }
+  .operator-context select { font-size: 14px; width: 100%; }
+  .overview-hero { padding: 18px; }
+  .overview-hero h1 { font-size: 24px; }
 }

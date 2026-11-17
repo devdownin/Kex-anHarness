@@ -7,7 +7,7 @@
 // instance, jamais un @Scheduled qui doublerait les tâches d'une réplique à l'autre.
 
 import {
-  $, ago, api, busy, confirmAction, el, empty, render, report, sortable, stamp, stateTag, toast,
+  $, ago, api, featureApi, busy, confirmAction, el, empty, render, report, sortable, stamp, stateTag, toast,
 } from './core.js';
 
 const BASE = '/api/agent/automations';
@@ -25,7 +25,7 @@ export async function panel() {
  */
 async function load() {
   try {
-    return { rows: await api(BASE) };
+    return { rows: await featureApi('automations', BASE) };
   }
   catch (error) {
     if (error.status === 404) return { disabled: true };

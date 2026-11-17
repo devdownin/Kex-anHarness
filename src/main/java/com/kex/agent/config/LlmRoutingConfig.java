@@ -27,10 +27,8 @@ class LlmRoutingConfig {
         properties.endpoints().forEach((name, endpoint) -> {
             // Disable SDK retries: each explicitly configured destination gets one bounded attempt.
             ChatModel model = endpoint.provider() == LlmRoutingProperties.Provider.ANTHROPIC
-                    ? AnthropicChatModel.builder().options(AnthropicChatOptions.builder()
-                            .baseUrl(endpoint.baseUrl()).apiKey(endpoint.apiKey()).model(endpoint.model())
-                            .timeout(endpoint.timeout()).maxRetries(0).maxTokens(endpoint.maxTokens())
-                            .temperature(endpoint.temperature()).build()).observationRegistry(observations).build()
+                    ? AnthropicChatModel.builder().options(anthropicOptions(endpoint))
+                            .observationRegistry(observations).build()
                     : OpenAiChatModel.builder().options(OpenAiChatOptions.builder()
                             .baseUrl(endpoint.baseUrl()).apiKey(endpoint.apiKey()).model(endpoint.model())
                             .timeout(endpoint.timeout()).maxRetries(0).maxTokens(endpoint.maxTokens())
@@ -38,5 +36,21 @@ class LlmRoutingConfig {
             models.put(name, new BudgetedChatModel(model, () -> budgets));
         });
         return new RoutingChatModel(properties, models);
+    }
+
+    /**
+     * Même cache que le modèle par défaut (spring.ai.anthropic.chat.options.cache-options) : sans
+     * lui, router les cycles vers un modèle plus léger aurait fait payer tout l'historique de la
+     * boucle d'outils au plein tarif — et perdu plus qu'il ne gagnait.
+     */
+    static AnthropicChatOptions anthropicOptions(LlmRoutingProperties.Endpoint endpoint) {
+        return AnthropicChatOptions.builder()
+                .baseUrl(endpoint.baseUrl()).apiKey(endpoint.apiKey()).model(endpoint.model())
+                .timeout(endpoint.timeout()).maxRetries(0).maxTokens(endpoint.maxTokens())
+                .temperature(endpoint.temperature())
+                .cacheOptions(org.springframework.ai.anthropic.AnthropicCacheOptions.builder()
+                        .strategy(org.springframework.ai.anthropic.AnthropicCacheStrategy.CONVERSATION_HISTORY)
+                        .multiBlockSystemCaching(true).build())
+                .build();
     }
 }

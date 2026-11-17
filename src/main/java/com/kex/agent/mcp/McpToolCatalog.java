@@ -67,6 +67,9 @@ public class McpToolCatalog implements AutoCloseable {
     private final Map<String, Map<String, McpToolInfo>> toolSnapshots = new ConcurrentHashMap<>();
     private final Map<String, McpToolDiff> toolDiffs = new ConcurrentHashMap<>();
     private final Map<String, McpServerInfo> catalogSnapshots = new ConcurrentHashMap<>();
+    private static final Duration DYNAMIC_TOOLS_TTL = Duration.ofSeconds(30);
+    private record CachedTools(McpSyncClient client, Instant at, List<McpToolInfo> tools) { }
+    private final Map<String, CachedTools> dynamicTools = new ConcurrentHashMap<>();
     private final CircuitBreakerRegistry circuitBreakerRegistry;
     private final ObservationRegistry observationRegistry;
     private final MeterRegistry meterRegistry;
@@ -429,11 +432,30 @@ public class McpToolCatalog implements AutoCloseable {
         return definitions.keySet().stream().sorted().toList();
     }
 
+    /**
+     * Lu à chaque requête de conversation, par {@link DynamicMcpToolCallbackProvider} : sans cache,
+     * chaque message rejouait {@code tools/list}, en série, sur chaque serveur ajouté à chaud. Les
+     * connexions déclarées au démarrage, elles, passent par le cache de Spring AI. Le cache se vide
+     * si le client change (modification, rotation, réactivation), au rafraîchissement et sur
+     * {@code notifications/tools/list_changed} ; sinon il vieillit en {@link #DYNAMIC_TOOLS_TTL}.
+     */
     public List<McpServerInfo> dynamicServers() {
         return dynamicClients.entrySet().stream()
                 .filter(entry -> definitions.get(entry.getKey()).enabled())
-                .map(entry -> describe(entry.getValue()))
+                .map(entry -> describeCandidate(entry.getKey(), entry.getValue(), cachedTools(entry.getKey(), entry.getValue())))
                 .toList();
+    }
+
+    private List<McpToolInfo> cachedTools(String connection, McpSyncClient client) {
+        Instant now = Instant.now();
+        CachedTools cached = dynamicTools.get(connection);
+        if (cached != null && cached.client() == client && cached.at().plus(DYNAMIC_TOOLS_TTL).isAfter(now)) {
+            return cached.tools();
+        }
+        List<McpToolInfo> tools = listTools(client);
+        // Un listing en échec rend une liste vide : la retenir masquerait le serveur pendant tout le TTL.
+        if (!tools.isEmpty()) dynamicTools.put(connection, new CachedTools(client, now, tools));
+        return tools;
     }
 
     public synchronized McpServerDiagnostics refresh(String connection) {
@@ -454,6 +476,8 @@ public class McpToolCatalog implements AutoCloseable {
             Map<String, McpToolInfo> current = indexTools(tools);
             toolDiffs.put(connection, compareTools(previous, current, comparedAt));
             toolSnapshots.put(connection, current);
+            if (!tools.isEmpty()) dynamicTools.put(connection, new CachedTools(client, comparedAt, tools));
+            else dynamicTools.remove(connection);
             recordHealth(connection, true, elapsed(started), "Catalogue d'outils rafraîchi");
         }
         catch (RuntimeException ex) {
@@ -625,6 +649,7 @@ public class McpToolCatalog implements AutoCloseable {
         dynamicClients.values().forEach(this::closeClient);
         clients.removeAll(dynamicClients.values());
         dynamicClients.clear();
+        dynamicTools.clear();
     }
 
     private void restore() {
@@ -686,6 +711,7 @@ public class McpToolCatalog implements AutoCloseable {
     }
 
     private void deactivate(String connection) {
+        dynamicTools.remove(connection);
         McpSyncClient active = dynamicClients.remove(connection);
         if (active != null) {
             clients.remove(active);
@@ -733,6 +759,7 @@ public class McpToolCatalog implements AutoCloseable {
                     ? stdioTransport(registration, process) : httpTransport(registration);
             McpSyncClient client = McpClient.sync(transport)
                     .clientInfo(new McpSchema.Implementation("kex-agent - " + registration.connection(), "runtime"))
+                    .toolsChangeConsumer(changed -> dynamicTools.remove(registration.connection()))
                     .requestTimeout(properties.requestTimeout()).build();
             if (process != null) isolatedProcesses.put(client, process);
             return client;
@@ -964,10 +991,13 @@ public class McpToolCatalog implements AutoCloseable {
     }
 
     private McpServerInfo describeCandidate(String connection, McpSyncClient client) {
+        return describeCandidate(connection, client, listTools(client));
+    }
+
+    private McpServerInfo describeCandidate(String connection, McpSyncClient client, List<McpToolInfo> tools) {
         McpSchema.Implementation info = client.getServerInfo();
         McpSchema.InitializeResult initialization = client.getCurrentInitializationResult();
         CircuitBreaker breaker = circuitBreakers.get(connection);
-        List<McpToolInfo> tools = listTools(client);
         return new McpServerInfo(connection, info != null ? info.name() : null,
                 info != null ? info.version() : null,
                 initialization != null ? initialization.protocolVersion() : null,

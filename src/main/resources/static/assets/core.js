@@ -95,6 +95,27 @@ export const onUnauthorized = (handler) => {
   unauthorized = handler;
 };
 
+/**
+ * Les fonctions optionnelles que le serveur a réellement montées, lues une fois par jeton dans
+ * `whoami`. Appeler une route éteinte pour lire son 404 inscrivait une erreur dans la console du
+ * navigateur à chaque ouverture, pour une simple propriété à `false`.
+ */
+let featuresFor = null;
+let featuresPromise = null;
+function features() {
+  if (featuresFor !== memoryKey) {
+    featuresFor = memoryKey;
+    featuresPromise = api('/api/agent/whoami').then((me) => me?.features || {}).catch(() => ({}));
+  }
+  return featuresPromise;
+}
+
+/** Comme `api`, mais rend le 404 d'une fonction éteinte sans requête quand le serveur l'a déclarée. */
+export async function featureApi(feature, path, options = {}) {
+  if ((await features())[feature] === false) throw new ApiError(404, 'Fonction non activée sur ce serveur');
+  return api(path, options);
+}
+
 export async function api(path, options = {}) {
   const response = await fetch(path, {
     method: options.method || 'GET',

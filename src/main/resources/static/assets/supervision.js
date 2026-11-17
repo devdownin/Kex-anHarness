@@ -11,6 +11,7 @@ import {
 } from './core.js';
 import * as forecasts from './forecasts.js';
 import { processForecasts } from './process-forecasts.js';
+import { heroCycle, heroSummary, lastCycleFailed } from './overview-summary.js';
 
 const BASE = '/api/agent/supervision';
 const PROCESS_FILTER_STORAGE = 'kex.agent.filters.processes';
@@ -234,8 +235,8 @@ export function liveCycle(progress) {
     host.hidden = true;
     host.replaceChildren();
     hero.classList.remove('is-running');
-    $('#overview-cycle-label').textContent = snapshot?.agent?.lastCycleAt
-      ? `Dernier cycle · ${stamp(snapshot.agent.lastCycleAt)}` : 'En attente du premier cycle';
+    if (snapshot) renderHeroCycle(snapshot);
+    else $('#overview-cycle-label').textContent = 'En attente du premier cycle';
     return;
   }
   hero.classList.add('is-running');
@@ -665,23 +666,24 @@ function processAttentionCard(process) {
 }
 
 function renderOverviewHero(data) {
-  const total = data.processesMonitored || 0;
-  const healthy = data.processesOk || 0;
-  const attention = (data.processesWarning || 0) + (data.processesError || 0);
-  // Avant toute analyse, « 0 opérationnel sur 1 · aucune intervention requise » affirmait qu'il n'y
-  // avait rien à faire au sujet de processus dont on ne sait encore rien.
-  const summary = !total
-    ? 'Aucun processus n’est encore déclaré pour la supervision.'
-    : !data.agent?.lastCycleAt
-      ? `${total} processus déclaré${total === 1 ? '' : 's'} · pas encore analysé${total === 1 ? '' : 's'}`
-      : `${healthy} processus opérationnel${healthy === 1 ? '' : 's'} sur ${total}`
-        + (attention ? ` · ${attention} nécessite${attention > 1 ? 'nt' : ''} votre attention` : ' · aucune intervention requise');
-  $('#overview-summary').textContent = summary;
-  const running = Boolean(data.agent?.analysing);
-  $('#overview-cycle').classList.toggle('is-running', running);
-  $('#overview-cycle-label').textContent = running ? 'Analyse en cours'
-    : data.agent?.lastCycleAt ? `Dernier cycle · ${stamp(data.agent.lastCycleAt)}`
-      : 'En attente du premier cycle';
+  $('#overview-summary').textContent = heroSummary(data);
+  renderHeroCycle(data);
+}
+
+function renderHeroCycle(data) {
+  const { label, tone } = heroCycle(data, stamp);
+  const host = $('#overview-cycle');
+  host.classList.toggle('is-running', tone === 'running');
+  host.dataset.tone = tone;
+  const text = $('#overview-cycle-label');
+  // Le motif détaillé vit dans le déroulé du cycle : le lien y mène plutôt que de le recopier.
+  if (tone === 'error') {
+    const link = el('a', null, 'Voir le déroulé');
+    link.href = '#/audit';
+    text.replaceChildren(document.createTextNode(`${label} · `), link);
+  } else {
+    text.textContent = label;
+  }
 }
 
 function cycleBaseline(data) {
@@ -704,9 +706,11 @@ function kpis(data, before) {
     kpi('Dernière analyse', clockTime(data.agent.lastCycleAt),
       data.agent.staleSince ? 'Données potentiellement obsolètes' : ago(data.agent.lastCycleAt) || 'Jamais',
       '#/audit', data.agent.staleSince ? 'WARNING' : null, 'cycle'),
-    kpi('Alertes actives', data.anomaliesDetected,
-      data.anomaliesDetected ? 'Encore vues au dernier cycle' : 'Aucune au dernier cycle',
-      '#/alerts', data.anomaliesDetected ? 'WARNING' : null, 'alerts',
+    // Un cycle en échec n'a rien relevé : « 0 · Aucune au dernier cycle » se lisait comme un relevé sain.
+    kpi('Alertes actives', lastCycleFailed(data) && !data.anomaliesDetected ? '—' : data.anomaliesDetected,
+      lastCycleFailed(data) ? 'Non relevées : dernier cycle en échec'
+        : data.anomaliesDetected ? 'Encore vues au dernier cycle' : 'Aucune au dernier cycle',
+      '#/alerts', lastCycleFailed(data) ? 'ERROR' : data.anomaliesDetected ? 'WARNING' : null, 'alerts',
       before && delta(data.anomaliesDetected, before.anomaliesDetected)),
     kpi('Actions en attente', data.pendingApprovals,
       data.pendingApprovals ? 'À valider' : 'Rien à valider',

@@ -56,6 +56,32 @@ class ConsoleTest {
         }
     }
 
+    /** no-store faisait retélécharger toute la console à chaque ouverture. */
+    @Test
+    void les_ressources_se_revalident_par_etag_et_se_compressent() throws Exception {
+        try (HttpClient client = HttpClient.newHttpClient()) {
+        URI uri = URI.create("http://localhost:" + port + "/assets/supervision.js");
+        HttpResponse<byte[]> first = client.send(HttpRequest.newBuilder(uri).header("Accept-Encoding", "gzip").build(),
+                HttpResponse.BodyHandlers.ofByteArray());
+        assertThat(first.statusCode()).isEqualTo(200);
+        assertThat(first.headers().firstValue("Cache-Control")).hasValue("no-cache");
+        assertThat(first.headers().firstValue("Content-Encoding")).hasValue("gzip");
+        String etag = first.headers().firstValue("ETag").orElseThrow();
+
+        HttpResponse<String> again = client.send(HttpRequest.newBuilder(uri).header("If-None-Match", etag).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(again.statusCode()).isEqualTo(304);
+        assertThat(again.body()).isEmpty();
+        }
+    }
+
+    /** Un flux SSE compressé ou mis en tampon n'arriverait qu'à la fin de la réponse. */
+    @Test
+    void l_api_ne_porte_pas_l_etag_de_la_console() throws Exception {
+        HttpResponse<String> response = get("/actuator/health");
+        assertThat(response.headers().firstValue("ETag")).isEmpty();
+    }
+
     @Test
     void la_console_n_ouvre_pas_l_api() throws Exception {
         // Le joker /assets/** ne doit pas se propager : l'API reste fermée et le POST aussi.

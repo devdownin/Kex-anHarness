@@ -6,7 +6,7 @@
 // chaînes pour une poignée de fichiers statiques.
 
 import {
-  $, DEFAULT_PERIOD, ago, api, confirmAction, credentials, drawerOpen, duration, el, onCredentialChange, onUnauthorized, operatorContext,
+  $, DEFAULT_PERIOD, ago, api, featureApi, confirmAction, credentials, drawerOpen, duration, el, onCredentialChange, onUnauthorized, operatorContext,
   refreshFreshnessTag, report, restoreDrawerFromUrl, setCycleGate, setOperatorContext, stamp, toast, viewName,
 } from './core.js';
 import * as automations from './automations.js';
@@ -88,6 +88,14 @@ function renderStatus(next) {
   } else {
     freshness.textContent = `Dernière analyse : ${ago(next.lastCycleAt)} (${stamp(next.lastCycleAt)})`;
     freshness.dataset.state = 'fresh';
+  }
+  // Tronqué sur une ligne en écran large : le texte entier reste au survol.
+  freshness.title = freshness.textContent;
+  // « détail dans le déroulé » n'était qu'une phrase : elle mène maintenant au déroulé.
+  if (next?.state === 'ERROR') {
+    const link = el('a', null, freshness.textContent);
+    link.href = '#/audit';
+    freshness.replaceChildren(link);
   }
 }
 
@@ -342,7 +350,7 @@ async function platformCapabilities() {
         unreachable: rows.filter((row) => !row.initialized).map((row) => row.connection),
       }))
       .catch(() => ({ supported: true, ready: false, declared: 0, unreachable: [] })),
-    api('/api/agent/automations').then((rows) => ({ supported: true, ready: rows.length > 0 }))
+    featureApi('automations', '/api/agent/automations').then((rows) => ({ supported: true, ready: rows.length > 0 }))
       .catch((error) => ({ supported: error.status !== 404, ready: false })),
     api('/api/agent/kafka/topics').then((value) => ({ supported: true, ready: !value?.unavailable }))
       .catch(() => ({ supported: true, ready: false })),
@@ -1051,6 +1059,16 @@ function tick() {
   if (status) renderStatus(status);
   document.querySelectorAll('.data-freshness[data-at]').forEach((node) => refreshFreshnessTag(node));
 }
+
+// Barre basse mobile : « Plus » ouvre les sections hors pilotage, une navigation la referme.
+$('#nav-more').addEventListener('click', () => {
+  const expanded = $('#rail-nav').classList.toggle('expanded');
+  $('#nav-more').setAttribute('aria-expanded', String(expanded));
+});
+addEventListener('hashchange', () => {
+  $('#rail-nav').classList.remove('expanded');
+  $('#nav-more').setAttribute('aria-expanded', 'false');
+});
 
 setInterval(backgroundRefresh, REFRESH_MS);
 setInterval(tick, TICK_MS);
