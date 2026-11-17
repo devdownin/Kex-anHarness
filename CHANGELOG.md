@@ -10,6 +10,8 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
 - **Départ autonome du cycle sans base de données**, sur une instance déclarée unique
   (`kex.agent.supervision.schedule.single-instance`) : verrou local au lieu de la ligne en base
   de `shared-memory`. Une suite Compose à une instance n'avait sinon aucun moyen de superviser seule.
+- **Liens d'un processus vers les autres applications** (`processes[].links`) : la console les
+  affiche dans le détail du processus. Seules des URL `http(s)` déclarées par l'exploitant.
 - **Rôle `METRICS`** pour une clé nommée : lecture de `/actuator/prometheus`, rien d'autre. Un
   collecteur n'avait jusqu'ici que la clé `ADMIN` pour lire les métriques.
 

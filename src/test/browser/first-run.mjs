@@ -595,6 +595,23 @@ await check('aucune commande sous 32 px ni texte sous 12 px sur la vue d’ensem
   await context.close();
 });
 
+await check('le détail d’un processus mène aux applications déclarées avec lui', async () => {
+  const { context, page } = await open(desktop, 'overview');
+  await page.route('**/api/agent/supervision/processes/definitions', async (route) => {
+    const response = await route.fetch();
+    const rows = await response.json();
+    await route.fulfill({ response, json: rows.map((row) => row.id === 'order-integration'
+      ? { ...row, links: [{ label: 'Topic dans KafkaExplorer', url: 'http://localhost:8080/topic/orders' }] } : row) });
+  });
+  await page.goto(`${BASE}/#/processes?processus=order-integration`);
+  const link = page.locator('.process-links a', { hasText: 'Topic dans KafkaExplorer' });
+  await link.waitFor();
+  assert.equal(await link.getAttribute('href'), 'http://localhost:8080/topic/orders');
+  assert.equal(await link.getAttribute('target'), '_blank');
+  assert.match(await link.getAttribute('rel'), /noopener/);
+  await context.close();
+});
+
 await browser.close();
 console.log(checks.join('\n'));
 if (problems.length) {

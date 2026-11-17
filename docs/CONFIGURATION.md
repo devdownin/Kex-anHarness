@@ -109,6 +109,21 @@ kex.agent.supervision.processes[0].thresholds.consumer-lag: 5000
 Un processus à faible trafic et un à fort débit ne devraient pas partager le même seuil : trop
 sensible pour l'un, trop laxiste pour l'autre.
 
+### `kex.agent.supervision.processes[].links`
+
+Où regarder un processus de près, dans les autres applications : un topic dans Kafka SQL Explorer,
+une carte, un tableau de bord. Le détail du processus dans la console les affiche sous « Voir
+aussi », ouverts dans un nouvel onglet. L'agent ne devine aucune route : seuls les liens déclarés
+apparaissent, et le modèle ne les reçoit jamais.
+
+```yaml
+kex.agent.supervision.processes[0].links[0].label: Topic dans KafkaExplorer
+kex.agent.supervision.processes[0].links[0].url: http://localhost:8080/topic/toll-events
+```
+
+Seules les URL `http` et `https` absolues sont acceptées : l'agent refuse de démarrer sur une autre
+forme, dont un `javascript:` qui s'exécuterait au clic.
+
 ### Créer un processus depuis la conversation
 
 Dans **Conversation → Créer avec l’assistant guidé**, renseigner le nom, l’objectif et au moins le
