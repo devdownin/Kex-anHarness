@@ -5,6 +5,21 @@ import { drawEvidence } from './user-evidence.js';
 import { activity } from './user-experience.js';
 import { presentedResponse } from './user-presentation.js';
 const date = at => at && Number.isFinite(Date.parse(at)) ? new Date(at).toLocaleString('fr-FR') : 'Date non fournie';
+// Trois fois la même phrase sans issue ne disait pas quoi faire ensuite : chaque groupe vide dit
+// ce qui l'alimente, et mène au geste qui le remplit.
+const EMPTY = {
+  running: ['Aucune demande en cours de traitement.', 'Nouvelle demande', '#/new'],
+  decisions: ['Rien n’attend votre réponse ou votre décision.', 'Voir les actions prêtes à l’emploi', '#/actions'],
+  results: ['Aucun résultat à examiner pour l’instant.', 'Mes demandes', '#/requests'],
+};
+function emptyGroup(group) {
+  const [text, label, href] = EMPTY[group];
+  const p = el('p', 'muted empty-group', text + ' ');
+  const link = el('a', null, label); link.href = href;
+  p.append(link);
+  return p;
+}
+
 export function drawWork({ identity, history, tasks, examined, historyState, taskState }) {
   $('#work-note').textContent = !identity ? 'Connectez-vous pour retrouver votre travail.' : 'Votre compte et votre espace uniquement. Ouvrir un élément ne lance aucune action.';
   $('#work-freshness').textContent = identity ? `Demandes : ${historyState}. Plans : ${taskState}.` : '';
@@ -26,7 +41,7 @@ export function drawWork({ identity, history, tasks, examined, historyState, tas
       const card = el('article', 'work-card'); const link = el('a', null, title); link.href = target;
       card.append(link, el('p', null, status), el('small', 'muted', at)); host.append(card);
     });
-    if (!rows.length) host.append(el('p', 'muted', identity ? 'Aucun élément dans les données disponibles.' : 'Votre travail apparaîtra après connexion.'));
+    if (!rows.length) host.append(identity ? emptyGroup(group) : el('p', 'muted', 'Votre travail apparaîtra après connexion.'));
     $('#work-' + group + '-count').textContent = `(${rows.length})`;
     if (rows.length > 6) host.append(el('p', 'muted', 'Les six premiers éléments sont affichés. Retrouvez la liste complète dans Mes demandes ou Plans à valider.'));
   }

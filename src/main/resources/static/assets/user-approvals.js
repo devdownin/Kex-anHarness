@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Kex Agent AI Contributors
-import { $, api, el } from './core.js';
+import { $, api, featureApi, el } from './core.js';
 
 const BASE = '/api/agent/tasks';
 const STATES = { DRAFT: 'Votre décision est attendue', APPROVED: 'Plan approuvé — à lancer', RUNNING: 'Traitement en cours', VERIFIED: 'Critère final confirmé', COMPLETED: 'Étapes terminées — objectif non vérifié', FAILED: 'Critère non satisfait', PAUSED: 'Traitement en pause', NEEDS_RECONCILIATION: 'Résultat incertain — examen nécessaire', CANCELLED: 'Plan refusé ou annulé' };
@@ -90,7 +90,7 @@ export function userApprovals({ onPlan, onTasks = () => {}, onAvailability = () 
     if (loading) { refreshQueued = true; return; }
     const own = generation; loading = true; clearTimeout(timer); message('Actualisation des plans…'); onAvailability('actualisation en cours');
     try {
-      const [rows, configured] = await Promise.all([api(BASE), api(`${BASE}/bindings`)]);
+      const [rows, configured] = await Promise.all([featureApi('tasks', BASE), featureApi('tasks', `${BASE}/bindings`)]);
       if (own !== generation) return;
       tasks = rows; bindings = configured; message(''); draw(); onTasks(tasks); onAvailability('actualisés à ' + new Date().toLocaleString('fr-FR'));
       timer = setTimeout(refresh, tasks.some(t => t.status === 'RUNNING') && !document.hidden ? 5000 : 30000);

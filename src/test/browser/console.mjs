@@ -1355,16 +1355,18 @@ await check('l’automatisation planifiée se supprime depuis la liste', async (
     return route.fallback();
   });
 
-  // Un aller-retour de vue plutôt qu'un rechargement complet : la même adresse ne redéclenche
-  // pas route() (voir CLAUDE.md), donc pas automations.panel() — le détour par une autre vue
-  // fait relire la liste sous la simulation qui vient d'être posée.
-  await page.goto(`${BASE}/#/overview`, { waitUntil: 'domcontentloaded' });
-  // Une navigation par fragment ne charge pas de document : attendre la vue réellement
-  // affichée évite que le retour vers Agent devance son événement hashchange.
-  await page.waitForSelector('#view-overview:not([hidden])');
+  // La console lit dans whoami les fonctions montées et n'appelle pas une route éteinte : la
+  // simulation doit donc aussi déclarer l'automatisation active, et un rechargement complet
+  // relit cette déclaration.
+  await page.route('**/api/agent/whoami', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    await route.fulfill({ response, json: { ...body, features: { ...body.features, automations: true } } });
+  });
+  await page.goto(`${BASE}/#/agent`, { waitUntil: 'domcontentloaded' });
   const listLoaded = page.waitForResponse((response) =>
     response.request().method() === 'GET' && response.url().endsWith('/api/agent/automations'));
-  await page.goto(`${BASE}/#/agent`, { waitUntil: 'domcontentloaded' });
+  await page.reload({ waitUntil: 'domcontentloaded' });
   await listLoaded;
   await page.click('[data-agent-tab="automations"]');
   await page.waitForSelector('#automations-list table.grid');
@@ -1377,6 +1379,7 @@ await check('l’automatisation planifiée se supprime depuis la liste', async (
   assert.equal(deletedId, 'auto-1');
 
   await page.unroute('**/api/agent/automations**');
+  await page.unroute('**/api/agent/whoami');
 });
 
 await check('créer une automatisation envoie le cron et le prompt, puis referme le panneau', async () => {

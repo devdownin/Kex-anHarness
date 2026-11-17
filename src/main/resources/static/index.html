@@ -30,27 +30,27 @@
          remplacent (⌂ ◎ ▤ ◈ ⚙ △ ▦ ◫ ▚) n'ont ni le même poids visuel ni le même style d'une
          police à l'autre, et détonnaient à côté du logo. Aucune police d'icônes chargée — même
          contrainte que le reste de la console : pas d'outillage, pas de dépendance externe. -->
-    <nav aria-label="Sections">
+    <nav aria-label="Sections" id="rail-nav">
       <span class="nav-section">Pilotage</span>
-      <a class="nav-item" href="#/overview" data-view="overview" aria-label="Vue d'ensemble">
+      <a class="nav-item nav-primary" href="#/overview" data-view="overview" aria-label="Vue d'ensemble">
         <svg class="nav-ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9h12v-9"/><path d="M10 19v-5h4v5"/></svg>
         Vue d'ensemble</a>
       <a class="nav-item" href="#/forecasts" data-view="forecasts" aria-label="Prévisions">
         <svg class="nav-ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 18V5M4 18h16M6 15l4-5 4 2 6-7"/></svg>
         Prévisions</a>
-      <a class="nav-item" href="#/attention" data-view="attention" aria-label="À traiter">
+      <a class="nav-item nav-primary" href="#/attention" data-view="attention" aria-label="À traiter">
         <svg class="nav-ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 21 19H3Z"/><path d="M12 10.3v3.4"/><circle cx="12" cy="16.4" r=".9" fill="currentColor" stroke="none"/></svg>
         À traiter <span class="badge" id="nav-attention" hidden>0</span></a>
       <a class="nav-item" href="#/incidents" data-view="incidents" aria-label="Incidents">
         <svg class="nav-ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 5h14v14H5z"/><path d="M8 9h8M8 12h5M8 15h7"/></svg>
         Incidents</a>
-      <a class="nav-item" href="#/processes" data-view="processes" aria-label="Processus">
+      <a class="nav-item nav-primary" href="#/processes" data-view="processes" aria-label="Processus">
         <svg class="nav-ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="5" width="16" height="14" rx="1.5"/><path d="M4 10.5h16M4 15h16"/></svg>
         Processus</a>
-      <a class="nav-item" href="#/decisions" data-view="decisions" aria-label="Décisions">
+      <a class="nav-item nav-primary" href="#/decisions" data-view="decisions" aria-label="Décisions">
         <svg class="nav-ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 4 20 12 12 20 4 12Z"/></svg>
         Décisions <span class="badge" id="nav-pending" hidden>0</span></a>
-      <a class="nav-item" href="#/chat" data-view="chat" aria-label="Conversation">
+      <a class="nav-item nav-primary" href="#/chat" data-view="chat" aria-label="Conversation">
         <svg class="nav-ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4.5 5.5h15v11h-9.2L6 20v-3.5H4.5Z"/></svg>
         Conversation</a>
       <a class="nav-item" href="#/tasks" data-view="tasks" aria-label="Tâches"><span class="nav-ico" aria-hidden="true">☑</span> Tâches</a>
@@ -87,6 +87,11 @@
       <a class="nav-item" href="#/settings" data-view="settings" aria-label="Configuration">
         <svg class="nav-ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M12 5v2.2M12 16.8V19M5 12h2.2M16.8 12H19"/></svg>
         Configuration</a>
+      <!-- Mobile seulement : dix-sept entrées défilaient dans la barre basse, la plupart hors de vue.
+           Cinq entrées de pilotage restent, le reste s'ouvre ici. -->
+      <button type="button" class="nav-item nav-more" id="nav-more" aria-label="Plus de sections" title="Plus de sections" aria-expanded="false" aria-controls="rail-nav">
+        <svg class="nav-ico" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/></svg>
+        Plus</button>
     </nav>
 
     <div class="rail-foot">
@@ -833,10 +838,11 @@
           </div>
           <ol class="transcript" id="transcript" aria-live="polite" aria-label="Transcription"></ol>
           <section class="chat-starters" aria-labelledby="chat-starters-title">
-            <h2 id="chat-starters-title">Préparer un processus surveillé</h2>
-            <p class="hint">Créez un processus pas à pas, ou insérez un exemple dans votre message.</p>
+            <h2 id="chat-starters-title">Pour commencer</h2>
+            <p class="hint">Interrogez l’exploitation, ou préparez un processus surveillé. Chaque suggestion s’insère dans votre message, à compléter avant l’envoi.</p>
+            <div class="chat-starter-list" id="chat-ops-starters" role="group" aria-label="Questions d’exploitation"></div>
             <button type="button" class="primary" id="start-process-wizard">Créer avec l’assistant guidé</button>
-            <div class="chat-starter-list" id="chat-process-starters"></div>
+            <div class="chat-starter-list" id="chat-process-starters" role="group" aria-label="Préparer un processus"></div>
           </section>
           <section class="process-wizard" id="process-wizard" hidden aria-labelledby="process-wizard-title">
             <div class="row-between">

@@ -13,6 +13,13 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
 - **Une panne du fournisseur se dit en flux comme en bloquant.** Le chat en direct affichait « le flux
   s'est interrompu » pour une clé refusée ou une limite de débit ; il dit maintenant laquelle, sans
   recopier le corps renvoyé par le fournisseur, et propose **Réessayer**.
+- **Console plus lisible et plus sobre en requêtes.** La barre du haut tient sur une ligne et son
+  motif d'erreur mène au déroulé ; la barre basse mobile garde cinq entrées et un bouton **Plus** au
+  lieu de dix-sept qui défilaient ; le chat propose des questions d'exploitation et abrège
+  l'identifiant de conversation ; `/app` garde ses onglets sur une ligne et chaque groupe vide mène au
+  geste qui le remplit ; plus aucune commande sous 32 px ni texte sous 12 px sur la vue d'ensemble.
+  `whoami` déclare les fonctions optionnelles montées (`features`) : la console n'appelle plus une
+  route éteinte pour lire son 404.
 
 - **Une action à effet différé ne se lit plus comme un échec.** La vérification relisait une seule
   fois, aussitôt l'action acceptée ; Autoroutes applique une déclaration d'anomalie après coup, et

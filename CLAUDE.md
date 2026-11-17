@@ -480,4 +480,13 @@ JDK 21 au minimum (la CI et l'image tournent en 21). La CI construit aussi l'ima
 - **Un échange de cycle ne parle que de son processus.** Chaque processus a désormais son échange ; une
   ligne rendue sur un autre processus est écartée à la fusion, sans quoi elle compterait deux fois.
 
+- **Une fonction éteinte ne s'appelle plus pour lire son 404.** Le navigateur inscrit chaque 404 dans
+  sa console, ce qui fait passer une propriété à `false` pour une panne. `whoami` porte `features`,
+  lu dans la présence du contrôleur et pas recopié de ses conditions, et `featureApi` (`core.js`)
+  rend le 404 sans requête. Un test qui simule une de ces routes doit aussi déclarer la fonction
+  active dans `whoami`, puis recharger la page : la déclaration est lue une fois par jeton.
+
+- **`display: flex` sur un `summary` retire son triangle de dépliage dans Chromium.** Le marqueur
+  n'existe que pour `display: list-item` ; une hauteur minimale suffit à agrandir la cible.
+
 Le détail et les raisons sont dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
