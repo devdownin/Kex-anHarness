@@ -938,6 +938,72 @@ class SupervisionServiceTest {
         });
     }
 
+    /**
+     * En un seul échange, le plafond d'appels d'outils et le délai se partageaient : le dernier
+     * processus relevé n'en avait plus et finissait UNKNOWN. Chacun a désormais le sien.
+     */
+    @Test
+    void chaque_processus_est_analyse_dans_son_propre_echange() {
+        MonitoredProcess billing = new MonitoredProcess("billing", "Billing", null, null, null);
+        java.util.Set<String> prompts = java.util.concurrent.ConcurrentHashMap.newKeySet();
+        when(agentService.askStructured(anyString(), anyString(), any())).thenAnswer(call -> {
+            prompts.add(call.getArgument(1));
+            // Le modèle répond aussi sur l'autre processus : cette ligne ne doit pas compter deux fois.
+            return new AgentStructuredAnswer("cycle", Map.of("processes", List.of(),
+                    "anomalies", List.of(anomalyRow("order-integration", "Retard"), anomalyRow("billing", "Retard"))),
+                    MEASURED, null, "end_turn");
+        });
+        SupervisionService service = service(properties(List.of(ORDERS, billing), Map.of(), Map.of()));
+
+        CycleReport report = service.runCycle("test");
+
+        assertThat(prompts).hasSize(2)
+                .anySatisfy(prompt -> assertThat(prompt).contains("order-integration").doesNotContain("billing"))
+                .anySatisfy(prompt -> assertThat(prompt).contains("billing").doesNotContain("order-integration"));
+        assertThat(report.anomaliesDetected()).isEqualTo(2);
+        verify(agentService).clear(org.mockito.ArgumentMatchers.endsWith("-billing"));
+        verify(agentService).clear(org.mockito.ArgumentMatchers.endsWith("-order-integration"));
+    }
+
+    /** Un échec isolé ne fait pas taire les processus que les autres échanges ont bien relevés. */
+    @Test
+    void un_processus_en_echec_passe_inconnu_sans_effacer_les_autres() {
+        MonitoredProcess billing = new MonitoredProcess("billing", "Billing", null, null, null);
+        when(agentService.askStructured(anyString(), anyString(), any())).thenAnswer(call -> {
+            if (call.<String>getArgument(0).endsWith("-billing")) throw new IllegalStateException("fournisseur indisponible");
+            return new AgentStructuredAnswer("cycle", Map.of("processes", List.of(Map.of(
+                    "processId", "order-integration", "state", "OK", "note", "Rattrapé")), "anomalies", List.of()),
+                    MEASURED, null, "end_turn");
+        });
+        SupervisionService service = service(properties(List.of(ORDERS, billing), Map.of(), Map.of()));
+
+        CycleReport report = service.runCycle("test");
+
+        assertThat(report.failure()).isNull();
+        assertThat(report.events()).anySatisfy(event -> assertThat(event.label()).contains("Analyse interrompue · Billing"));
+        assertThat(service.snapshots()).anySatisfy(snapshot -> {
+            assertThat(snapshot.processId()).isEqualTo("billing");
+            assertThat(snapshot.state()).isEqualTo(ProcessState.UNKNOWN);
+            assertThat(snapshot.note()).doesNotContain("fournisseur indisponible");
+        }).anySatisfy(snapshot -> {
+            assertThat(snapshot.processId()).isEqualTo("order-integration");
+            assertThat(snapshot.state()).isEqualTo(ProcessState.OK);
+        });
+        // Pas « en erreur » : un processus est mesuré ; pas « opérationnel » non plus.
+        assertThat(service.status().state()).isEqualTo(AgentState.DEGRADED);
+    }
+
+    @Test
+    void tous_les_processus_en_echec_font_un_cycle_en_echec() {
+        MonitoredProcess billing = new MonitoredProcess("billing", "Billing", null, null, null);
+        when(agentService.askStructured(anyString(), anyString(), any()))
+                .thenThrow(new IllegalStateException("fournisseur indisponible"));
+        SupervisionService service = service(properties(List.of(ORDERS, billing), Map.of(), Map.of()));
+
+        assertThat(service.runCycle("test").failure()).isEqualTo("fournisseur indisponible");
+        assertThat(service.status().state()).isEqualTo(AgentState.ERROR);
+    }
+
     @Test
     void deux_processus_en_anomalie_ne_suffisent_pas_a_un_incident_correle() {
         MonitoredProcess billing = new MonitoredProcess("billing", "Billing", null, null, null);

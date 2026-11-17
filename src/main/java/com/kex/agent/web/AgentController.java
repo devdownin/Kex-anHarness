@@ -151,6 +151,12 @@ class AgentController {
             return MODEL_CIRCUIT_OPEN;
         }
         if (ex instanceof com.kex.agent.agent.BudgetExceededException) return ex.getMessage();
+        // Une panne du fournisseur se lisait « le flux s'est interrompu », comme une coupure
+        // réseau : rien ne disait de regarder la clé ou le quota plutôt que de renvoyer le message.
+        if (ex instanceof AnthropicException || ex instanceof OpenAIException) {
+            log.warn("Le fournisseur du modèle a refusé ou n'a pas pu traiter l'appel en flux", ex);
+            return modelProviderMessage(ex);
+        }
         log.error("Échec pendant le flux de chat", ex);
         return "Le flux s'est interrompu avant la fin de la réponse";
     }
@@ -384,6 +390,21 @@ class AgentController {
     ProblemDetail modelProviderFailure(RuntimeException ex) {
         log.warn("Le fournisseur du modèle a refusé ou n'a pas pu traiter l'appel", ex);
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY, ex.getMessage());
+    }
+
+    /**
+     * Le motif sans le corps brut du fournisseur, souvent un JSON : le code HTTP amont suffit à
+     * dire où regarder. Le détail reste dans les journaux.
+     */
+    static String modelProviderMessage(Throwable ex) {
+        Integer status = ex instanceof com.anthropic.errors.AnthropicServiceException anthropic ? anthropic.statusCode()
+                : ex instanceof com.openai.errors.OpenAIServiceException openai ? openai.statusCode() : null;
+        if (status == null) return "Le fournisseur du modèle est injoignable ou a renvoyé une réponse illisible";
+        if (status == 401 || status == 403) {
+            return "Le fournisseur du modèle a refusé la clé (HTTP " + status + ") — vérifier la clé dans Configuration";
+        }
+        if (status == 429) return "Limite de débit du fournisseur du modèle atteinte (HTTP 429) — réessayer dans un instant";
+        return "Le fournisseur du modèle n'a pas pu traiter l'appel (HTTP " + status + ")";
     }
 
     @ExceptionHandler(CallNotPermittedException.class)

@@ -63,7 +63,7 @@ sequenceDiagram
     A->>S: ask(conversationId, message)
     S->>CC: prompt().user(...).advisors(conversationId)
     CC->>CC: MessageChatMemoryAdvisor charge l'historique
-    CC->>X: tools/list (à chaque requête)
+    CC->>X: tools/list (mis en cache, vidé sur tools/list_changed)
     CC->>M: messages + définitions d'outils
     M-->>CC: tool_use kex_list_topics
     CC->>X: tools/call
@@ -207,21 +207,37 @@ creuse plusieurs topics peut à lui seul approcher le plafond par minute, puisqu
 `spring.ai.tools.limits.max-total-tool-calls` autorise vingt allers-retours outil dans un seul
 échange.
 
-### Le prompt système et les outils sont mis en cache côté Anthropic
+### Outils, prompt système et historique sont mis en cache côté Anthropic
 
-`spring.ai.anthropic.chat.options.cache-options.strategy: SYSTEM_AND_TOOLS`. `tools/list` est
-rejoué à chaque requête pour prendre en compte un serveur MCP qui publierait de nouveaux outils
-sans redémarrage — mais le contenu envoyé au modèle (prompt système, définitions d'outils) ne
-change pas d'un tour à l'autre d'un même échange, ni souvent d'un échange à l'autre. Sans point de
-cache, ce contenu est refacturé en entier à chaque appel, alors qu'une boucle d'outils peut en
-compter jusqu'à vingt dans un seul échange.
+`spring.ai.anthropic.chat.options.cache-options.strategy: CONVERSATION_HISTORY`, avec
+`multi-block-system-caching: true`. Une boucle d'outils peut compter vingt tours dans un même
+échange, et chacun renvoie au modèle tout ce qui précède, résultats d'outils compris : sans point de
+cache sur l'historique (ce que `SYSTEM_AND_TOOLS` ne posait pas), chaque tour le refacturait au plein
+tarif.
+
+Le préfixe mis en cache suit l'ordre outils → système → messages : tout ce qui change en tête
+invalide ce qui suit. D'où trois règles.
+
+- **Le prompt système part en deux blocs** (`AgentService.request`). Le premier ne dépend que de
+  l'installation (gouvernance, playbook Autoroutes déterminé par les outils présents) ; le second
+  porte ce que la demande déclenche (playbook Kafka, compétences, charte, références). Le point de
+  cache se pose sur le premier. En un seul bloc, une compétence déclenchée par un mot du message
+  changeait le prompt entier, et l'historique qui le suit ne se relisait plus jamais depuis le cache.
+- **Les définitions d'outils gardent un ordre fixe.** La sélection d'outils
+  (`kex.agent.tools.selection-enabled`) trie le jeu retenu par nom ; le score choisit, il n'ordonne
+  pas. Elle reste éteinte par défaut : un jeu qui change d'un message à l'autre invalide tout le
+  préfixe, historique compris, et coûte alors plus en écritures de cache qu'il n'économise en
+  définitions. À n'allumer que là où le catalogue dépasse ce que le modèle lit utilement.
+- **`tools/list` n'est pas rejoué à chaque requête.** Les connexions déclarées au démarrage passent
+  par le cache de `SyncMcpToolCallbackProvider`, vidé sur `notifications/tools/list_changed` ; les
+  connexions ajoutées à chaud par `McpToolCatalog.dynamicServers`, avec un TTL de 30 s, vidé aussi
+  au rafraîchissement, au changement de client et sur la même notification.
 
 Spring AI porte cette configuration nativement (`AnthropicCacheOptions`, vérifié dans
-`spring-ai-anthropic` avant de la retenir plutôt que codée à la main) ; `LlmProviderTest` verrouille
-que le préfixe de propriété est le bon — un préfixe mal orthographié se lierait sans erreur et
-laisserait simplement le cache inactif, sans qu'aucun signal ne le dise. En dessous du seuil
-minimal côté Anthropic, la pose du point de cache est ignorée sans erreur non plus : l'activer ne
-coûte rien sur un prompt système isolé trop court pour être éligible seul.
+`spring-ai-anthropic` 2.0.2) ; `LlmProviderTest` verrouille que les propriétés se lient — un préfixe
+mal orthographié se lierait sans erreur et laisserait simplement le cache inactif. En dessous du seuil
+minimal côté Anthropic, la pose d'un point de cache est ignorée sans erreur. Une route `kex.models`
+vers Anthropic reçoit le même cache (`LlmRoutingConfig.anthropicOptions`).
 
 Spécifique à Anthropic : OpenRouter n'a pas cette option ici, la mise en cache y dépend de la
 passerelle et du modèle choisis, pas d'une propriété de ce projet.

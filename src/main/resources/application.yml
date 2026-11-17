@@ -1,6 +1,11 @@
 server:
   # 8080 est pris par Kafka SQL Explorer sur un poste de dev.
   port: ${KEX_AGENT_PORT:8081}
+  compression:
+    # La console pèse ~760 Ko non compressés ; JS, CSS et JSON se compressent d'environ 75 %.
+    # text/event-stream reste hors de la liste : compresser un flux SSE le mettrait en tampon.
+    enabled: true
+    mime-types: text/html,text/css,text/javascript,application/javascript,application/json,application/problem+json,image/svg+xml
 
 spring:
   application:
@@ -9,6 +14,13 @@ spring:
     # Java 25 : un échange qui attend le modèle et ses outils immobilise une pile, pas un thread noyau.
     virtual:
       enabled: true
+  web:
+    resources:
+      cache:
+        # Revalidation à chaque ouverture, réponse 304 si rien n'a changé : voir StaticResourceConfig.
+        use-last-modified: false
+        cachecontrol:
+          no-cache: true
   mvc:
     async:
       # Au-delà de kex.agent.request-timeout, pour que ce soit l'agent qui rende un événement
@@ -53,13 +65,16 @@ spring:
           model: claude-opus-5
           max-tokens: 4096
           temperature: 0.2
-          # Le prompt système et les définitions d'outils ne changent pas d'un tour à l'autre d'un
-          # même échange, mais tools/list est rejoué à chaque requête (voir ARCHITECTURE.md) : sans
-          # cache, ce contenu est refacturé en entier à chaque appel. En dessous du seuil minimal
-          # d'Anthropic (~1024 tokens selon le modèle), la pose du point de cache est ignorée sans
-          # erreur — l'activer ici ne coûte rien sur un petit prompt système isolé.
+          # Outils, prompt système et historique : une boucle d'outils peut compter vingt tours dans
+          # un même échange, et chacun renvoyait au modèle tous les résultats d'outils précédents au
+          # plein tarif. En dessous du seuil minimal d'Anthropic (~1024 tokens selon le modèle), la
+          # pose d'un point de cache est ignorée sans erreur.
           cache-options:
-            strategy: SYSTEM_AND_TOOLS
+            strategy: CONVERSATION_HISTORY
+            # Le prompt système part en deux blocs (AgentService.request) : l'installation, puis ce
+            # que la demande déclenche. Le point de cache se pose sur le premier, qui ne change pas
+            # d'un message à l'autre.
+            multi-block-system-caching: true
 
     openai:
       # OpenRouter : une passerelle hébergée devant les modèles de la plupart des fournisseurs.
@@ -322,6 +337,9 @@ kex:
         # RESTART_CONSUMER:
         #   connection: mon-ordonnanceur
         #   tool: restart_consumer_group
+      # Un échange par processus, au plus N à la fois : chacun a son propre plafond d'appels
+      # d'outils et son propre délai. Un tiers gratuit limité en requêtes par minute se règle ici.
+      analysis-parallelism: ${KEX_AGENT_SUPERVISION_ANALYSIS_PARALLELISM:2}
       # Historique en mémoire du processus, donc mono-instance. Voir docs/ARCHITECTURE.md.
       history-size: 200
       # Une validation arrivée bien après les faits agirait sur une situation qui n'existe plus.

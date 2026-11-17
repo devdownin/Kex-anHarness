@@ -329,10 +329,19 @@ public class AgentService {
                 : knowledge.search(message, null, conversation.knowledgeAccess());
         conversation.evidence().set(matches.stream().map(com.kex.agent.knowledge.KnowledgeSource::from).toList());
         String references = knowledge == null ? "" : knowledge.contextFrom(matches);
-        if (!kafkaProcedure.isBlank() || !autoroutesProcedure.isBlank() || !durable.text().isBlank() || !references.isBlank()) {
-            // system(...) remplace le prompt du ChatClient ; conserver la gouvernance avant les références.
-            request = request.system(systemPrompt + "\n\n" + kafkaProcedure + "\n\n" + autoroutesProcedure
-                    + "\n\n" + durable.text() + "\n\n" + references);
+        // Deux blocs système : ce qui ne dépend que de l'installation, puis ce qui dépend de la
+        // demande. Le point de cache se pose sur le premier (multi-block-system-caching) : en un
+        // seul bloc, un playbook ou une compétence déclenchés par le message changeaient le prompt
+        // entier, et l'historique qui le suit ne se relisait plus jamais depuis le cache.
+        String stable = autoroutesProcedure.isBlank() ? systemPrompt : systemPrompt + "\n\n" + autoroutesProcedure;
+        String perRequest = java.util.stream.Stream.of(kafkaProcedure, durable.text(), references)
+                .filter(StringUtils::hasText).collect(java.util.stream.Collectors.joining("\n\n"));
+        if (!autoroutesProcedure.isBlank() || !perRequest.isEmpty()) {
+            // system(...) remplace le prompt du ChatClient ; la gouvernance reste en tête.
+            request = request.system(stable);
+            if (!perRequest.isEmpty()) {
+                request = request.messages(new org.springframework.ai.chat.messages.SystemMessage(perRequest));
+            }
         }
         return request.toolContext(context)
                 .advisors(advisor -> advisor.param(ChatMemory.CONVERSATION_ID, knowledgeMemoryId(conversation.memoryId(), conversation.knowledgeAccess())));

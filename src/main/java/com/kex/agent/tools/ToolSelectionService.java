@@ -43,7 +43,11 @@ public class ToolSelectionService {
     public List<ToolCallback> select(String request, Set<String> allowedTools) {
         List<ToolCallback> authorized = authorized(allowedTools);
         if (!properties.selectionEnabled()) return authorized;
-        return rank(request, authorized, properties.maxSelectedTools());
+        // Le score choisit, il n'ordonne pas : les définitions d'outils ouvrent le préfixe que le
+        // fournisseur met en cache, et un même jeu présenté dans un autre ordre en change le début.
+        return rank(request, authorized, properties.maxSelectedTools()).stream()
+                .sorted(Comparator.comparing(tool -> tool.getToolDefinition().name()))
+                .toList();
     }
 
     public List<ToolCallback> authorized(Set<String> allowedTools) {

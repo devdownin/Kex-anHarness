@@ -118,7 +118,7 @@ class SupervisionCycleIntegrationTest {
         });
 
         // La conversation du cycle est jetable : elle est purgée, pas laissée à grossir.
-        org.mockito.Mockito.verify(agentService).clear("supervision-" + report.id());
+        org.mockito.Mockito.verify(agentService).clear("supervision-" + report.id() + "-order-integration");
     }
 
     @Test

@@ -94,6 +94,7 @@ qu'un cycle puisse partir sans qu'un humain clique :
 | `correlation.enabled` | `true` | Signale un incident corrélé quand plusieurs processus sont en anomalie au même cycle |
 | `correlation.min-processes` | `3` | Nombre de processus distincts à partir duquel la concomitance est signalée — une heuristique grossière, pas un diagnostic |
 | `simulate-unbound-actions` | `false` | Une capacité sans outil MCP lié se résout en `SIMULATED` plutôt qu'en `FAILED` — ce que l'agent aurait fait, sans le faire, pour calibrer la confiance avant qu'un exécuteur réel n'existe |
+| `analysis-parallelism` | `2` | Un cycle analyse chaque processus dans son propre échange, au plus N à la fois : chacun a son propre plafond d'appels d'outils et son propre délai. Un échec isolé passe ce processus en `UNKNOWN` sans effacer les autres ; tous en échec font un cycle en échec. Baisser à `1` sur un tiers gratuit limité en requêtes par minute |
 
 ### `kex.agent.supervision.processes[].thresholds`
 
@@ -604,6 +605,31 @@ C'est la capacité dont cet agent ne peut pas se passer : un modèle qui ne l'a 
 Trois réponses et non deux — « Outils », « Sans outils », « Non annoncé ». Une passerelle qui ne
 publie pas ses paramètres ne refuse rien, et afficher « non » écarterait des modèles utilisables.
 Le catalogue est celui que la passerelle déclare : il n'est pas vérifié par un appel réel.
+
+### Un modèle plus léger pour les cycles
+
+Le cycle de supervision appelle le modèle avec la tâche `DIAGNOSTIC`, la conversation avec `CHAT`.
+`kex.models` permet de les router séparément, par exemple Opus pour la conversation et un modèle
+plus léger pour les cycles, qui partent seuls et se répètent :
+
+```bash
+KEX_MODELS_ENABLED=true
+KEX_MODELS_ENDPOINTS_PRINCIPAL_PROVIDER=ANTHROPIC
+KEX_MODELS_ENDPOINTS_PRINCIPAL_MODEL=claude-opus-5
+KEX_MODELS_ENDPOINTS_PRINCIPAL_API_KEY=$ANTHROPIC_API_KEY
+KEX_MODELS_ENDPOINTS_LEGER_PROVIDER=ANTHROPIC
+KEX_MODELS_ENDPOINTS_LEGER_MODEL=claude-haiku-5-5
+KEX_MODELS_ENDPOINTS_LEGER_API_KEY=$ANTHROPIC_API_KEY
+KEX_MODELS_ROUTES_CHAT_0=principal
+KEX_MODELS_ROUTES_DIAGNOSTIC_0=leger
+KEX_MODELS_ROUTES_DIAGNOSTIC_1=principal   # repli si le léger est indisponible
+```
+
+Une route Anthropic garde le même cache que le modèle par défaut (historique et bloc système stable,
+`LlmRoutingConfig.anthropicOptions`) : sans lui, le modèle léger relirait tout l'historique de la
+boucle d'outils au plein tarif. Avant de basculer, rejouer les évals de jugement sur le modèle
+candidat (voir [Évals de jugement du modèle](#évals-de-jugement-du-modèle)) : un cycle qui manque une
+anomalie coûte plus cher que les jetons économisés.
 
 ### Un autre fournisseur
 

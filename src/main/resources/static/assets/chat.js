@@ -341,6 +341,25 @@ function addTurn(role, text) {
   return { turn, bubble };
 }
 
+/**
+ * Une panne du fournisseur ou un disjoncteur ouvert sont passagers : sans bouton, il fallait
+ * recopier le message à la main. Le bouton remet le message dans le champ et le renvoie.
+ */
+function offerRetry(turn, message) {
+  if (!message || turn.querySelector('.turn-retry')) return;
+  const retry = el('button', 'ghost turn-retry', 'Réessayer');
+  retry.type = 'button';
+  retry.addEventListener('click', () => {
+    const field = $('#prompt');
+    if ($('#send').disabled) return;
+    field.value = message;
+    resizeComposer(field);
+    retry.remove();
+    $('#composer').requestSubmit();
+  });
+  turn.append(retry);
+}
+
 function addContextTurn(role, text) {
   const turn = el('li', `turn ${role}`);
   turn.append(el('span', 'who', role === 'user' ? 'vous' : role === 'error' ? 'erreur' : 'agent'));
@@ -549,6 +568,7 @@ async function sendStreaming(message) {
         turn.classList.add('error');
         accumulatedText += (accumulatedText ? '\n\n' : '') + event.data;
         updateBubble(bubble, 'error', accumulatedText);
+        offerRetry(turn, message);
       }
     }
   } finally {
@@ -763,7 +783,7 @@ export function wire(onUnauthorized) {
     } catch (error) {
       if (error.name === 'AbortError') addTurn('error', 'Flux interrompu.');
       else {
-        addTurn('error', error.message);
+        offerRetry(addTurn('error', error.message).turn, message);
         report(error);
       }
     } finally {

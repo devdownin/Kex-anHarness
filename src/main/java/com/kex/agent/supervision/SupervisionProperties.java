@@ -75,7 +75,29 @@ public record SupervisionProperties(
          * ce que l'agent aurait fait, sans le faire — pour calibrer la confiance et l'autonomie
          * avant qu'un exécuteur réel n'existe.
          */
-        @DefaultValue("false") boolean simulateUnboundActions) {
+        @DefaultValue("false") boolean simulateUnboundActions,
+
+        /**
+         * Un cycle analyse chaque processus dans son propre échange, au plus N à la fois. En un seul
+         * échange pour tous, le plafond d'appels d'outils et le délai se partageaient entre eux : au
+         * troisième processus, il n'en restait plus, et son relevé finissait {@code UNKNOWN}.
+         */
+        @DefaultValue("2") @Positive int analysisParallelism) {
+
+    @org.springframework.boot.context.properties.bind.ConstructorBinding
+    public SupervisionProperties {
+    }
+
+    public SupervisionProperties(boolean enabled, List<MonitoredProcess> processes, ExecutionMode mode,
+                                 double confidenceThreshold, Thresholds thresholds, Map<Capability, Autonomy> autonomy,
+                                 Map<Capability, Double> confidenceThresholds, Map<Capability, ActionBinding> actions,
+                                 int historySize, java.time.Duration approvalTimeout, java.time.Duration staleAfter,
+                                 Schedule schedule, AutoAdjust autoAdjust, Learning learning, Correlation correlation,
+                                 boolean simulateUnboundActions) {
+        this(enabled, processes, mode, confidenceThreshold, thresholds, autonomy, confidenceThresholds, actions,
+                historySize, approvalTimeout, staleAfter, schedule, autoAdjust, learning, correlation,
+                simulateUnboundActions, 2);
+    }
 
     /**
      * Départ autonome du cycle, sans clic. Non actif par défaut, et actif seulement sous le profil

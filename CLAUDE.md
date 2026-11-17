@@ -466,4 +466,18 @@ JDK 21 au minimum (la CI et l'image tournent en 21). La CI construit aussi l'ima
   déclaration d'anomalie gouvernée finissait `FAILED`. `governed-only` cache au modèle et à l'appel
   direct ; seul `callGoverned`, réservé à `SupervisionService.execute`, l'atteint. `denied` reste absolu.
 
+- **Tomcat ne compresse pas une réponse qui porte un ETag fort.** Le corps compressé n'est plus
+  celui que l'ETag désigne : `ShallowEtagHeaderFilter` doit écrire un ETag faible
+  (`setWriteWeakETag(true)`), sans quoi `server.compression` reste sans effet sur la console. Le filtre
+  ne s'applique pas non plus à `/` ni `/app` : ce sont des renvois internes vers `index.html`, que son
+  tampon rendait vides.
+
+- **Le cache du fournisseur suit l'ordre outils → système → messages.** Ce qui change en tête
+  invalide tout ce qui suit, historique compris. Le prompt système part donc en deux blocs, l'installation
+  puis la demande, avec `multi-block-system-caching` ; et un jeu d'outils qui varie d'un message à
+  l'autre coûte plus qu'il n'économise, d'où la sélection éteinte par défaut et triée par nom.
+
+- **Un échange de cycle ne parle que de son processus.** Chaque processus a désormais son échange ; une
+  ligne rendue sur un autre processus est écartée à la fusion, sans quoi elle compterait deux fois.
+
 Le détail et les raisons sont dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).

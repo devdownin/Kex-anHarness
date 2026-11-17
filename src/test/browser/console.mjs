@@ -1515,6 +1515,29 @@ await check('le cockpit MCP synthétise les connexions et leurs métriques', asy
   await page.unroute('**/api/agent/mcp/storage');
 });
 
+await check('une panne du fournisseur en flux propose de réessayer le même message', async () => {
+  let calls = 0;
+  await page.route('**/api/agent/chat/stream', (route) => {
+    calls += 1;
+    const body = calls === 1
+      ? 'event: conversation\ndata: conv-retry\n\nevent: error\ndata: Le fournisseur du modèle a refusé la clé (HTTP 401)\n\n'
+      : 'event: conversation\ndata: conv-retry\n\nevent: token\ndata: Réponse après reprise\n\nevent: done\ndata: ok\n\n';
+    return route.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream' }, body });
+  });
+  await page.goto(`${BASE}/#/chat`);
+  await page.locator('#stream-mode').check();
+  await page.locator('#prompt').fill('Quel est le lag ?');
+  await page.locator('#send').click();
+  const retry = page.locator('#transcript .turn-retry');
+  await retry.waitFor();
+  assert.match(await page.locator('#transcript').innerText(), /refusé la clé/);
+  await retry.click();
+  await page.getByText('Réponse après reprise').waitFor();
+  assert.equal(calls, 2);
+  assert.equal(await retry.count(), 0);
+  await page.unroute('**/api/agent/chat/stream');
+});
+
 await check('aucune erreur de script sur le parcours', () => {
   if (scriptErrors.length) console.error('Erreurs navigateur capturées :', JSON.stringify(scriptErrors, null, 2));
   assert.deepEqual(scriptErrors, [], `erreurs navigateur : ${JSON.stringify(scriptErrors)}`);

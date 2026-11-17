@@ -401,6 +401,9 @@ main:focus { outline: none; }
 .overview-hero p { margin: 0; color: var(--ink-2); font-size: 14px; text-wrap: pretty; }
 .hero-cycle { display: flex; align-items: center; gap: 8px; margin-top: 15px; color: var(--ink-2); font-size: 12px; font-variant-numeric: tabular-nums; }
 .hero-cycle-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.hero-cycle[data-tone="error"] { color: var(--danger); font-weight: 600; }
+.hero-cycle[data-tone="error"] .hero-cycle-dot { background: var(--danger); }
+.hero-cycle[data-tone="warning"] .hero-cycle-dot { background: var(--warn); }
 .hero-cycle.is-running .hero-cycle-dot { animation: live-pulse 1.6s ease-out infinite; }
 .hero-cycle.is-running::after { content: ""; width: 45px; height: 3px; border-radius: 4px; background: linear-gradient(90deg, var(--accent) 0 30%, var(--line) 30%); background-size: 45px 100%; animation: cycle-track 1.2s linear infinite; }
 @keyframes cycle-track { to { background-position: 45px 0; } }
@@ -2254,3 +2257,6 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
   .rail nav .nav-item .badge { position: absolute; transform: translate(14px, -6px); }
   .rail nav .nav-item { position: relative; }
 }
+
+/* Sous la bulle d'erreur, aligné sur elle plutôt que sur toute la largeur du fil. */
+.turn .turn-retry { align-self: flex-start; margin-top: 6px; }

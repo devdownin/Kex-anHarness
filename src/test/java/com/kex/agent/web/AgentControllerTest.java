@@ -385,6 +385,36 @@ class AgentControllerTest {
                 .contains("event:error").contains("nouvel essai dans quelques instants");
     }
 
+    /** Une clé refusée ne se raconte pas comme une coupure réseau sur le chemin que prend la console. */
+    @Test
+    void le_flux_dit_que_le_fournisseur_a_refuse_la_cle() throws Exception {
+        given(agentService.stream("Anonyme", "conv-1", "bonjour")).willReturn(new AgentStream("conv-1",
+                Flux.error(com.anthropic.errors.UnauthorizedException.builder()
+                        .headers(com.anthropic.core.http.Headers.builder().build())
+                        .body(com.anthropic.core.JsonValue.from(java.util.Map.of("error", "invalid x-api-key")))
+                        .build())));
+
+        var response = mvc.post().uri("/api/agent/chat/stream")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"conversationId":"conv-1","message":"bonjour"}""")
+                .exchange();
+
+        assertThat(response).hasStatusOk();
+        assertThat(response.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
+                .contains("event:error").contains("refusé la clé (HTTP 401)")
+                .doesNotContain("interrompu").doesNotContain("invalid x-api-key");
+    }
+
+    @Test
+    void le_flux_distingue_une_limite_de_debit_d_une_panne_sans_code() {
+        assertThat(AgentController.modelProviderMessage(new AnthropicException("connexion refusée")))
+                .contains("injoignable");
+        assertThat(AgentController.modelProviderMessage(com.openai.errors.RateLimitException.builder()
+                .headers(com.openai.core.http.Headers.builder().build())
+                .build())).contains("HTTP 429");
+    }
+
     @Test
     void retourne_504_avec_l_identifiant_de_conversation_quand_l_appel_depasse_le_plafond() {
         willThrow(new AgentTimeoutException(Duration.ofSeconds(120), "conv-9"))
