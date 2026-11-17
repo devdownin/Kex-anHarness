@@ -126,8 +126,9 @@ JDK 21 au minimum (la CI et l'image tournent en 21). La CI construit aussi l'ima
 - **Un taux calculé sur zéro verdict est un chiffre inventé.** Le taux de pertinence reste `null`
   tant qu'aucun humain n'a tranché : un `0` se lirait « l'agent se trompe toujours ».
 
-- **Pas de `@Scheduled` sur le cycle de supervision.** En multi-instance, chaque réplique lancerait
-  le sien et les actions partiraient en double.
+- **Pas de `@Scheduled` nu sur le cycle de supervision.** En multi-instance, chaque réplique lancerait
+  le sien et les actions partiraient en double. Le planificateur passe toujours par un `CycleLock` : en
+  base sous `shared-memory`, local seulement quand l'exploitant déclare `schedule.single-instance`.
 
 - **Le `permitAll` de la console reste borné au `GET` et aux chemins énumérés.** Un joker de
   racine ferait hériter l'ouverture à toute route future servie ici.

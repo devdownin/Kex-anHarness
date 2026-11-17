@@ -123,6 +123,7 @@ class SecurityConfig {
                                 .hasRole("ADMIN")
                         .requestMatchers("/api/agent/tasks/**", "/api/agent/tasks").hasAnyRole("OPERATOR", "ADMIN")
                         .requestMatchers("/api/agent/**").hasAnyRole("OPERATOR", "ADMIN")
+                        .requestMatchers(EndpointRequest.to("prometheus")).hasAnyRole("METRICS", "ADMIN")
                         .requestMatchers(EndpointRequest.toAnyEndpoint()).hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(new ApiKeyAuthFilter(credentialsByName),

@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "kex.agent.api-keys.chat-client=jeton-chat", "kex.agent.api-keys.admin=jeton-admin",
                 "kex.agent.api-key-roles.ops-console=OPERATOR", "kex.agent.api-key-roles.ci-pipeline=OPERATOR",
                 "kex.agent.api-key-roles.admin=ADMIN",
+                "kex.agent.api-keys.scraper=jeton-metriques", "kex.agent.api-key-roles.scraper=METRICS",
                 "kex.agent.rate-limit.enabled=false"})
 @ActiveProfiles("test")
 class ApiKeyPrincipalTest {
@@ -227,6 +228,17 @@ class ApiKeyPrincipalTest {
         try (HttpClient client = HttpClient.newHttpClient()) {
             return client.send(request, HttpResponse.BodyHandlers.ofString()).body();
         }
+    }
+
+    /** Un collecteur lit les métriques sans pouvoir rien d'autre, ni piloter ni converser. */
+    @Test
+    void une_cle_metrics_lit_prometheus_et_rien_d_autre() throws IOException, InterruptedException {
+        assertThat(status("/actuator/prometheus", "Bearer jeton-metriques")).isEqualTo(200);
+        assertThat(status("/actuator/metrics", "Bearer jeton-metriques")).isEqualTo(403);
+        assertThat(status("/api/agent/supervision/status", "Bearer jeton-metriques")).isEqualTo(403);
+        assertThat(status("/api/agent/whoami", "Bearer jeton-metriques")).isEqualTo(403);
+        // Une clé de conversation, elle, ne lit toujours pas les métriques.
+        assertThat(status("/actuator/prometheus", "Bearer jeton-chat")).isEqualTo(403);
     }
 
     private int status(String path, String authorization) throws IOException, InterruptedException {
