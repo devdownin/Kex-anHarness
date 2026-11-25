@@ -3,6 +3,7 @@
 package com.kex.agent.config;
 
 import java.util.Arrays;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import com.kex.agent.agent.AgentExecution;
@@ -39,7 +40,7 @@ import org.springframework.ai.tool.metadata.ToolMetadata;
 class RecordingToolCallbackProvider implements ToolCallbackProvider {
 
     private final ToolCallbackProvider delegate;
-    private final CircuitBreaker circuitBreaker;
+    private final Function<String, CircuitBreaker> circuitBreakers;
     private final ToolInvocationPolicy policy;
     private final boolean recordCalls;
 
@@ -55,8 +56,17 @@ class RecordingToolCallbackProvider implements ToolCallbackProvider {
 
     RecordingToolCallbackProvider(ToolCallbackProvider delegate, CircuitBreaker circuitBreaker,
                                   ToolInvocationPolicy policy, boolean recordCalls) {
+        this(delegate, ignored -> circuitBreaker, policy, recordCalls);
+    }
+
+    /**
+     * Le disjoncteur se choisit par outil : celui de son serveur, pour qu'un serveur en panne
+     * n'ouvre pas celui des autres. Une réponse {@code null} laisse l'outil sans disjoncteur ici.
+     */
+    RecordingToolCallbackProvider(ToolCallbackProvider delegate, Function<String, CircuitBreaker> circuitBreakers,
+                                  ToolInvocationPolicy policy, boolean recordCalls) {
         this.delegate = delegate;
-        this.circuitBreaker = circuitBreaker;
+        this.circuitBreakers = circuitBreakers;
         this.policy = policy;
         this.recordCalls = recordCalls;
     }
@@ -64,8 +74,18 @@ class RecordingToolCallbackProvider implements ToolCallbackProvider {
     @Override
     public ToolCallback[] getToolCallbacks() {
         return Arrays.stream(delegate.getToolCallbacks())
-                .map(callback -> new RecordingToolCallback(callback, circuitBreaker, policy, recordCalls))
+                .map(callback -> new RecordingToolCallback(callback, breakerFor(callback), policy, recordCalls))
                 .toArray(ToolCallback[]::new);
+    }
+
+    /**
+     * Un outil que le catalogue appelle lui-même (serveurs déclarés à chaud) passe déjà par le
+     * disjoncteur de sa connexion : en poser un second ici compterait chaque échec deux fois, sur
+     * le même état.
+     */
+    private CircuitBreaker breakerFor(ToolCallback callback) {
+        return callback instanceof com.kex.agent.mcp.BudgetedMcpCallback
+                ? null : circuitBreakers.apply(callback.getToolDefinition().name());
     }
 
     private record RecordingToolCallback(ToolCallback delegate, CircuitBreaker circuitBreaker,
@@ -105,7 +125,7 @@ class RecordingToolCallbackProvider implements ToolCallbackProvider {
         }
 
         private String protect(Supplier<String> call) {
-            return CircuitBreaker.decorateSupplier(circuitBreaker, call).get();
+            return circuitBreaker == null ? call.get() : CircuitBreaker.decorateSupplier(circuitBreaker, call).get();
         }
 
         /**

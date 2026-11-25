@@ -170,6 +170,67 @@ class RecordingToolCallbackProviderTest {
     }
 
     /**
+     * Un serveur en panne n'ouvre que son disjoncteur : l'outil d'un autre serveur, appelé par le même
+     * modèle dans la même conversation, reste utilisable. Avec un disjoncteur commun, les deux
+     * tombaient ensemble.
+     */
+    @Test
+    void un_serveur_en_panne_n_ouvre_pas_le_disjoncteur_des_autres() {
+        CircuitBreakerConfig config = CircuitBreakerConfig.custom().slidingWindowSize(2).minimumNumberOfCalls(2)
+                .failureRateThreshold(50).waitDurationInOpenState(Duration.ofMinutes(1)).build();
+        java.util.Map<String, CircuitBreaker> byTool = Map.of(
+                "broken_tool", CircuitBreaker.of("mcp-tool-broken", config),
+                "healthy_tool", CircuitBreaker.of("mcp-tool-healthy", config));
+        ToolCallback broken = named("broken_tool", callback(null, new IllegalStateException("boum")));
+        ToolCallback healthy = named("healthy_tool", callback("pong", null));
+        ToolCallback[] wrapped = new RecordingToolCallbackProvider(ToolCallbackProvider.from(broken, healthy),
+                byTool::get, new com.kex.agent.tools.ToolInvocationPolicy(
+                        com.kex.agent.tools.ToolControlProperties.defaults(),
+                        new com.fasterxml.jackson.databind.ObjectMapper()), true).getToolCallbacks();
+
+        assertThatThrownBy(() -> wrapped[0].call("{}")).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> wrapped[0].call("{}")).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> wrapped[0].call("{}")).isInstanceOf(CallNotPermittedException.class);
+
+        assertThat(wrapped[1].call("{}")).contains("pong");
+        assertThat(byTool.get("healthy_tool").getState()).isEqualTo(CircuitBreaker.State.CLOSED);
+    }
+
+    /**
+     * Un outil que le catalogue appelle lui-même passe déjà par le disjoncteur de sa connexion : un
+     * second ici compterait chaque échec deux fois, sur le même état.
+     */
+    @Test
+    void un_outil_du_catalogue_n_est_pas_protege_deux_fois() {
+        CircuitBreaker outer = CircuitBreaker.of("outer", CircuitBreakerConfig.custom().slidingWindowSize(2)
+                .minimumNumberOfCalls(2).failureRateThreshold(50).build());
+        ToolCallback catalogTool = new BudgetedCallback(callback(null, new IllegalStateException("boum")));
+        ToolCallback wrapped = new RecordingToolCallbackProvider(ToolCallbackProvider.from(catalogTool), outer)
+                .getToolCallbacks()[0];
+
+        for (int i = 0; i < 4; i++) {
+            assertThatThrownBy(() -> wrapped.call("{}")).isInstanceOf(IllegalStateException.class);
+        }
+        assertThat(outer.getMetrics().getNumberOfFailedCalls()).isZero();
+    }
+
+    private record BudgetedCallback(ToolCallback delegate) implements com.kex.agent.mcp.BudgetedMcpCallback {
+        @Override public ToolDefinition getToolDefinition() { return delegate.getToolDefinition(); }
+        @Override public String call(String toolInput) { return delegate.call(toolInput); }
+        @Override public String call(String toolInput, ToolContext toolContext) { return delegate.call(toolInput, toolContext); }
+    }
+
+    private static ToolCallback named(String name, ToolCallback delegate) {
+        return new ToolCallback() {
+            @Override public ToolDefinition getToolDefinition() {
+                return DefaultToolDefinition.builder().name(name).description(name).inputSchema("{}").build();
+            }
+            @Override public String call(String toolInput) { return delegate.call(toolInput); }
+            @Override public String call(String toolInput, ToolContext toolContext) { return delegate.call(toolInput, toolContext); }
+        };
+    }
+
+    /**
      * Le chemin piloté par le LLM appelle le même {@code McpSyncClient} que l'invocation directe de
      * {@code McpToolCatalog} : sans ce disjoncteur, un serveur MCP qui dégrade pendant une
      * conversation ferait attendre chaque appel jusqu'au plafond de temps au lieu d'échouer vite.

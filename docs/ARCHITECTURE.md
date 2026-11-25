@@ -137,7 +137,7 @@ l'inverse, ne s'appliquera jamais à aucune requête ; un avertissement au déma
 désormais du 401 qu'il cause côté serveur MCP, plutôt que de laisser les deux se découvrir
 séparément.
 
-### Un disjoncteur par connexion, mais seulement pour l'appel direct
+### Un disjoncteur par connexion, pour l'appel direct comme pour le modèle
 
 `McpToolCatalog` isolait un seul disjoncteur (`mcp-tool`) pour toutes les connexions : un serveur MCP
 en panne ouvrait un disjoncteur que les appels vers un autre serveur, sain, traversaient aussi. Il en
@@ -145,11 +145,22 @@ crée désormais un par connexion (`mcp-tool-<connexion>`), enregistré dès la 
 apparaître dans `/actuator/prometheus` et `GET /api/agent/mcp/servers` (`circuitBreakerState`) même
 sans trafic.
 
-Cette isolation ne couvre que l'appel direct (`POST /mcp/servers/{connection}/tools/{tool}`). Le
-chemin piloté par le modèle reste sur le disjoncteur partagé `mcp-tool` : Spring AI construit son
+Cette isolation a d'abord ne couvert que l'appel direct (`POST /mcp/servers/{connection}/tools/{tool}`).
+Le chemin piloté par le modèle restait sur un disjoncteur partagé `mcp-tool` : Spring AI construit son
 propre callback (`SyncMcpToolCallback`) à partir du `McpSyncClient`, sans exposer publiquement la
-connexion dont il vient — rien, à cet endroit, ne permet de router vers le bon disjoncteur. Documenté
-ici plutôt que résolu, faute d'accroche côté SDK.
+connexion dont il vient, et on en avait conclu que rien ne permettait de router vers le bon
+disjoncteur. C'était faux : le **générateur de noms d'outils** (`McpToolNamePrefixGenerator`) reçoit,
+lui, la connexion — le client MCP s'annonce `<nom du client> - <clé de connexion>` — au moment où il
+baptise chaque outil.
+
+`ConnectionTrackingToolNames` remplace le générateur par défaut (l'autoconfiguration de Spring AI
+s'efface devant un bean de ce type), nomme à l'identique — pas une lettre de changée, les règles
+d'outils, les listes autorisées des tâches et les compétences s'y réfèrent — et retient
+`nom d'outil → connexion`. `AgentToolRegistry` choisit alors, par outil, le disjoncteur
+`mcp-tool-<connexion>` : le même que l'appel direct, donc un seul état à ouvrir par serveur. Un outil
+dont la connexion est inconnue retombe sur le disjoncteur commun `mcp-tool`, jamais sans protection.
+Un outil des serveurs déclarés à chaud (`DynamicMcpToolCallbackProvider`) passe déjà par le catalogue :
+il n'a plus de second disjoncteur par-dessus, qui comptait chaque échec deux fois sur le même état.
 
 ### Coût et schéma des outils, exposés à la console
 
@@ -575,8 +586,8 @@ constaté en l'ajoutant). `ResilienceConfig` construit donc `CircuitBreakerRegis
 et le réessai qui les concernent par leur nom plutôt que par annotation.
 
 Un disjoncteur par famille de panne, pas un seul : `mcp-tool-<connexion>` (un par serveur MCP, pour
-l'appel direct — voir « Un disjoncteur par connexion » plus haut), `mcp-tool` (partagé, pour le
-chemin piloté par le modèle) et `agent-model` ne partagent pas les mêmes pannes, et un serveur MCP
+l'appel direct comme pour le modèle — voir « Un disjoncteur par connexion » plus haut), `mcp-tool`
+(commun, pour un outil dont la connexion est inconnue) et `agent-model` ne partagent pas les mêmes pannes, et un serveur MCP
 capricieux n'a pas à dégrader la disponibilité du modèle, ni l'inverse, ni celle d'un autre serveur
 MCP. Celui du modèle ne compte que les exceptions des SDK Anthropic/OpenAI et notre propre plafond
 de temps — une erreur de validation (schéma vide, connexion inconnue) n'est pas une panne du

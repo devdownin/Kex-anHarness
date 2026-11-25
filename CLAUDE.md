@@ -225,12 +225,17 @@ JDK 21 au minimum (la CI et l'image tournent en 21). La CI construit aussi l'ima
   pose son propre stub de succès par défaut — voit ce second stub écraser silencieusement le
   premier. Le stub qui doit compter se pose donc après avoir construit ce qu'il teste.
 
-- **Un disjoncteur par connexion MCP ne couvre que ce que le code peut nommer.** `McpToolCatalog`
-  isole désormais un disjoncteur par serveur (`mcp-tool-<connexion>`) pour l'appel direct — un
-  serveur en panne n'ouvre plus le disjoncteur des autres. Le chemin piloté par le modèle, lui,
-  reste sur un disjoncteur partagé : `SyncMcpToolCallback`, que Spring AI construit à partir du
-  `McpSyncClient`, n'expose pas publiquement la connexion dont il vient, donc rien ne permet d'y
-  router vers le bon disjoncteur. Une limite documentée, pas contournée.
+- **« Le SDK n'expose pas la connexion » n'est pas « rien ne peut la lire ».** `SyncMcpToolCallback`
+  ne dit pas de quelle connexion il vient, et on en avait conclu que le chemin piloté par le modèle
+  devait rester sur un disjoncteur partagé : un serveur en panne coupait les outils des autres. Le
+  générateur de noms d'outils (`McpToolNamePrefixGenerator`) reçoit pourtant la connexion — le client
+  s'annonce `<nom> - <clé de connexion>` — à l'instant où il baptise chaque outil.
+  `ConnectionTrackingToolNames` la retient sans toucher aux noms, que les règles d'outils, les listes
+  des tâches et les compétences référencent. Un outil dont la connexion reste inconnue retombe sur le
+  disjoncteur commun, jamais sans protection ; les serveurs déclarés à chaud, qui passent déjà par le
+  disjoncteur du catalogue, n'en reçoivent pas un second par-dessus (chaque échec comptait deux fois).
+  Limite restante : seuls les clients MCP classiques sont suivis, pas les connexions « modern » de
+  Spring AI (`McpModernToolNamePrefixGenerator`), que ce projet ne configure pas.
 
 - **Une propriété gardée par un `@Profile` ne dit pas qu'elle ne sert à rien ailleurs.**
   `kex.agent.supervision.schedule.enabled=true` sans le profil `shared-memory` actif ne lève ni

@@ -145,7 +145,7 @@ flowchart TB
 | `RateLimitFilter`, `TokenBucket`, `InMemoryRateLimiter`, `JdbcRateLimiter` | Limite de débit par clé, locale ou partagée. |
 | `AgentToolRegistry`, `RecordingToolCallbackProvider` | Outils internes exposés au modèle ; enveloppe `<tool_result trust="untrusted">` de chaque résultat. |
 | `McpBearerTokenCustomizer`, `ClientCredentialsTokenSource`, `McpTraceContextCustomizer` | Authentification sortante vers les serveurs MCP (statique ou OAuth2 client credentials), propagation du contexte de trace. |
-| `ResilienceConfig` | Disjoncteurs `agent-model` et `mcp-tool-<connexion>`, retry. |
+| `ResilienceConfig` | Disjoncteurs `agent-model` et `mcp-tool-<connexion>` (partagé entre l'appel direct et les outils du modèle ; `mcp-tool` seul pour une connexion inconnue), retry. |
 | `OpenApiConfig`, `StaticResourceConfig` (dans `web`) | Spécification OpenAPI ; service de la console. |
 
 ### 4.3 `tools` — contrôle des outils
@@ -160,7 +160,7 @@ flowchart TB
 
 | Sous-ensemble | Classes |
 |---|---|
-| Invocation | `McpToolCatalog` (`call`, `callGoverned`, ressources, diagnostics), `DynamicMcpToolCallbackProvider`, `BudgetedMcpCallback`, `McpServerRateLimiter` |
+| Invocation | `McpToolCatalog` (`call`, `callGoverned`, ressources, diagnostics), `DynamicMcpToolCallbackProvider`, `BudgetedMcpCallback`, `ConnectionTrackingToolNames` (nom d'outil → connexion, pour le disjoncteur par serveur), `McpServerRateLimiter` |
 | Inventaire dynamique | `McpServerRegistration`, `EncryptedMcpServerStore` (fichier chiffré `mcp-servers.enc`), `McpSecretRotation`, `McpConfigurationBundle`, `McpRuntimeServerView`, `McpToolDiff` |
 | Santé | `McpHealthCheckScheduler`, `McpHealthSample`, `McpServerDiagnostics`, `McpConnectionTestResult` |
 | Catalogue d'installation | `McpCatalogController`, `McpRecommendedCatalog`, `McpCatalogDiscoveryService`, sources `OfficialMcpRegistrySource` et `DockerMcpCatalogSource`, `McpTrustScoreCalculator` (`McpTrustScore`, `McpTrustCriterion*`) |

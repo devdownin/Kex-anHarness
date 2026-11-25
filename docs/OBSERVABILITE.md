@@ -105,12 +105,12 @@ Un disjoncteur ouvert (`resilience4j_circuitbreaker_state{state="open"} == 1`) d
 intégration échoue déjà assez pour que l'agent ait cessé de la solliciter — plus précis et plus
 rapide que d'attendre la remontée des `503`/`502` HTTP.
 
-L'appel direct (`POST /mcp/servers/{connection}/tools/{tool}`) a un disjoncteur par connexion
-(`mcp-tool-<connexion>`) : un serveur MCP en panne n'échoue vite que ses propres appels, pas ceux
-des autres. Le chemin piloté par le modèle reste sur le disjoncteur partagé `mcp-tool` — Spring AI
-construit son propre callback (`SyncMcpToolCallback`) sans exposer la connexion dont il vient, donc
-pas moyen de router vers le bon disjoncteur à cet endroit-là. `McpServerInfo.circuitBreakerState`
-et la pastille de la vue technique ne portent donc que l'état du disjoncteur de l'appel direct.
+Chaque connexion a son disjoncteur (`mcp-tool-<connexion>`), pour l'appel direct
+(`POST /mcp/servers/{connection}/tools/{tool}`) comme pour les outils que le modèle appelle : un
+serveur MCP en panne n'échoue vite que ses propres appels, pas ceux des autres. Le disjoncteur
+commun `mcp-tool` ne sert plus qu'à un outil dont la connexion n'a pas pu être lue. `McpServerInfo.circuitBreakerState`
+et la pastille de la vue technique portent donc l'état réel de la connexion, quel que soit le chemin
+qui l'a mise en défaut.
 
 Même état, sans Prometheus : `GET /api/agent/supervision/status` (`circuitBreakers`) et la fiche
 Agent du Control Center l'affichent directement, une pastille par disjoncteur.

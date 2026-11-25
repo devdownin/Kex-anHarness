@@ -56,6 +56,14 @@ public class McpToolCatalog implements AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(McpToolCatalog.class);
     private static final String CLIENT_NAME_SEPARATOR = " - ";
     private static final String CIRCUIT_BREAKER_PREFIX = "mcp-tool-";
+
+    /**
+     * Le disjoncteur d'une connexion : le même nom sert l'appel direct et le chemin que le modèle
+     * emprunte, pour qu'un serveur en panne n'ait qu'un seul état à ouvrir.
+     */
+    public static String circuitBreakerName(String connection) {
+        return CIRCUIT_BREAKER_PREFIX + connection;
+    }
     private static final Set<String> FORBIDDEN_HEADERS = Set.of("host", "content-length", "connection");
 
     private final List<McpSyncClient> clients;
@@ -943,7 +951,7 @@ public class McpToolCatalog implements AutoCloseable {
 
     private void registerInfrastructure(String connection, McpSyncClient client, boolean gauge) {
         circuitBreakers.put(connection,
-                circuitBreakerRegistry.circuitBreaker(CIRCUIT_BREAKER_PREFIX + connection));
+                circuitBreakerRegistry.circuitBreaker(circuitBreakerName(connection)));
         if (gauge) {
             Gauge.builder("kex.mcp.server.up", client, McpToolCatalog::upValue)
                     .description("1 si le client MCP est initialisé, 0 sinon")
