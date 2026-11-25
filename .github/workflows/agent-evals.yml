@@ -18,9 +18,19 @@ on:
         type: string
         required: true
       candidate_model:
-        description: 'Explicit candidate model ID'
+        description: 'Explicit candidate model ID (may equal the baseline to compare harness options)'
         type: string
         required: true
+      baseline_options:
+        description: 'Harness options for the baseline, comma-separated: compaction, results, discovery, selection'
+        type: string
+        required: false
+        default: ''
+      candidate_options:
+        description: 'Harness options for the candidate, comma-separated: compaction, results, discovery, selection'
+        type: string
+        required: false
+        default: ''
       repetitions:
         description: 'Trials per scenario, 2 through 10'
         type: choice
@@ -60,18 +70,22 @@ jobs:
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}
           restore-keys: maven-${{ runner.os }}-
       - name: Validate corpus and scoring offline
-        run: ./mvnw -B --no-transfer-progress test -Dtest=AgentEvalScoringTest
+        run: ./mvnw -B --no-transfer-progress test -Dtest=AgentEvalScoringTest,AgentEvalHarnessTest
       - name: Evaluate baseline
         id: baseline
         continue-on-error: true
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          # Passées par l'environnement, jamais interpolées dans la commande ; une option inconnue
+          # arrête l'exécution avant le premier appel payant (AgentEvalHarness.withOptions).
+          KEX_EVAL_OPTIONS: ${{ inputs.baseline_options }}
         run: bash scripts/evals-run.sh "$BASELINE_MODEL" target/agent-evals/baseline.json
       - name: Evaluate candidate and compare every scenario
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          KEX_EVAL_OPTIONS: ${{ inputs.candidate_options }}
         run: bash scripts/evals-run.sh "$CANDIDATE_MODEL" target/agent-evals/candidate.json target/agent-evals/baseline.json
       - name: Retain reports including failed and interrupted runs
         if: always()

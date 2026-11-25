@@ -16,4 +16,9 @@ interface AuditRepository {
 
     /** Du plus récent au plus ancien, borné à {@code limit} entrées. */
     List<AuditEntry> recent(int limit);
+
+    /** Relit la chaîne d'audit ; un dépôt qui ne persiste rien n'a rien à vérifier. */
+    default AuditIntegrity integrity() {
+        return AuditIntegrity.notDurable();
+    }
 }

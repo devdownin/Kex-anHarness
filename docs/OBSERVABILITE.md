@@ -158,3 +158,22 @@ fausse. `KexAgentApplicationTests` le vérifie.
 
 `spring.ai.chat.observations.log-prompt` et `log-completion` font de même au niveau des observations,
 avec le même avertissement.
+
+## Intégrité de l'audit
+
+Sous le profil `shared-memory`, chaque entrée d'audit porte son rang et l'empreinte (SHA-256) de la
+précédente : une ligne réécrite, retirée ou intercalée en base après coup rompt la chaîne.
+`GET /api/agent/supervision/audit/integrity` la relit et rend :
+
+| Champ | Sens |
+|---|---|
+| `verified` | `true` si chaque maillon est intact, `false` au premier qui ne l'est pas, `null` si rien n'a été vérifié |
+| `brokenAt`, `reason` | Le rang du premier maillon en défaut, et ce qui ne va pas |
+| `entries`, `legacy` | Maillons vérifiés ; entrées écrites avant la chaîne (lisibles, non vérifiables) |
+| `headSeq`, `headHash` | Le dernier maillon |
+
+Une chaîne ne prouve rien d'une **troncature de sa fin** : retirer les dernières lignes laisse une
+chaîne plus courte, mais intacte. Relever `headSeq` et `headHash` ailleurs (un journal externe, un
+ticket, une alerte périodique) rend cette troncature visible : le rang relevé doit toujours exister,
+avec la même empreinte. Sans `shared-memory`, l'audit vit en mémoire et la réponse le dit
+(`durable: false`) plutôt que de le déclarer intègre.

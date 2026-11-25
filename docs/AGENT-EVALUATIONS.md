@@ -89,6 +89,33 @@ temporaire. `remember_fact` et `recall_facts` sont alors refusés : sans cela, u
 suivant des faits que les fixtures n'isolent pas. Le rapport porte `harness` (`base` ou le nom du
 fichier) et `harnessFingerprint` (SHA-256 du fichier), pour distinguer deux exécutions au même nom.
 
+## Mesurer une option du harnais avant d'en changer le défaut
+
+La compaction du contexte, le déchargement des gros résultats d'outils, la découverte d'outils et la
+sélection d'outils sont éteintes par défaut : aucune n'avait été mesurée sur ce corpus. Un chiffre
+d'économie lu ailleurs ne dit rien de ce qu'elles font ici — notamment à la qualité des réponses.
+`KEX_EVAL_OPTIONS` en allume une ou plusieurs pour une exécution, séparées par des virgules :
+`compaction`, `results`, `discovery`, `selection`. Le même modèle, deux jeux d'options, deux rapports :
+
+```bash
+bash scripts/evals-run.sh "$MODEL" target/agent-evals/base.json
+KEX_EVAL_OPTIONS=selection \
+  bash scripts/evals-run.sh "$MODEL" target/agent-evals/selection.json target/agent-evals/base.json
+```
+
+Le libellé du rapport porte les options (`base+selection`), son empreinte aussi : deux rapports qui
+ne diffèrent que par elles ne se confondent pas. `<rapport>.comparison.json` donne l'écart de taux de
+réussite, d'appels d'outils et de jetons d'entrée et de sortie, par scénario et globalement. Une
+option mal orthographiée arrête l'exécution avant le premier appel payant. Le workflow manuel
+prend les mêmes options par `baseline_options` et `candidate_options`, avec le même modèle des deux
+côtés.
+
+Ce corpus mesure des **cycles de supervision**, un échange par processus : la compaction n'y déclenche
+pas (l'historique reste court), et `results` n'agit que si un outil renvoie plus que le seuil de
+déchargement. Une option sans effet mesuré ici n'est donc pas une option inutile en conversation
+longue ; elle n'est simplement pas couverte par ce corpus. La sélection et la découverte d'outils,
+elles, changent ce que le modèle voit dès le premier appel.
+
 ## Coût d'exécution
 
 Chaque essai enregistre `toolCalls` (appels reçus par le serveur MCP de fixtures), `inputTokens` et

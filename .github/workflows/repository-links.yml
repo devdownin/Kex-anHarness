@@ -33,6 +33,10 @@ jobs:
       # PNG ou de seuil ouvrirait des PR à chaque merge, ou n'en ouvrirait jamais.
       # La doc d'architecture promet que chaque nom cité existe dans le code ; le guide cite des
       # seuils de application.yml. Ni l'une ni l'autre ne disent quand le code bouge sous elles.
+      # AGENTS.md reste une carte courte vers docs/ ; les pièges vivent dans docs/PIEGES.md, classés
+      # par domaine. Un lien mort ou un sommaire faux se voit ici, pas à la lecture.
+      - name: AGENTS.md stays a short map with live links
+        run: python3 scripts/check-agents-md.py
       - name: Architecture document names exist in the code
         run: python3 scripts/check-architecture-doc.py
       - name: Teaching guide values match the configuration

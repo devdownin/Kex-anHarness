@@ -259,7 +259,7 @@ Vue technique, sans recalcul : `KafkaViewService` (topics, lag via `MeasuredValu
 | Contrôleur | Base | Routes |
 |---|---|---|
 | `AgentController` | `/api/agent` | `POST /chat`, `/chat/structured`, `/chat/stream` (SSE) ; `DELETE /conversations/{conversationId}` ; `/mcp/servers` (GET, POST, `test`), `/mcp/runtime-servers`, `/mcp/servers/{connection}` (PUT, DELETE, `enabled`, `secret`, `refresh`, `diagnostics`, `preview`, `resources`, `resource`), `POST /mcp/servers/{connection}/tools/{tool}`, `/mcp/configuration` (GET, POST), `/mcp/storage`, `/mcp/metrics` |
-| `SupervisionController` | `/supervision` | `overview`, `status`, `processes` (+ `definitions`, POST), `alerts`, `performance`, `cycles` (GET, POST, `current`), `decisions` (+ `{decision}`, `pending`, `approve`, `reject`), `processes/{process}/maintenance` (POST, DELETE), `processes/{process}/history`, `audit`, `policy` (GET, PUT), `pause`, `resume`, `notify/test` |
+| `SupervisionController` | `/supervision` | `overview`, `status`, `processes` (+ `definitions`, POST), `alerts`, `performance`, `cycles` (GET, POST, `current`), `decisions` (+ `{decision}`, `pending`, `approve`, `reject`), `processes/{process}/maintenance` (POST, DELETE), `processes/{process}/history`, `audit` (+ `integrity`), `policy` (GET, PUT), `pause`, `resume`, `notify/test` |
 | `SkillsController` | `/skills` | GET, POST, `available`, `review-queue`, `curation`, `{id}/retire`, `{id}/probe-suggestion`, `{id}/precedents`, `{id}/probe`, `probe-together`, `{id}/approve`, `{id}/reject` |
 | `CharterController` | `/charter` | GET, PUT, `versions` |
 | `TaskController` | `/tasks` | GET, POST, `{id}`, `bindings`, `plan`, `{id}/approve`, `{id}/run`, `{id}/cancel` |
@@ -514,6 +514,7 @@ outil est permis.
 | `V8__skill_scope_and_probes` | Portée des compétences, rejeux |
 | `V9__skill_reads` | Lectures de compétences |
 | `V10__harness_context` | Résultats d'outils, verrou de conversation |
+| `V11__audit_chain` | Chaîne de l'audit : rang, empreinte précédente, empreinte de l'entrée |
 
 Flyway n'est actif que sous `shared-memory` ; hors de ce profil, `DataSourceAutoConfiguration`
 et `FlywayAutoConfiguration` sont exclus. Les tests de dépôt JDBC rejouent la vraie migration
@@ -615,7 +616,7 @@ première fois en local pour le scan Trivy, puis poussée depuis le même cache.
 | Santé | `/actuator/health` (public), `KexMcpServerHealthIndicator` |
 | Métriques | `/actuator/prometheus` (`METRICS` ou `ADMIN`) ; `kex.mcp.tool.call`, `kex.mcp.server.request`, `kex.mcp.server.up` ; `gen_ai.client.token.usage` (filtrer `gen_ai.token.type`) ; disjoncteurs Resilience4j |
 | Traces | Micrometer Tracing → OpenTelemetry OTLP ; contexte propagé aux serveurs MCP (`McpTraceContextCustomizer`) |
-| Audit métier | `AuditRepository` (`/supervision/audit`), `McpServerAuditPublisher`, `AutomationAudit` |
+| Audit métier | `AuditRepository` (`/supervision/audit`), chaîné sous `shared-memory` : `AuditChain` (SHA-256 de l'entrée et de la précédente), vérifié par `/supervision/audit/integrity` ; `McpServerAuditPublisher`, `AutomationAudit` |
 | Journal des prompts | `kex.agent.log-interactions` (`SimpleLoggerAdvisor` en `DEBUG`) |
 
 Détail : [`OBSERVABILITE.md`](OBSERVABILITE.md).
@@ -642,7 +643,7 @@ sous 85 % / 70 %) et SBOM (CycloneDX).
 ## 15. Invariants transverses
 
 Les règles que tout composant respecte ; leur justification est dans
-[`ARCHITECTURE.md`](ARCHITECTURE.md) et [`CLAUDE.md`](../CLAUDE.md).
+[`ARCHITECTURE.md`](ARCHITECTURE.md) et [`PIEGES.md`](PIEGES.md).
 
 1. **Absence ≠ zéro ≠ OK.** Une mesure absente reste absente, un état illisible vaut `UNKNOWN`,
    un taux sur zéro verdict vaut `null`.
