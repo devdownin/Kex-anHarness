@@ -206,12 +206,33 @@ jobs:
           node src/test/frontend/overview-summary.mjs
           node src/test/frontend/blind-review.mjs
           node src/test/frontend/throttle.mjs
+          node src/test/frontend/contrast.mjs
           node src/test/browser/user-workspace.mjs
           node src/test/browser/user-approvals-favorites.mjs
           node src/test/browser/user-context-history.mjs
           node src/test/browser/user-onboarding.mjs
           node src/test/browser/user-work-overview.mjs
           timeout 10m node src/test/browser/console.mjs
+
+      # Sombre, téléphone, mouvement réduit, contraste renforcé : les cas qu'un passage en clair sur
+      # desktop ne voit jamais. Les captures partent en artefact pour la revue, pas en assertion —
+      # une comparaison de pixels dériverait au premier lissage de police.
+      - name: Check the surface system
+        env:
+          PLAYWRIGHT_MODULE: ${{ runner.temp }}/pw/node_modules/playwright/index.mjs
+          KEX_AGENT_URL: http://localhost:8081
+          KEX_AGENT_API_KEY: ci-secret
+          KEX_SCREENSHOT_DIR: ${{ runner.temp }}/surfaces
+        run: node src/test/browser/surfaces.mjs
+
+      - name: Upload the surface screenshots
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v4
+        with:
+          name: console-surfaces
+          path: ${{ runner.temp }}/surfaces
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Agent logs on failure
         if: failure()

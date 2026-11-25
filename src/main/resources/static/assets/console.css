@@ -1052,9 +1052,18 @@ legend { font-size: 12px; color: var(--ink-3); text-transform: uppercase; letter
    la seule couleur pleine, qui friserait l'alerte pour un simple avertissement. Un KPI sans état
    déclaré (`OK`, ou rien à signaler) garde le fond neutre : lui inventer une teinte affirmerait
    une mesure qui n'a pas été prise. */
-.kpi[data-state="WARNING"] { border-color: color-mix(in srgb, var(--warn) 28%, var(--line)); background: var(--warn-soft); }
-.kpi[data-state="ERROR"] { border-color: color-mix(in srgb, var(--danger) 28%, var(--line)); background: var(--danger-soft); }
-.kpi[data-state="PENDING"] { border-color: color-mix(in srgb, var(--pending) 28%, var(--line)); background: var(--pending-soft); }
+/* L'état se lit dans l'icône, le glyphe et un trait de lumière colorée en tête de carte — plus un
+   aplat de couleur : quatre indicateurs teintés côte à côte faisaient un mur d'alerte. */
+.kpi[data-state] { --kpi-tone: var(--line); background: linear-gradient(180deg, color-mix(in srgb, var(--kpi-tone) 9%, transparent), transparent 55%), var(--material-base); }
+.kpi[data-state="WARNING"] { --kpi-tone: var(--warn); }
+.kpi[data-state="ERROR"] { --kpi-tone: var(--danger); }
+.kpi[data-state="PENDING"] { --kpi-tone: var(--pending); }
+.kpi[data-state]:is([data-state="WARNING"], [data-state="ERROR"], [data-state="PENDING"]) {
+  box-shadow: inset 0 2px 0 var(--kpi-tone), var(--highlight), 0 0 0 1px var(--hairline), var(--depth-1);
+}
+.kpi[data-state]:is([data-state="WARNING"], [data-state="ERROR"], [data-state="PENDING"]):hover {
+  box-shadow: inset 0 2px 0 var(--kpi-tone), var(--highlight), 0 0 0 1px var(--hairline), var(--depth-2);
+}
 .kpi-icon {
   grid-area: icon;
   align-self: start;
@@ -1169,23 +1178,33 @@ table.grid tr.clickable:hover td:last-child { border-top-right-radius: var(--rad
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 16px;
+  position: relative;
+  padding: 16px 16px 16px 20px;
   background: color-mix(in srgb, var(--surface-2) 55%, transparent);
   border: 1px solid var(--hairline);
-  border-left: 3px solid var(--line);
   border-radius: 14px;
   transition: box-shadow var(--dur-hover) ease, transform var(--dur-hover) var(--ease-spatial);
 }
-.card[data-state="WARNING"] { border-left-color: var(--warn); background: var(--warn-soft); }
-.card[data-state="ERROR"] { border-left-color: var(--danger); background: var(--danger-soft); }
-.card[data-state="OK"] { border-left-color: var(--ok); background: var(--ok-soft); }
-.card[data-state="PENDING"] { border-left-color: var(--pending); background: var(--pending-soft); }
+/* L'état tient dans un trait arrondi en marge et une teinte à peine posée — la carte reste une
+   surface neutre, et le libellé d'état (pastille, glyphe) continue de porter le sens. */
+.card::before {
+  content: "";
+  position: absolute;
+  left: 7px; top: 12px; bottom: 12px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--card-tone, var(--line));
+}
+.card[data-state="WARNING"] { --card-tone: var(--warn); background: color-mix(in srgb, var(--warn-soft) 45%, var(--material-base)); }
+.card[data-state="ERROR"] { --card-tone: var(--danger); background: color-mix(in srgb, var(--danger-soft) 45%, var(--material-base)); }
+.card[data-state="OK"] { --card-tone: var(--ok); }
+.card[data-state="PENDING"] { --card-tone: var(--pending); background: color-mix(in srgb, var(--pending-soft) 45%, var(--material-base)); }
 .card header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .card header h3 { margin: 0; font-size: 14px; flex: 1; min-width: 0; }
 .card header .time { font: 12px var(--mono); color: var(--ink-3); }
 .card p { margin: 0; }
 .card > button { align-self: flex-start; }
-.card.approval { border-left-color: var(--pending); background: var(--surface); }
+.card.approval { --card-tone: var(--pending); background: var(--material-base); }
 
 .decision-card { gap: 12px; }
 .decision-card > header h3 { font-size: 15px; }
@@ -1921,7 +1940,7 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
   :root[data-density="compact"] .kpi-value { font-size: 24px; }
   :root[data-density="compact"] .panel { padding: 14px; }
   :root[data-density="compact"] .panel-head { margin-bottom: 10px; }
-  :root[data-density="compact"] .card { gap: 6px; padding: 12px; }
+  :root[data-density="compact"] .card { gap: 6px; padding: 12px 12px 12px 18px; }
   :root[data-density="compact"] table.grid th { padding: 7px 10px; }
   :root[data-density="compact"] table.grid td { padding: 7px 10px; }
   :root[data-density="compact"] .attention-group { padding: 12px; }
@@ -2615,6 +2634,36 @@ table.grid th button.sort { min-height: 32px; display: inline-flex; align-items:
 .process-links { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0; }
 .process-links:empty { display: none; }
 .process-links a { min-height: 32px; display: inline-flex; align-items: center; }
+
+/* ── Vue d'ensemble en grille de tailles variées ─────────────────────
+   Sur grand écran, les blocs n'occupent plus tous une pleine ligne : leur largeur suit leur poids.
+   La synthèse et ses quatre indicateurs se font face ; la synthèse de l'agent s'adosse au tableau
+   des processus, la file de décisions au déroulé du cycle. L'ordre que l'opérateur a choisi dans
+   « Personnaliser » reste celui de lecture (`order`, posé par applyDashboardLayout) :
+   `grid-auto-flow: dense` ne fait que combler un trou avec le bloc suivant qui y tient. */
+@media (min-width: 1360px) {
+  #view-overview:not([hidden]) {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-auto-flow: row dense;
+    align-items: stretch;
+  }
+  #view-overview > * { grid-column: 1 / -1; min-width: 0; }
+  #view-overview > .overview-hero { grid-column: span 7; }
+  #view-overview > .kpis { grid-column: span 5; }
+  #view-overview > .agent-brief-panel { grid-column: span 5; }
+  /* Les deux panneaux de « Opérations » deviennent des cellules de la grille ; ils gardent le rang
+     que le tableau de bord donne à leur bloc. */
+  #view-overview > .split { display: contents; }
+  #view-overview > .split > .panel { order: inherit; }
+  #view-overview > .split > .panel:first-child { grid-column: span 7; }
+  #view-overview > .split > .panel:last-child { grid-column: span 5; }
+  #view-overview > [data-dashboard-block="timeline"] { grid-column: span 7; }
+  /* Deux par deux à côté de la synthèse, à la même hauteur qu'elle. */
+  #view-overview > .kpis, #view-overview > .kpis > .kpis-grid { height: 100%; }
+  #view-overview > .kpis > .kpis-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #view-overview > .overview-hero { min-height: 0; }
+}
 
 /* ── Repli sans verre ────────────────────────────────────────────────
    Sans backdrop-filter, un fond translucide laisserait voir le contenu net sous le texte : les
