@@ -294,7 +294,130 @@ function card(server) {
     actions.append(remove);
   }
   node.append(actions);
+  node.append(kafkaExplorerSkills(server, managed));
   return node;
+}
+
+
+function kafkaExplorerSkills(server, managed) {
+  const section = el('section', 'mcp-kafka-skills stack');
+  section.append(el('h4', null, 'Compétences KafkaExplorer'));
+  section.append(el('p', 'hint', 'Skills versionnés publiés par le serveur MCP. Leur lecture ne les active pas : chaque import crée une proposition soumise à la revue Kex.'));
+  const discover = el('button', 'ghost', 'Découvrir les compétences');
+  discover.type = 'button';
+  discover.disabled = Boolean(managed && !managed.enabled) || !server.initialized;
+  const status = el('p', 'hint');
+  status.setAttribute('role', 'status');
+  const list = el('div', 'stack');
+  discover.addEventListener('click', () => busy(discover, async () => {
+    discover.disabled = true;
+    status.textContent = 'Lecture du catalogue kex://skills…';
+    list.replaceChildren();
+    try {
+      const base = `/api/agent/mcp/servers/${encodeURIComponent(server.connection)}`;
+      const resources = await api(`${base}/resources`);
+      const catalogueResource = (resources || []).find((item) => item.uri === 'kex://skills');
+      if (!catalogueResource) {
+        status.textContent = 'Ce serveur ne publie pas de catalogue Agent Skills (kex://skills).';
+        return;
+      }
+      const contents = await api(`${base}/resource?uri=${encodeURIComponent(catalogueResource.uri)}`);
+      const textContent = (contents || []).find((item) => typeof item.text === 'string')?.text;
+      if (!textContent) throw new Error('Le serveur n’a retourné aucun manifeste texte.');
+      const entries = JSON.parse(textContent);
+      if (!Array.isArray(entries)) throw new Error('Le manifeste kex://skills n’est pas une liste valide.');
+      if (!entries.length) {
+        status.textContent = 'Le catalogue est valide mais ne contient aucune compétence.';
+        return;
+      }
+      status.textContent = `${entries.length} compétence(s) publiées. Choisissez celles à examiner ou à proposer à Kex.`;
+      entries.forEach((entry) => list.append(kafkaSkillEntry(base, entry)));
+    } catch (error) {
+      status.textContent = `Découverte impossible : ${error.message}`;
+      report(error);
+    } finally {
+      discover.disabled = Boolean(managed && !managed.enabled) || !server.initialized;
+    }
+  }));
+  section.append(discover, status, list);
+  return section;
+}
+
+function kafkaSkillEntry(base, entry) {
+  const frontmatter = entry.frontmatter || {};
+  const name = frontmatter.name || 'Compétence sans nom';
+  const description = frontmatter.description || 'Description non fournie.';
+  const manifestFile = entry.resources?.find((file) => file.uri && file.digest);
+  const card = el('article', 'mcp-skill-entry stack');
+  const head = el('div', 'row-between');
+  head.append(el('strong', null, name), el('span', 'chip', name.startsWith('kafkaexplorer-') ? 'Engineering' : 'Kafka'));
+  card.append(head, el('p', 'hint', description));
+  if (!manifestFile) {
+    card.append(el('p', 'state error', 'Manifeste incomplet : URI ou empreinte SHA-256 absente.'));
+    return card;
+  }
+  card.append(definition('Ressource', el('code', null, manifestFile.uri)),
+    definition('SHA-256 publié', el('code', null, manifestFile.digest)),
+    definition('Taille annoncée', el('span', null, `${manifestFile.size ?? '—'} octets`)));
+  const preview = el('details', 'advanced');
+  preview.append(el('summary', null, 'Prévisualiser le SKILL.md'));
+  const content = el('pre', 'dump', 'Le contenu sera chargé à la demande et son empreinte vérifiée.');
+  preview.append(content);
+  const actions = el('div', 'row');
+  const load = el('button', 'ghost', 'Charger et vérifier');
+  load.type = 'button';
+  const propose = el('button', 'primary', 'Proposer à Kex');
+  propose.type = 'button';
+  propose.disabled = true;
+  let verifiedMarkdown = null;
+  load.addEventListener('click', () => busy(load, async () => {
+    propose.disabled = true;
+    verifiedMarkdown = null;
+    content.textContent = 'Chargement et vérification SHA-256…';
+    try {
+      const result = await api(`${base}/resource?uri=${encodeURIComponent(manifestFile.uri)}`);
+      const markdown = (result || []).find((item) => typeof item.text === 'string')?.text;
+      if (typeof markdown !== 'string') throw new Error('Le serveur n’a pas renvoyé le SKILL.md en texte.');
+      if (new TextEncoder().encode(markdown).byteLength !== manifestFile.size) {
+        throw new Error('La taille du fichier reçu ne correspond pas au manifeste.');
+      }
+      if (!globalThis.crypto?.subtle) throw new Error('Web Crypto indisponible : intégrité non vérifiable dans ce contexte.');
+      const digest = `sha256:${[...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(markdown)))]
+        .map((byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+      if (digest !== manifestFile.digest) throw new Error('Empreinte SHA-256 différente : proposition refusée.');
+      verifiedMarkdown = markdown;
+      content.textContent = markdown;
+      propose.disabled = markdown.length > 12000;
+      if (propose.disabled) content.textContent += '\\n\\n[Import indisponible : Kex limite une compétence à 12 000 caractères.]';
+    } catch (error) {
+      content.textContent = `Vérification impossible : ${error.message}`;
+      report(error);
+    }
+  }));
+  propose.addEventListener('click', () => busy(propose, async () => {
+    if (!verifiedMarkdown) return;
+    try {
+      const created = await api('/api/agent/skills', {
+        method: 'POST',
+        body: {
+          title: name,
+          markdown: verifiedMarkdown,
+          evidence: `Import depuis KafkaExplorer · ${server.connection} · ${manifestFile.uri} · ${manifestFile.digest}`,
+          scope: 'DOMAIN',
+          triggers: [],
+        },
+      });
+      propose.disabled = true;
+      statusSkill.textContent = `Proposition créée · ${created.id || 'en attente de revue'}`;
+      toast(`Compétence « ${name} » proposée à la revue Kex.`);
+    } catch (error) {
+      report(error);
+    }
+  }));
+  const statusSkill = el('p', 'hint');
+  actions.append(load, propose);
+  card.append(preview, actions, statusSkill);
+  return card;
 }
 
 
