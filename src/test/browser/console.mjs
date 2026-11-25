@@ -1212,7 +1212,9 @@ const proposal = await page.request.post(`${BASE}/api/agent/skills`, {
   headers: { Authorization: `Bearer ${TOKEN}` },
   data: {
     title: 'Vérifier le lag avant un redémarrage',
-    markdown: '# Procédure\n1. Vérifier kex_consumer_lag avant tout redémarrage.',
+    // Un texte propre à chaque exécution : retirée à la fin de ce script, la même procédure serait
+    // refusée au passage suivant contre un agent qui garde sa mémoire — à juste titre.
+    markdown: `# Procédure\n1. Vérifier kex_consumer_lag avant tout redémarrage.\n\nExécution ${Date.now()}.`,
     evidence: 'Trois incidents évités', conversationId: null,
   },
 });
@@ -1281,12 +1283,32 @@ await check('la comparaison à l’aveugle cache le côté jusqu’au choix', as
   }
 });
 
+await check('une candidate déjà tranchée sous le même titre rappelle la décision et son motif', async () => {
+  await page.route(`**/api/agent/skills/${proposed.id}/precedents`, (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify([{ ...proposed, id: 'ancienne',
+      status: 'REJECTED', reviewedBy: 'admin', reviewedAt: new Date().toISOString(), reviewReason: 'Doublon de la charte' }]) }));
+  try {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.click('[data-agent-tab="governance"]');
+    await page.waitForSelector('#skills-review-queue .precedents .banner');
+    const text = await page.$eval('#skills-review-queue .precedents', (node) => node.textContent);
+    assert.match(text, /Déjà tranchée/);
+    assert.match(text, /rejetée .*par admin — Doublon de la charte/);
+  }
+  finally {
+    await page.unroute(`**/api/agent/skills/${proposed.id}/precedents`);
+  }
+});
+
 // Deux candidates d'un même propriétaire simulées : le point sous test est la sélection et le corps
 // envoyé, le rejeu lui-même restant éteint en CI.
 await check('le rejeu groupé envoie les compétences cochées d’un même propriétaire', async () => {
   const second = { ...proposed, id: `${proposed.id}-bis`, title: 'Lire la tendance du lag' };
   await page.route('**/api/agent/skills/review-queue', (route) => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify([proposed, second]) }));
+  // La seconde candidate n'existe que dans cette réponse simulée : ses précédents aussi.
+  await page.route(`**/api/agent/skills/${second.id}/precedents`, (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: '[]' }));
   let sent = null;
   await page.route('**/api/agent/skills/probe-together', (route) => {
     sent = route.request().postDataJSON();
@@ -1311,6 +1333,7 @@ await check('le rejeu groupé envoie les compétences cochées d’un même prop
   }
   finally {
     await page.unroute('**/api/agent/skills/probe-together');
+    await page.unroute(`**/api/agent/skills/${second.id}/precedents`);
     await page.unroute('**/api/agent/skills/review-queue');
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.click('[data-agent-tab="governance"]');

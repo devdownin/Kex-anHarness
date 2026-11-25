@@ -74,7 +74,13 @@ public final class LongTermMemoryService {
         repository.add(new LearningEntry(UUID.randomUUID().toString(), task.owner(), "SUMMARY",
                 bounded(task.plan().objective(), 160), markdown, evidence, task.id(), clock.instant(),
                 "VERIFIED", null, null, null, proof));
-        skills.propose(task.owner(), bounded(task.plan().objective(), 160), markdown, evidence, task.id(), proof);
+        try {
+            skills.propose(task.owner(), bounded(task.plan().objective(), 160), markdown, evidence, task.id(), proof);
+        }
+        catch (com.kex.agent.skills.SkillAlreadyJudgedException ex) {
+            // Le résumé vérifié reste écrit : seule la procédure, identique à une procédure déjà
+            // écartée par un humain, ne repart pas en revue.
+        }
     }
 
     public LearningEntry contradict(String owner, String id, String actor, String sourceId, String reason) {

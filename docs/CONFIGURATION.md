@@ -327,10 +327,20 @@ le rejeu n'est pas écrit (`409`).
 |---|---|
 | `GET /api/agent/skills/curation` | Ce qui agit partout, ce qui attend un déclencheur (`conditional`), ce qui dort au-delà d'un plafond, ce qui n'a jamais été lu (`unread`), les lectures par compétence, les doublons de titre, ce qui n'a plus été revu, et `alwaysOn` : le texte présent dans tout échange rapporté à `always-on-budget` |
 | `POST /api/agent/skills/probe-together` | `{"ids":[…],"request":"...","repetitions":1..3}` — `ADMIN`. Rejeu groupé de 2 à 5 compétences `PENDING` d'un même propriétaire, joint à chacune, tracé dans l'audit |
+| `GET /api/agent/skills/{id}/precedents` | `ADMIN`. Compétences du même propriétaire déjà rejetées ou retirées sous le même titre ou le même texte, la plus récente d'abord ; `409` si la candidate est inconnue ou tranchée |
 | `GET /api/agent/skills/{id}/probe-suggestion` | `ADMIN`. Demande à rejouer tirée de l'origine de la compétence en attente, et ses déclencheurs ; `409` si elle est inconnue ou tranchée |
 | `POST /api/agent/skills/{id}/probe` | `{"request":"...","repetitions":1..3}` — `ADMIN`. Rejeu contrastif d'une compétence `PENDING`, tracé dans l'audit ; `409` si le rejeu est éteint, déjà en cours ou la compétence tranchée |
 | `GET /api/agent/skills/review-queue` | `ADMIN`. Tout ce qui est `PENDING`, tous propriétaires confondus, le plus ancien d'abord — la revue (`approve`/`reject`) reste elle-même transverse, voir ARCHITECTURE.md |
 | `POST /api/agent/skills/{id}/retire` | `{"reason":"..."}` — `ADMIN`, motif obligatoire, tracé dans l'audit |
+
+**Ce qui a déjà été tranché ne repart pas en revue.** Une proposition dont le texte est identique —
+à la casse, aux accents et aux espaces près — à celui d'une compétence du même propriétaire déjà
+rejetée ou retirée est refusée : `409` pour `POST /api/agent/skills`, avec la décision et son motif ;
+abandon silencieux pour les sources automatiques (refus répétés, tâches vérifiées), le résumé vérifié
+restant écrit. Un texte qui change — de nouveaux refus, une procédure révisée — repart en revue. La
+file de revue rappelle en outre, sur chaque candidate, les décisions prises sous le même titre ou le
+même texte avec leur motif : une procédure de tâche vérifiée change de texte à chaque exécution, et
+seul le titre la relie au refus de la précédente.
 
 Le curateur signale, il ne retire rien de lui-même : retirer une compétence change le comportement de
 toutes les conversations suivantes du même propriétaire, exactement ce qu'une approbation humaine

@@ -55,11 +55,46 @@ public final class SkillsService {
         if (effective == SkillScope.INVARIANT && !normalized.isEmpty()) {
             throw new IllegalArgumentException("Une compétence invariante ne porte pas de déclencheur");
         }
+        LearningEntry prior = judged(owner, markdown);
+        if (prior != null) throw new SkillAlreadyJudgedException(prior);
         LearningEntry entry = new LearningEntry(UUID.randomUUID().toString(), owner, "SKILL", title.strip(),
                 markdown.strip(), evidence.strip(), conversationId, clock.instant(), "PENDING", null, null, null,
                 verification, effective, normalized, List.of());
         repository.add(entry);
         return entry;
+    }
+
+    private static final java.util.Set<String> JUDGED = java.util.Set.of("REJECTED", "RETIRED");
+
+    /**
+     * La dernière décision humaine qui a écarté exactement ce texte, à la casse, aux accents et aux
+     * espaces près ; {@code null} sinon. Un texte identique ne porte aucun élément nouveau : le
+     * réviseur trancherait la même question une seconde fois.
+     */
+    LearningEntry judged(String owner, String markdown) {
+        String text = normalize(markdown);
+        return list(owner).stream()
+                .filter(entry -> JUDGED.contains(entry.status()) && normalize(entry.markdown()).equals(text))
+                .max(Comparator.comparing(entry -> entry.reviewedAt() == null ? Instant.EPOCH : entry.reviewedAt()))
+                .orElse(null);
+    }
+
+    /**
+     * Les décisions qui ont écarté une compétence au même titre ou au même texte que la candidate,
+     * la plus récente d'abord. Le texte d'une procédure de tâche vérifiée change à chaque exécution
+     * — il porte l'empreinte des résultats —, si bien que seul le titre relie une nouvelle
+     * proposition au refus de la précédente : le réviseur doit le voir avant de trancher à nouveau.
+     */
+    public List<LearningEntry> precedents(String id) {
+        LearningEntry candidate = pending(id);
+        String title = normalize(candidate.title());
+        String text = normalize(candidate.markdown());
+        return list(candidate.owner()).stream()
+                .filter(entry -> JUDGED.contains(entry.status()) && !entry.id().equals(id))
+                .filter(entry -> normalize(entry.title()).equals(title) || normalize(entry.markdown()).equals(text))
+                .sorted(Comparator.comparing((LearningEntry entry) -> entry.reviewedAt() == null ? Instant.EPOCH
+                        : entry.reviewedAt()).reversed())
+                .toList();
     }
 
     public List<LearningEntry> list(String owner) {

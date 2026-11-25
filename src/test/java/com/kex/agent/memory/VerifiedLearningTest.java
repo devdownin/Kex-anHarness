@@ -25,9 +25,12 @@ class VerifiedLearningTest {
     private static final MemoryProperties PROPERTIES = new MemoryProperties(true, 100, 1000, Duration.ofDays(7),
             new MemoryProperties.Skills(5, 3000, Duration.ofDays(90)));
     private static DurableTask task(DurableTask.Status status, DurableTask.StepStatus stepStatus) {
+        return task("task-1", status, stepStatus);
+    }
+    private static DurableTask task(String id, DurableTask.Status status, DurableTask.StepStatus stepStatus) {
         TaskPlan plan = new TaskPlan("Check lag", List.of("Read permission"), List.of(new TaskPlan.Step(
                 "check", "Measure lag", "lag", Map.of("topic", "orders"), List.of(), new TaskPlan.Expectation("/lag", 0))));
-        return new DurableTask("task-1", "tenant", "operator", 1, plan, "contract-v1", status,
+        return new DurableTask(id, "tenant", "operator", 1, plan, "contract-v1", status,
                 List.of(new DurableTask.StepResult("check", stepStatus, "{\"lag\":0}", "abc", NOW, "lag == 0")),
                 "admin", "policy-v1", null, null, NOW, NOW, "done");
     }
@@ -56,6 +59,20 @@ class VerifiedLearningTest {
         assertThat(memory.context("tenant")).isEmpty();
         assertThat(skills.list("tenant")).extracting(LearningEntry::status).containsExactly("RETIRED");
         assertThat(skills.list("other")).isEmpty();
+    }
+    /** Une autre tâche au même plan : sa procédure identique, déjà rejetée, ne repart pas en revue. */
+    @Test void a_procedure_identical_to_a_rejected_one_is_not_proposed_again(@TempDir Path directory) {
+        var repository = new FileLearningRepository(new ObjectMapper().findAndRegisterModules(), directory.resolve("data.json"), 100);
+        var skills = new SkillsService(repository, CLOCK);
+        var memory = new LongTermMemoryService(repository, skills, new CharterService(repository, CLOCK), PROPERTIES, CLOCK);
+        memory.recordVerifiedTask(task(DurableTask.Status.VERIFIED, DurableTask.StepStatus.VERIFIED));
+        skills.review(skills.list("tenant").getFirst().id(), false, "admin", "Procédure trop spécifique");
+
+        memory.recordVerifiedTask(task("task-2", DurableTask.Status.VERIFIED, DurableTask.StepStatus.VERIFIED));
+
+        assertThat(skills.list("tenant")).extracting(LearningEntry::status).containsExactly("REJECTED");
+        // Le résumé vérifié, lui, reste écrit : seule la procédure est écartée.
+        assertThat(memory.summaries("tenant").stream().filter(e -> "VERIFIED".equals(e.status()))).hasSize(2);
     }
     @Test void partially_verified_plans_cannot_teach_a_procedure(@TempDir Path directory) {
         var repository = new FileLearningRepository(new ObjectMapper().findAndRegisterModules(), directory.resolve("data.json"), 100);

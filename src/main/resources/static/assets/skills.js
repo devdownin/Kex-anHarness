@@ -222,6 +222,9 @@ function reviewQueueCard(row) {
     card.append(definition('Validité', el('span', null, row.verification.validUntil || '—')));
   }
   card.append(definition('Portée', el('span', null, scopeLabel(row))));
+  const precedents = el('div', 'stack precedents');
+  card.append(precedents);
+  showPrecedents(row.id, precedents);
   card.append(el('pre', 'dump muted', row.markdown));
   const probes = row.probes || [];
   if (probes.length) card.append(probeSummary(probes[probes.length - 1], row.id));
@@ -242,6 +245,32 @@ function reviewQueueCard(row) {
   actions.append(probe, reject, approve);
   card.append(actions);
   return card;
+}
+
+const PRECEDENT_VERBS = { REJECTED: 'rejetée', RETIRED: 'retirée' };
+
+/**
+ * Ce qu'un humain a déjà écarté sous ce titre ou ce texte. Une procédure de tâche vérifiée change de
+ * texte à chaque exécution : sans ce rappel, le réviseur retrancherait sans le savoir une question
+ * déjà tranchée — et le motif d'alors est souvent la réponse d'aujourd'hui.
+ */
+async function showPrecedents(id, host) {
+  let rows = [];
+  try {
+    rows = await api(`${SKILLS_BASE}/${encodeURIComponent(id)}/precedents`);
+  }
+  catch {
+    return;
+  }
+  if (!rows?.length) return;
+  const banner = el('div', 'banner stack');
+  banner.setAttribute('role', 'note');
+  banner.append(el('strong', null, rows.length === 1 ? 'Déjà tranchée sous ce titre ou ce texte'
+    : `Déjà tranchée ${rows.length} fois sous ce titre ou ce texte`));
+  rows.slice(0, 3).forEach((prior) => banner.append(el('span', null,
+    `« ${prior.title} » ${PRECEDENT_VERBS[prior.status] || prior.status} ${prior.reviewedAt ? ago(prior.reviewedAt) : ''}`
+    + `${prior.reviewedBy ? ` par ${prior.reviewedBy}` : ''}${prior.reviewReason ? ` — ${prior.reviewReason}` : ''}`)));
+  host.append(banner);
 }
 
 function scopeLabel(entry) {

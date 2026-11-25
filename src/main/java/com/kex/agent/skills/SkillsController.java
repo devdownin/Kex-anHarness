@@ -101,6 +101,12 @@ class SkillsController {
         return ProbeSuggestion.of(skills.pending(id));
     }
 
+    /** Ce qu'un humain a déjà écarté sous ce titre ou ce texte : à lire avant de trancher à nouveau. */
+    @GetMapping("/{id}/precedents")
+    List<LearningEntry> precedents(@PathVariable String id) {
+        return skills.precedents(id);
+    }
+
     @PostMapping("/{id}/probe")
     LearningEntry probe(@PathVariable String id, @Valid @RequestBody ProbeRequest request, Principal principal) {
         String actor = actor(principal);

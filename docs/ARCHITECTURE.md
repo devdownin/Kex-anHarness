@@ -1787,6 +1787,15 @@ il ne s'attribue à aucune, et l'article lui-même réserve `confounded` à ce c
 (`evicted`, `displaced`) sont calculées par `SkillsService.injectable`, la sélection même du prompt,
 pour tout rejeu, seul ou groupé : elles sont déterministes et précèdent l'exécution.
 
+L'article tient enfin une bibliothèque d'expérience : ce qui a été retenu, et pourquoi. Kex avait le
+pourquoi — le motif de chaque rejet et de chaque retrait — mais ne s'en servait jamais : un texte
+déjà rejeté repartait en revue, et une procédure de tâche vérifiée, dont le texte change à chaque
+exécution, revenait sans que le réviseur sache qu'il l'avait déjà écartée. `SkillsService.propose`
+refuse désormais un texte identique à une décision `REJECTED` ou `RETIRED`
+(`SkillAlreadyJudgedException`), et `precedents` rappelle celles prises sous le même titre. Le
+rapprochement reste textuel et déterministe : juger que deux procédures « disent la même chose »
+demanderait le modèle, donc un verdict non reproductible.
+
 Le même article sélectionne parmi des candidats anonymes et mélangés, en rappelant que retenir la
 sortie du harness non modifié est une issue valable. Le réviseur humain de Kex avait le biais
 inverse sous les yeux : chaque réponse portait son côté, et il avait souvent proposé la compétence

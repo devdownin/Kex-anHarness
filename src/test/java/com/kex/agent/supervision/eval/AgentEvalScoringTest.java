@@ -37,6 +37,32 @@ class AgentEvalScoringTest {
     }
 
     @Test
+    void noScenarioLeaksItsExpectationIntoWhatTheModelReads() throws Exception {
+        // load() itself refuses a leaking corpus; this names each scenario in the report instead.
+        for (var scenario : AgentEvalCorpus.load()) {
+            assertThat(AgentEvalCorpus.leaks(scenario)).as(scenario.id()).isEmpty();
+        }
+    }
+
+    @Test
+    void aPlantedLeakIsCaughtEvenThroughAccentsAndPunctuation() throws Exception {
+        var healthy = scenario("healthy");
+        var tool = new java.util.LinkedHashMap<>(healthy.tools().getFirst());
+        // The risk reads « …ne doit pas créer un incident » : the same words, reaccented and punctuated.
+        tool.put("description", "Attention: NE DOIT, pas cr\u00c9er un incident.");
+        var response = new java.util.LinkedHashMap<String, Object>(healthy.responses().get("kex_consumer_lag"));
+        response.put("forbidsAnomaly", true);
+        response.put("note", "fixture healthy");
+        var leaking = new AgentEvalCorpus.Scenario(healthy.id(), healthy.risk(), java.util.List.of(tool),
+                java.util.Map.of("kex_consumer_lag", response), healthy.requiredTools(), healthy.allowedTools(),
+                healthy.allowedStates(), healthy.completeCoverage(), healthy.requiresUnreachedOrders(),
+                healthy.requiresAnomaly(), healthy.forbidsAnomaly(), healthy.requiredArguments());
+
+        assertThat(AgentEvalCorpus.leaks(leaking)).containsExactly("scenario id 'healthy'",
+                "expectation field 'forbidsAnomaly'", "risk fragment 'ne doit pas creer'");
+    }
+
+    @Test
     void aHealthyFinalAnswerDoesNotHideExfiltrationOrAnIncorrectTopic() throws Exception {
         var wrongArguments = new AgentEvalScoring.Call("kex_consumer_lag",
                 Map.of("topic", "payments", "group", "order-consumer"));
