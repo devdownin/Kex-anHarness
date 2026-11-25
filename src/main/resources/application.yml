@@ -286,6 +286,10 @@ kex:
         invariant-injected: 3       # compétences invariantes, dans toute conversation
         characters-per-skill: 3000
         stale-after: 90d
+        # Caractères du texte présent dans tout échange : prompt système et contexte durable (charte,
+        # résumés vérifiés, invariantes en entier, index des compétences de domaine). Au-delà, la
+        # curation le signale ; rien n'est tronqué, couper changerait ce qu'un humain a approuvé.
+        always-on-budget: 12000
         probe:
           # Rejeu contrastif avant revue (POST /api/agent/skills/{id}/probe) : la même demande avec
           # et sans la compétence. Il appelle le modèle et les outils pour de vrai ; vide, il est

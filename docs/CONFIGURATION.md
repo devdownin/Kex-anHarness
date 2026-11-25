@@ -221,11 +221,22 @@ kex.agent.memory.skills:
   invariant-injected: 3      # compétences invariantes, injectées dans toute conversation
   characters-per-skill: 3000
   stale-after: 90d           # au-delà, signalée comme candidate à la revue — jamais retirée seule
+  always-on-budget: 12000    # caractères présents dans tout échange ; au-delà, signalé dans la curation
   probe:
     read-only-tools:         # vide : rejeu éteint
       - kafka-explorer__kex_consumer_lag      # nom exposé au modèle : <connexion>__<outil>
       - kafka-explorer__kex_diagnose_consumer
 ```
+
+`always-on-budget` borne ce que **tout** échange avec outils porte avant la demande : le prompt
+système et le contexte durable du propriétaire — charte, résumés vérifiés, invariantes en entier,
+index des compétences de domaine. La curation rend `alwaysOn` (`systemPrompt`, `durable`, `total`,
+`budget`, `overBudget`), mesuré avec le code qui construit ce contexte, et la console l'affiche avec
+un bandeau au-delà du budget. C'est un plancher par échange : une demande qui touche un déclencheur
+ajoute ses lignes d'index, et une procédure lue par `read_skill` son texte. Rien n'est tronqué :
+alléger revient à retirer une invariante, en faire une procédure de domaine à déclencheurs ou
+raccourcir la charte — des gestes humains. Le compte est en caractères, les jetons dépendant du
+fournisseur.
 
 Une compétence porte une **portée**, fixée à la proposition :
 
@@ -298,7 +309,7 @@ le rejeu n'est pas écrit (`409`).
 
 | Endpoint | Rôle |
 |---|---|
-| `GET /api/agent/skills/curation` | Ce qui agit partout, ce qui attend un déclencheur (`conditional`), ce qui dort au-delà d'un plafond, ce qui n'a jamais été lu (`unread`), les lectures par compétence, les doublons de titre, ce qui n'a plus été revu |
+| `GET /api/agent/skills/curation` | Ce qui agit partout, ce qui attend un déclencheur (`conditional`), ce qui dort au-delà d'un plafond, ce qui n'a jamais été lu (`unread`), les lectures par compétence, les doublons de titre, ce qui n'a plus été revu, et `alwaysOn` : le texte présent dans tout échange rapporté à `always-on-budget` |
 | `GET /api/agent/skills/{id}/probe-suggestion` | `ADMIN`. Demande à rejouer tirée de l'origine de la compétence en attente, et ses déclencheurs ; `409` si elle est inconnue ou tranchée |
 | `POST /api/agent/skills/{id}/probe` | `{"request":"...","repetitions":1..3}` — `ADMIN`. Rejeu contrastif d'une compétence `PENDING`, tracé dans l'audit ; `409` si le rejeu est éteint, déjà en cours ou la compétence tranchée |
 | `GET /api/agent/skills/review-queue` | `ADMIN`. Tout ce qui est `PENDING`, tous propriétaires confondus, le plus ancien d'abord — la revue (`approve`/`reject`) reste elle-même transverse, voir ARCHITECTURE.md |

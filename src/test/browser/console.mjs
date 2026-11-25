@@ -1291,6 +1291,8 @@ await check('approuver la fait disparaître de la file et apparaître dans la bi
   await page.waitForSelector('#skills-review-queue [data-empty-state]');
   assert.match(await page.$eval('#skills-curation', (node) => node.textContent),
     /Vérifier le lag avant un redémarrage/);
+  // Le texte présent dans tout échange, rapporté au budget par défaut.
+  assert.match(await page.$eval('#skills-curation', (node) => node.textContent), /Toujours présent[\d\s\u202f]+\/\s*12[\s\u202f]000/);
 });
 
 // Le bouton Retirer ne rend que sur ce qui dépasse le plafond d'injection (5 par défaut) ou qui

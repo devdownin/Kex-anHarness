@@ -1769,6 +1769,15 @@ que le modèle n'avait jamais pu lire. `ProbeSuggestion` la tire de l'origine �
 tâche vérifiée (la première ligne de la procédure, le titre étant tronqué), ou les processus visés par
 les refus, qui sont les déclencheurs de la règle — et la console la pré-remplit sans l'imposer.
 
+*Harness²* rappelle enfin que le texte toujours présent est la forme la plus chère d'une consigne :
+il entre dans chaque échange, que la demande en ait besoin ou non, et pousse le modèle vers le
+plafond de sortie. Le plafond `invariant-injected` bornait un nombre, pas un poids — trois invariantes
+de 3 000 caractères plus une charte de 8 000 passaient sans un mot. `SkillCuration.AlwaysOn` mesure
+le prompt système et le contexte durable avec `LongTermMemoryService.durable` lui-même, pour que le
+compte ne diverge jamais de ce que le modèle reçoit, et le rapporte à `always-on-budget`. Le
+dépassement est signalé, jamais corrigé : tronquer une invariante changerait en silence ce qu'un
+humain a approuvé.
+
 Le même article sélectionne parmi des candidats anonymes et mélangés, en rappelant que retenir la
 sortie du harness non modifié est une issue valable. Le réviseur humain de Kex avait le biais
 inverse sous les yeux : chaque réponse portait son côté, et il avait souvent proposé la compétence

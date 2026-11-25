@@ -26,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class SkillScopeSelectionTest {
 
     private static final MemoryProperties.Skills LIMITS =
-            new MemoryProperties.Skills(2, 1, 3000, Duration.ofDays(90), new MemoryProperties.Probe(Set.of()));
+            new MemoryProperties.Skills(2, 1, 3000, Duration.ofDays(90), new MemoryProperties.Probe(Set.of()), 12000);
 
     @TempDir
     Path directory;

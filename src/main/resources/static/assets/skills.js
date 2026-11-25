@@ -383,7 +383,23 @@ function curationReport(data) {
   tiles.append(tile('Jamais lues', data.unread.length));
   tiles.append(tile('Obsolètes', data.stale.length));
   tiles.append(tile('Caractères injectés', data.characters.toLocaleString('fr-FR')));
+  const alwaysOn = data.alwaysOn;
+  if (alwaysOn) {
+    tiles.append(tile('Toujours présent',
+      `${alwaysOn.total.toLocaleString('fr-FR')} / ${alwaysOn.budget.toLocaleString('fr-FR')}`));
+  }
   wrap.append(tiles);
+  // Signalé, jamais corrigé ici : alléger, c'est retirer ou réécrire une procédure qu'un humain a
+  // approuvée, ou raccourcir la charte. Le détail dit où se trouve le poids.
+  if (alwaysOn?.overBudget) {
+    const warning = el('p', 'banner always-on-warning',
+      `Le texte présent dans tout échange dépasse le budget : ${alwaysOn.total.toLocaleString('fr-FR')} caractères `
+      + `pour ${alwaysOn.budget.toLocaleString('fr-FR')} (prompt système ${alwaysOn.systemPrompt.toLocaleString('fr-FR')}, `
+      + `contexte durable ${alwaysOn.durable.toLocaleString('fr-FR')}). Chaque caractère y est payé à chaque échange ; `
+      + 'une procédure de domaine à déclencheur ne coûte qu’à la demande.');
+    warning.setAttribute('role', 'status');
+    wrap.append(warning);
+  }
 
   if (data.dormant.length) {
     wrap.append(digestGroup('En sommeil : approuvées, mais au-delà du plafond d’injection', data.dormant, true));
