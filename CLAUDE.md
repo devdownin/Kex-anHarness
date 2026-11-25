@@ -16,6 +16,11 @@ docker compose -f compose/smoke.yml up -d --wait   # agent + serveur MCP factice
 
 # La console au navigateur : l'agent doit tourner, Playwright est hors du projet
 PLAYWRIGHT_MODULE=/chemin/playwright/index.mjs node src/test/browser/console.mjs
+
+# La même, processeur du navigateur ralenti ×8 : c'est ainsi qu'apparaissent les courses de test
+# (console.mjs et first-run.mjs). Une valeur illisible arrête le script. browser-throttled.yml le
+# fait chaque semaine en CI.
+KEX_CPU_THROTTLE=8 PLAYWRIGHT_MODULE=/chemin/playwright/index.mjs node src/test/browser/console.mjs
 ```
 
 JDK 21 au minimum (la CI et l'image tournent en 21). La CI construit aussi l'image Docker et monte la stack de fumée.
@@ -489,5 +494,42 @@ JDK 21 au minimum (la CI et l'image tournent en 21). La CI construit aussi l'ima
 
 - **`display: flex` sur un `summary` retire son triangle de dépliage dans Chromium.** Le marqueur
   n'existe que pour `display: list-item` ; une hauteur minimale suffit à agrandir la cible.
+
+- **Deux `page.goto` de suite ne rechargent pas forcément une vue.** `route()` ne recharge que si la
+  vue diffère de la dernière affichée, et lit `location.hash` quand son gestionnaire tourne, pas à
+  la navigation qui l'a provoqué. Quand `#/overview` puis `#/integrations` se terminent avant le
+  premier `hashchange`, les deux événements lisent `#/integrations`, trouvent la vue déjà affichée
+  et ne rechargent rien : la grille garde les données du cas précédent, et le test attend jusqu'à
+  son délai un outil qui n'arrive pas. Invisible à vitesse normale ; en rejouant deux cas
+  consécutifs sous un processeur ralenti ×8, 7 itérations sur 15 échouaient. `reopen()`
+  (`console.mjs`) attend que la vue intermédiaire soit affichée avant de repartir.
+
+- **Une poignée d'élément gardée d'un `await` à l'autre se détache.** `for (const box of await
+  page.$$(…)) await box.check()` échouait en « Element is not attached to the DOM » dès que la
+  liste se redessinait entre deux cases. Un `locator` se re-résout à chaque appel.
+
+- **Un découpeur SSE retire une seule espace après `data:`, ni zéro ni toutes.** Spring Framework
+  7.1 (Boot 4.2) écrit `data: x` là où la version précédente écrivait `data:x` ; le découpeur de
+  `chat.js` gardait l'espace, et chaque jeton du chat, comme l'identifiant de conversation, en aurait
+  reçu une de trop. La console n'a plus qu'un découpeur, `events()` de `user-stream.js`, testé sous
+  Node, et `AgentControllerTest` lit le flux comme un client conforme au lieu de comparer le texte
+  brut — avec un jeton qui commence par une espace, le seul cas où les deux formats diffèrent.
+
+- **Un contrôle de taille de cible ne protège que ce qu'il regarde, et `check()` ne garde que la
+  première ligne de son message.** Les flèches de réordonnancement de « Personnaliser » (`ghost
+  compact`, sans hauteur minimale) tombaient sous 32 px ; le contrôle de la vue d'ensemble ne le
+  voyait qu'au hasard, et son message ne disait pas quels éléments. Il les nomme maintenant dans
+  cette première ligne, et un contrôle ouvre le panneau exprès.
+
+- **Deux surcharges `f(LearningEntry)` et `f(List<LearningEntry>)` rendent un `null` littéral
+  ambigu.** Le rejeu groupé a fait passer `SkillsService.injectable` et `LongTermMemoryService.durable`
+  d'une candidate à une liste : garder la surcharge unitaire cassait chaque appelant qui passait
+  `null`. Il n'y a donc plus que la liste, vide ou `null` hors rejeu ; `AgentService` a gardé `probe`
+  et ajouté `probeTogether`, d'un nom distinct pour la même raison.
+
+- **Un texte identique à une compétence rejetée ou retirée est refusé, y compris par un test.**
+  `SkillsService.propose` rend `409` (`SkillAlreadyJudgedException`) ; `console.mjs` retire sa
+  procédure en fin de parcours, et une seconde exécution contre le même agent échouait en
+  « 409 !== 201 ». Son texte porte donc un horodatage.
 
 Le détail et les raisons sont dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
