@@ -573,6 +573,16 @@ build. Modules ES natifs :
 `mcp-services.js` et les autres modules de fonctions pures n'importent aucun module d'interface :
 ils sont testés sous Node (`src/test/frontend`).
 
+Le rendu repose sur un système de surfaces défini par des jetons en tête de `console.css`. Il
+compte quatre matériaux : la base, presque opaque et réservée à la lecture, puis trois verres
+(fin, moyen, épais). S'y ajoutent quatre niveaux de profondeur, des rayons, des courbes de
+mouvement et six rôles typographiques. Le flou est réservé aux plans parents : rail, barre du
+haut, menus, dialogues et tiroirs. Les matériaux redeviennent opaques sans `backdrop-filter` ou en
+contraste renforcé. `user-workspace.css` recopie les mêmes valeurs pour l'espace utilisateur.
+Sur grand écran (1360 px et plus), la vue d'ensemble devient une grille de douze colonnes dont
+chaque bloc occupe une largeur selon son poids, sans changer l'ordre choisi dans
+« Personnaliser ».
+
 ## 12. Déploiement
 
 Image en deux étapes (`Dockerfile`) : construction `eclipse-temurin:21-jdk` avec cache Maven,
@@ -616,6 +626,7 @@ Détail : [`OBSERVABILITE.md`](OBSERVABILITE.md).
 | Unitaires et intégration Java | 165 classes `*Test` (JUnit, Mockito, MockMvc, H2 + vraie migration Flyway, `reactor-test`) |
 | Fonctions pures de la console | `src/test/frontend/*.mjs` sous Node |
 | Navigateur | `src/test/browser/*.mjs` sous Playwright, contre un agent réel ; `KEX_CPU_THROTTLE` ralentit le processeur |
+| Surfaces | `src/test/frontend/contrast.mjs` (contraste AA des jetons, clair et sombre) ; `src/test/browser/surfaces.mjs` (verre, opacité des menus, téléphone, mouvement réduit, contraste renforcé, grille), captures en artefact CI `console-surfaces` |
 | Évaluations d'agent | `agent-evals.yml`, corpus avec garde anti-fuite ([`AGENT-EVALUATIONS.md`](AGENT-EVALUATIONS.md)) |
 
 Workflows CI : `ci.yml` (jobs `build`, `mcp-interop`, `browser`, `docker`, `explorer-contract`,

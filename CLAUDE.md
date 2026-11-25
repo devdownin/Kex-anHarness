@@ -542,4 +542,10 @@ JDK 21 au minimum (la CI et l'image tournent en 21). La CI construit aussi l'ima
   cible de 32 px échouait sur un bouton conforme. Les menus entrent en fondu et en translation
   (`popover-in`) ; l'agrandissement reste aux dialogues et aux tiroirs.
 
+- **Un script navigateur rejoué contre un agent déjà parcouru par `console.mjs` n'est plus le même
+  test.** `console.mjs` laisse des cycles et des serveurs dans l'agent ; ensuite, le cas
+  « Lancer une analyse » de `first-run.mjs` attend un « Joindre un serveur MCP » qui ne vient plus,
+  et échoue avec ou sans le changement en cours. La CI les lance dans l'ordre inverse. Pour juger
+  d'un rouge local, redémarrer l'agent avant de conclure.
+
 Le détail et les raisons sont dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).

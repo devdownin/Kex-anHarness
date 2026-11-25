@@ -28,3 +28,100 @@
 .result-metric{padding:16px;border:1px solid var(--line);border-radius:12px;margin:16px 0;min-width:0;overflow-wrap:anywhere}.result-metric>strong{font-size:1.5rem;font-variant-numeric:tabular-nums}.result-metric svg{display:block;width:100%;max-width:640px;color:var(--accent);margin:12px 0}.tool-evidence pre{max-height:300px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
 
 .result-validation,.result-consultations{border:1px solid var(--line);border-radius:10px;padding:14px;margin:16px 0}.result-consultations article{padding:12px;margin:8px 0;background:var(--soft);border-inline-start:3px solid var(--accent)}.result-consultations .consultation-error{border-inline-start-color:light-dark(#805200,#ffce78)}.finding-quality{font-weight:600}
+
+/* ── Surfaces ────────────────────────────────────────────────────────
+   Même système que la console (console.css) : un fond lumineux à halos, des plans qui flottent
+   au-dessus, un matériau par niveau. Les valeurs sont recopiées plutôt qu'importées : cet espace
+   ne charge pas la feuille de la console, et n'a pas à en hériter les quelque deux mille autres
+   règles. Les cibles de 44 px de cet espace restent intactes. */
+:root{
+  --bg-deep:light-dark(#e9edf3,#080b10);
+  --halo-1:light-dark(rgb(150 182 255 / 16%),rgb(70 100 180 / 14%));
+  --halo-2:light-dark(rgb(206 182 255 / 11%),rgb(120 90 190 / 9%));
+  --material-base:light-dark(rgb(251 252 254 / 94%),rgb(19 24 35 / 92%));
+  --glass-regular-bg:light-dark(rgb(255 255 255 / 58%),rgb(24 28 37 / 60%));
+  --glass-thick-bg:light-dark(rgb(255 255 255 / 80%),rgb(26 31 41 / 86%));
+  --glass-border:light-dark(rgb(255 255 255 / 55%),rgb(255 255 255 / 8%));
+  --hairline:light-dark(rgb(20 30 50 / 8%),rgb(255 255 255 / 7%));
+  --highlight:inset 0 1px 0 light-dark(rgb(255 255 255 / 70%),rgb(255 255 255 / 6%));
+  --control-bg:light-dark(rgb(20 30 50 / 4.5%),rgb(255 255 255 / 6%));
+  --control-bg-hover:light-dark(rgb(20 30 50 / 7.5%),rgb(255 255 255 / 10%));
+  --field-bg:light-dark(rgb(20 30 50 / 3.5%),rgb(0 0 0 / 22%));
+  --nav-active-bg:light-dark(rgb(255 255 255 / 82%),rgb(255 255 255 / 9%));
+  --scrim:light-dark(rgb(20 25 35 / 16%),rgb(0 0 0 / 38%));
+  --depth-1:0 1px 2px rgb(20 30 50 / 4%),0 6px 20px rgb(20 30 50 / 5%);
+  --depth-3:0 4px 12px rgb(20 30 50 / 6%),0 28px 80px rgb(20 30 50 / 16%);
+  --ease-spatial:cubic-bezier(.2,.8,.2,1);
+  --bg:light-dark(#f2f4f8,#0b0f16);
+  --muted:light-dark(#4c586b,#a9b1c0);
+}
+body{
+  background:
+    radial-gradient(circle at 18% 8%,var(--halo-1),transparent 36%),
+    radial-gradient(circle at 82% 18%,var(--halo-2),transparent 42%),
+    linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%);
+  background-attachment:fixed;
+  min-height:100dvh;
+}
+/* L'en-tête flotte au-dessus du contenu et le garde visible : verre moyen, détaché des bords. */
+.app-header{
+  position:sticky;top:12px;z-index:10;
+  margin:12px 12px 0;padding:14px 22px;
+  border:1px solid var(--glass-border);border-radius:22px;
+  background:var(--glass-regular-bg);
+  backdrop-filter:blur(22px) saturate(160%);-webkit-backdrop-filter:blur(22px) saturate(160%);
+  box-shadow:var(--highlight),0 0 0 1px var(--hairline),var(--depth-1);
+}
+.brand img{border-radius:10px;box-shadow:0 0 0 1px var(--hairline)}
+nav a{transition:background-color .18s ease,color .18s ease}
+nav a:hover{background:var(--control-bg)}
+nav a[aria-current=page]{background:var(--nav-active-bg);box-shadow:var(--highlight),0 0 0 1px var(--hairline),0 3px 10px rgb(20 30 50 / 6%)}
+/* Panneaux de lecture : matériau de base, sans flou — on y lit des résultats. */
+.panel{
+  border:1px solid var(--glass-border);border-radius:22px;
+  background:var(--material-base);
+  box-shadow:var(--highlight),0 0 0 1px var(--hairline),var(--depth-1);
+}
+.work-card,.favorite-card,.onboarding-example,.result-metric,.result-validation,.result-consultations,#context-preview details{
+  border-color:var(--hairline);border-radius:16px;background:var(--material-base);
+}
+.table-scroll{border-color:var(--hairline);border-radius:14px}
+.decision-overview,#notice,#activity-delay{border-radius:14px}
+button{
+  border-color:var(--hairline);border-radius:12px;background:var(--control-bg);
+  transition:background-color .18s ease,box-shadow .18s ease,transform .18s var(--ease-spatial);
+}
+button:hover:not(:disabled){background:var(--control-bg-hover);box-shadow:var(--highlight),0 3px 10px rgb(20 30 50 / 6%)}
+.primary{box-shadow:inset 0 1px 0 rgb(255 255 255 / 22%),0 4px 12px color-mix(in srgb,var(--accent) 20%,transparent)}
+.primary:hover:not(:disabled){background:var(--accent);box-shadow:inset 0 1px 0 rgb(255 255 255 / 22%),0 8px 20px color-mix(in srgb,var(--accent) 26%,transparent)}
+.action-card{border-radius:18px;background:var(--material-base);box-shadow:var(--highlight),0 0 0 1px var(--hairline),var(--depth-1)}
+input,textarea,select{
+  background:var(--field-bg);border-color:var(--hairline);border-radius:12px;
+  box-shadow:inset 0 1px 2px rgb(20 30 50 / 5%);
+  transition:border-color .18s ease,box-shadow .18s ease;
+}
+input:focus,textarea:focus,select:focus{
+  border-color:color-mix(in srgb,var(--accent) 55%,transparent);
+  box-shadow:inset 0 1px 2px rgb(20 30 50 / 4%),0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent);
+}
+/* Le dialogue est le plan le plus proche : matériau épais, grand rayon, voile léger. */
+dialog{
+  border:1px solid var(--glass-border);border-radius:28px;
+  background:var(--glass-thick-bg);
+  backdrop-filter:blur(34px) saturate(175%);-webkit-backdrop-filter:blur(34px) saturate(175%);
+  box-shadow:var(--highlight),0 0 0 1px var(--hairline),var(--depth-3);
+}
+dialog[open]{animation:surface-in .24s var(--ease-spatial) both}
+dialog::backdrop{background:var(--scrim);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+@keyframes surface-in{from{opacity:0;transform:translateY(6px) scale(.97)}}
+@media(prefers-reduced-motion:no-preference){
+  button:hover:not(:disabled),.action-card:hover:not(:disabled){transform:translateY(-1px)}
+  button:active:not(:disabled){transform:scale(.985);transition-duration:.1s}
+}
+@media(prefers-reduced-motion:reduce){dialog[open]{animation:none}}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  :root{--glass-regular-bg:var(--surface);--glass-thick-bg:var(--surface)}
+}
+@media(max-width:700px){
+  .app-header{position:static;margin:8px 8px 0;border-radius:20px;backdrop-filter:blur(14px) saturate(150%);-webkit-backdrop-filter:blur(14px) saturate(150%)}
+}
