@@ -3,6 +3,10 @@
 Ce document explique **comment l'agent est construit et pourquoi**. Les décisions y sont données
 avec la raison qui les a produites — souvent un comportement observé, pas une préférence.
 
+La vue de référence de l'architecture actuelle — paquets, routes, sécurité, persistance, flux —
+est dans [`ARCHITECTURE-LOGICIELLE.md`](ARCHITECTURE-LOGICIELLE.md). « Les pièces » ci-dessous en
+est une vue réduite, centrée sur le chemin d'une requête.
+
 ## Les pièces
 
 ```mermaid
