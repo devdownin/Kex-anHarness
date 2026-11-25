@@ -1,0 +1,92 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- Copyright (C) 2026 Kex Agent AI Contributors --><html><head><meta charset="utf-8"><style>
+body{margin:0;font-family:"DejaVu Sans",Arial,sans-serif;background:#fff;color:#1b2333}
+.fig{width:1000px;padding:28px;box-sizing:border-box;background:#fff}
+.box{border:2px solid #167d73;border-radius:14px;padding:12px 14px;background:#eef8f6;text-align:center;font-size:15px}
+.box b{display:block;font-size:16px;margin-bottom:4px}
+.grey{border-color:#7a8797;background:#f3f5f8}
+.warn{border-color:#b45309;background:#fdf3e6}
+.red{border-color:#b42318;background:#fcebea}
+.violet{border-color:#6d28d9;background:#f2edfc}
+.arrow{font-size:26px;color:#4c586b;text-align:center;line-height:1}
+.row{display:flex;gap:14px;align-items:stretch;justify-content:center}
+.col{display:flex;flex-direction:column;gap:10px}
+.cap{font-size:13px;color:#4c586b;margin-top:4px}
+.center{border-width:3px;background:#dcf2ee;font-size:16px}
+.lbl{font-size:12px;color:#4c586b;text-align:center}
+</style></head><body>
+
+<div class="fig" id="f1">
+ <div class="row">
+  <div class="box grey" style="flex:1"><b>Opérateurs</b>Console web (navigateur)</div>
+  <div class="box grey" style="flex:1"><b>Clients API, CI</b>Clé API ou jeton OIDC</div>
+  <div class="box grey" style="flex:1"><b>Autres agents, IDE</b>Kex vu comme serveur MCP</div>
+ </div>
+ <div class="arrow">↓ ↓ ↓</div>
+ <div class="box center"><b>Kex Agent AI (Spring Boot, port 8081)</b>
+  <div class="row" style="margin-top:8px">
+   <div class="box" style="flex:1"><b>Conversation</b>répondre aux questions</div>
+   <div class="box" style="flex:1"><b>Supervision</b>cycles, décisions, audit</div>
+   <div class="box" style="flex:1"><b>Apprentissage</b>mémoire, compétences</div>
+   <div class="box" style="flex:1"><b>Tâches durables</b>plans approuvés</div>
+  </div></div>
+ <div class="arrow">↓ ↓ ↓ ↓</div>
+ <div class="row">
+  <div class="box violet" style="flex:1"><b>Fournisseur de modèle</b>Anthropic, OpenAI, Ollama, vLLM</div>
+  <div class="box" style="flex:1"><b>Serveurs MCP</b>Kafka SQL Explorer (lecture seule), autres</div>
+  <div class="box grey" style="flex:1"><b>PostgreSQL</b>facultatif : profil shared-memory</div>
+  <div class="box warn" style="flex:1"><b>Canaux</b>Slack, Teams, e-mail, webhook</div>
+ </div>
+</div>
+
+<div class="fig" id="f2">
+ <div class="col">
+  <div class="row">
+   <div class="box grey" style="flex:1"><b>1. Garde-fous</b>pause ? cycle déjà en cours ? budget de jetons ?</div>
+   <div class="arrow" style="align-self:center">→</div>
+   <div class="box" style="flex:1"><b>2. Relevé</b>un échange avec le modèle par processus ; il appelle les outils MCP</div>
+   <div class="arrow" style="align-self:center">→</div>
+   <div class="box" style="flex:1"><b>3. Tri des preuves</b>une anomalie sans appel d'outil réussi est écartée</div>
+  </div>
+  <div class="arrow">↓</div>
+  <div class="row">
+   <div class="box warn" style="flex:1"><b>6. Trace</b>audit, historique, notification de validation</div>
+   <div class="arrow" style="align-self:center">←</div>
+   <div class="box violet" style="flex:1"><b>5. Décision</b>par anomalie : bloquer, demander, ou agir</div>
+   <div class="arrow" style="align-self:center">←</div>
+   <div class="box" style="flex:1"><b>4. États</b>OK, WARNING, ERROR ou UNKNOWN par processus ; maintenance appliquée</div>
+  </div>
+ </div>
+</div>
+
+<div class="fig" id="f3">
+ <div class="col" style="align-items:center">
+  <div class="box" style="width:560px"><b>Anomalie sourcée</b>capacité recommandée (NOTIFY par défaut)</div>
+  <div class="arrow">↓</div>
+  <div class="box grey" style="width:560px"><b>Autonomie de la capacité</b>politique, éventuellement restreinte par le mode d'exécution</div>
+  <div class="arrow">↓</div>
+  <div class="box grey" style="width:560px"><b>Le modèle a-t-il écrit des arguments ?</b>si oui, AUTOMATIC devient SUPERVISED</div>
+  <div class="arrow">↓</div>
+  <div class="row" style="width:960px">
+   <div class="box red" style="flex:1"><b>FORBIDDEN</b>BLOCKED : recommandation seule</div>
+   <div class="box violet" style="flex:1"><b>SUPERVISED, ou AUTOMATIC sous le plancher</b>PENDING_APPROVAL : un humain tranche</div>
+   <div class="box" style="flex:1"><b>AUTOMATIC et confiance ≥ plancher</b>exécution, puis vérification</div>
+  </div>
+  <div class="arrow">↓</div>
+  <div class="box" style="width:760px"><b>Après exécution</b>VERIFIED · VERIFICATION_FAILED · VERIFICATION_UNKNOWN · EXECUTED_UNVERIFIED · FAILED · SIMULATED</div>
+ </div>
+</div>
+
+<div class="fig" id="f4">
+ <div class="row">
+  <div class="box grey" style="flex:1"><b>1. Entrée</b>authentification, limite de débit</div>
+  <div class="arrow" style="align-self:center">→</div>
+  <div class="box" style="flex:1"><b>2. Préparation</b>budget réservé, outils choisis, compétences, connaissance</div>
+  <div class="arrow" style="align-self:center">→</div>
+  <div class="box violet" style="flex:1"><b>3. Boucle modèle</b>le modèle répond ou demande un outil, autant de tours que nécessaire</div>
+  <div class="arrow" style="align-self:center">→</div>
+  <div class="box" style="flex:1"><b>4. Restitution</b>texte en direct (SSE), consommation, résumé non vérifié</div>
+ </div>
+</div>
+</body></html>

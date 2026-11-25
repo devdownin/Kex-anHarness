@@ -12,6 +12,7 @@ mvnw.cmd text eol=crlf
 *.png binary
 *.jpg binary
 *.ico binary
+*.docx binary
 
 # Diffs plus lisibles côté revue.
 *.java diff=java
