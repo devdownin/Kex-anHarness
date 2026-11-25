@@ -1351,12 +1351,15 @@ await check('le rejeu groupé envoie les compétences cochées d’un même prop
     assert.deepEqual(sent, { ids: [proposed.id, second.id], request: 'Le lag de billing est-il stable ?', repetitions: 3 });
   }
   finally {
+    // La file simulée d'abord, ses précédents en dernier : retirés dans l'autre ordre, un rendu tombé
+    // entre les deux — fréquent sous processeur ralenti — demandait au vrai agent les précédents
+    // d'une compétence qui n'existe que dans la simulation, et son 409 finissait dans les erreurs.
     await page.unroute('**/api/agent/skills/probe-together');
-    await page.unroute(`**/api/agent/skills/${second.id}/precedents`);
     await page.unroute('**/api/agent/skills/review-queue');
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.click('[data-agent-tab="governance"]');
     await page.waitForSelector('#skills-review-queue article.card');
+    await page.unroute(`**/api/agent/skills/${second.id}/precedents`);
   }
 });
 

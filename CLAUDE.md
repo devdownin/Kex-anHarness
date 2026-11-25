@@ -567,4 +567,14 @@ JDK 21 au minimum (la CI et l'image tournent en 21). La CI construit aussi l'ima
   de présentation pleines de « Jeton refusé ». L'agent prend maintenant la clé du job, et la capture
   refuse un écran qui montre un bloc en erreur.
 
+- **Sous WebKit, l'animation d'un élément masqué ne se termine jamais.** `document.getAnimations()`
+  y garde celles des vues cachées (`display: none`), et leur `finished` reste en attente : attendre
+  « toutes les animations » a figé le passage WebKit de `surfaces.mjs` jusqu'au délai du job. Seuls les
+  éléments affichés (`checkVisibility()`) comptent, et l'attente est bornée.
+
+- **Une simulation se retire dans l'ordre inverse de ce qui la lit.** `console.mjs` retirait les
+  précédents simulés d'une compétence fictive avant la file de revue qui la listait : un rendu tombé
+  entre les deux, sous processeur ralenti, interrogeait le vrai agent sur un identifiant inconnu, et son
+  `409` finissait dans les erreurs du parcours.
+
 Le détail et les raisons sont dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).

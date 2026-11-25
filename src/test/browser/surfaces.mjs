@@ -41,7 +41,8 @@ async function open(viewport, view, options = {}) {
 
 async function check(name, run) {
   try {
-    await run();
+    // Un contrôle figé échoue au lieu de tenir le job jusqu'à son délai global.
+    await Promise.race([run(), new Promise((_, reject) => setTimeout(() => reject(new Error('délai de 60 s dépassé')), 60000))]);
     console.log(`  ✓ ${name}`);
   } catch (error) {
     failures.push(name);
@@ -52,9 +53,16 @@ async function check(name, run) {
 // Une vue entre en remontant de 6 px : mesurée pendant ce mouvement, la synthèse et les indicateurs
 // semblaient décalés de 3 px. On attend les animations finies ; une pulsation infinie (cycle en
 // cours) ne se termine jamais, elle n'est donc pas attendue.
-const settled = (page) => page.evaluate(() => Promise.all(document.getAnimations()
-  .filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity)
-  .map((animation) => animation.finished.catch(() => {}))));
+// Seules les animations d'éléments affichés comptent : sous WebKit, celle d'un élément masqué
+// (`display: none`, une vue cachée) reste en attente et sa promesse ne se résout jamais — le passage
+// WebKit s'est figé là. Un plafond de 3 s borne de toute façon l'attente.
+const settled = (page) => page.evaluate(() => Promise.race([
+  Promise.all(document.getAnimations()
+    .filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity)
+    .filter((animation) => animation.effect?.target?.checkVisibility?.() ?? true)
+    .map((animation) => animation.finished.catch(() => {}))),
+  new Promise((resolve) => setTimeout(resolve, 3000)),
+]));
 
 const style = (locator, property) => locator.evaluate((node, key) => getComputedStyle(node)[key], property);
 const alpha = (color) => {
