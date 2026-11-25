@@ -50,6 +50,23 @@ const page = await context.newPage();
 page.setDefaultTimeout(10000);
 page.setDefaultNavigationTimeout(10000);
 
+/**
+ * Ouvre une vue en forçant son chargement. `route()` ne recharge une vue que si elle diffère de la
+ * dernière affichée, et lit `location.hash` au moment où son gestionnaire tourne, pas celui de la
+ * navigation qui l'a provoqué. Deux `page.goto` de suite — `#/overview` puis la vue visée — se
+ * terminent parfois avant que Chromium ne distribue le premier `hashchange` : les deux événements
+ * lisent alors le hash final, trouvent la vue déjà affichée et ne rechargent rien. La grille garde
+ * les données du cas précédent, et le cas attend jusqu'à son délai un nom d'outil qui n'arrive pas.
+ * Sous un processeur ralenti ×8, 7 cas sur 15 échouaient ainsi ; attendre que la vue intermédiaire
+ * soit réellement affichée avant de repartir rend l'enchaînement déterministe.
+ */
+async function reopen(view) {
+  await page.goto(`${BASE}/#/overview`, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('#view-overview:not([hidden])');
+  await page.goto(`${BASE}/#/${view}`, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector(`#view-${view}:not([hidden])`);
+}
+
 // Une exception non rattrapée ne casse rien de visible : l'écran reste affiché, figé sur des
 // données périmées. C'est exactement le mensonge que le reste de la console s'attache à éviter.
 const scriptErrors = [];
@@ -381,8 +398,7 @@ await check('le bandeau hors ligne apparaît puis disparaît', async () => {
 await check('la vue Intégrations n’a qu’un bouton de rafraîchissement', async () => {
   // Défaut : chaque panneau ajouté à cette vue arrivait avec le sien — trois pour un même geste,
   // au-dessus d'un sondage de fond qui les rafraîchit déjà tous. Les autres vues n'en ont qu'un.
-  await page.goto(`${BASE}/#/overview`, { waitUntil: 'domcontentloaded' });
-  await page.goto(`${BASE}/#/integrations`, { waitUntil: 'domcontentloaded' });
+  await reopen('integrations');
   const refreshers = await page.$$eval('#view-integrations button',
     (nodes) => nodes.filter((node) => node.textContent.trim() === 'Actualiser').length);
 
@@ -451,8 +467,7 @@ await check('la carte d’un serveur MCP unique occupe toute la largeur du panne
       tools: [{ name: 'kex_list_topics', description: 'Liste les topics.' }],
     }]),
   }));
-  await page.goto(`${BASE}/#/overview`, { waitUntil: 'domcontentloaded' });
-  await page.goto(`${BASE}/#/integrations`, { waitUntil: 'domcontentloaded' });
+  await reopen('integrations');
   await page.waitForSelector('#servers .server');
 
   const widths = await page.evaluate(() => ({
@@ -497,8 +512,7 @@ await check('le diagnostic MCP distingue ajout, suppression et changement de sch
     });
   });
 
-  await page.goto(`${BASE}/#/overview`, { waitUntil: 'domcontentloaded' });
-  await page.goto(`${BASE}/#/integrations`, { waitUntil: 'domcontentloaded' });
+  await reopen('integrations');
   await page.waitForSelector('#servers .server');
   await page.locator('#servers .server').getByRole('button', { name: 'Diagnostic', exact: true }).click();
   await page.waitForSelector('.mcp-diagnostics');
@@ -514,8 +528,7 @@ await check('le diagnostic MCP distingue ajout, suppression et changement de sch
 });
 
 await check('la base de connaissance affiche un état désactivé sans le confondre avec une panne', async () => {
-  await page.goto(`${BASE}/#/overview`, { waitUntil: 'domcontentloaded' });
-  await page.goto(`${BASE}/#/knowledge`, { waitUntil: 'domcontentloaded' });
+  await reopen('knowledge');
   // kex.agent.knowledge.enabled vaut false par défaut et la CI ne le change pas : la route répond
   // réellement 404 ici, sans simulation — le cas exact que le piège documenté (une route éteinte
   // n'est pas une panne) couvre.
@@ -597,8 +610,7 @@ await check('les résumés durables s’affichent et se retirent depuis leur car
     return route.fallback();
   });
 
-  await page.goto(`${BASE}/#/overview`, { waitUntil: 'domcontentloaded' });
-  await page.goto(`${BASE}/#/knowledge`, { waitUntil: 'domcontentloaded' });
+  await reopen('knowledge');
   await page.waitForSelector('#summaries-list .card');
   assert.match(await page.$eval('#summaries-list', (node) => node.textContent), /Purger les topics de test/);
 
@@ -687,12 +699,11 @@ await check('un outil qui attend des paramètres propose un exemple pré-rempli,
         }],
       }]),
     }));
-    await page.goto(`${BASE}/#/overview`, { waitUntil: 'domcontentloaded' });
-  await page.goto(`${BASE}/#/integrations`, { waitUntil: 'domcontentloaded' });
-    // Un nom d'outil propre à ce cas, jamais réutilisé ailleurs dans la suite : `page.goto` vers un
-    // hash déjà courant ne redéclenche pas le routage (pas de `hashchange` sur un fragment inchangé),
-    // et sans ce repère la grille encore affichée par le cas précédent — pas la donnée qu'on vient de
-    // mocker ici — serait ce que le clic suivant atteint.
+    await reopen('integrations');
+    // Un nom d'outil propre à ce cas, jamais réutilisé ailleurs dans la suite : `reopen` force le
+    // rechargement (voir son commentaire), mais ce repère reste ce qui prouve que la grille affichée
+    // est celle qu'on vient de mocker ici et non celle du cas précédent, que le clic suivant
+    // atteindrait sinon.
     await page.waitForSelector('.tool-list .name:has-text("kex_ping_prefill")');
     // Un sélecteur re-résolu à chaque clic, jamais un handle gardé d'un appel à l'autre : le sondage
     // de fond peut re-rendre la grille entre les deux et détacher un handle capturé trop tôt.
@@ -735,8 +746,7 @@ await check('un résultat affiché survit au sondage de fond, jusqu’à ce qu�
       status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }),
     }));
 
-    await page.goto(`${BASE}/#/overview`, { waitUntil: 'domcontentloaded' });
-  await page.goto(`${BASE}/#/integrations`, { waitUntil: 'domcontentloaded' });
+    await reopen('integrations');
     // Nom propre à ce cas — voir le commentaire du cas précédent sur `page.goto` vers un hash déjà
     // courant.
     await page.waitForSelector('.tool-list .name:has-text("kex_ping_bgrefresh")');
@@ -782,9 +792,8 @@ await check('les arguments qui ne respectent pas le schéma d’un outil sont re
       called = true;
       route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
     });
-    await page.goto(`${BASE}/#/overview`, { waitUntil: 'domcontentloaded' });
-  await page.goto(`${BASE}/#/integrations`, { waitUntil: 'domcontentloaded' });
-    // Nom propre à ce cas — voir le commentaire plus haut sur `page.goto` vers un hash déjà courant.
+    await reopen('integrations');
+    // Nom propre à ce cas — voir le commentaire du cas « exemple pré-rempli » plus haut.
     await page.waitForSelector('.tool-list .name:has-text("kex_topics_reject")');
     await page.click('#servers .server ul.tool-list button');
     // Le champ est désormais pré-rempli d'un exemple valide : le vider pour tester le rejet lui-même.
@@ -823,7 +832,10 @@ await check('la sélection groupée approuve chaque décision cochée, sans nouv
     });
     await page.goto(`${BASE}/#/decisions`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#decisions-list .bulk-select');
-    for (const box of await page.$$('#decisions-list .bulk-select')) await box.check();
+    // Un locator se re-résout à chaque appel ; les poignées de `page.$$`, gardées d'un `await` à
+    // l'autre, se détachent si la liste se redessine entre deux cases (« Element is not attached »).
+    const boxes = page.locator('#decisions-list .bulk-select');
+    for (let index = 0, count = await boxes.count(); index < count; index += 1) await boxes.nth(index).check();
     await page.waitForSelector('#decisions-bulk-bar:not([hidden])');
     await page.click('#decisions-bulk-approve');
     await page.waitForSelector('dialog#confirm[open]');
@@ -1387,8 +1399,7 @@ await check('annuler un retrait fonctionne sans motif rempli (formnovalidate)', 
   // Confirmer bloquerait aussi Annuler côté navigateur, sans formnovalidate sur ce bouton-là.
   // Un aller-retour de vue plutôt qu'un rechargement complet : route() ne recharge un écran que
   // sur un changement de vue détecté, et c'est ce détour qui fait relire la curation à jour.
-  await page.goto(`${BASE}/#/overview`, { waitUntil: 'domcontentloaded' });
-  await page.goto(`${BASE}/#/agent`, { waitUntil: 'domcontentloaded' });
+  await reopen('agent');
   await page.click('[data-agent-tab="governance"]');
   await page.waitForSelector(retireButton);
   await page.click(retireButton);
@@ -1604,8 +1615,7 @@ await check('le cockpit MCP synthétise les connexions et leurs métriques', asy
   await page.route('**/api/agent/mcp/storage', (route) => route.fulfill({
     status: 200, contentType: 'application/json', body: 'null',
   }));
-  await page.goto(`${BASE}/#/overview`, { waitUntil: 'domcontentloaded' });
-  await page.goto(`${BASE}/#/integrations`, { waitUntil: 'domcontentloaded' });
+  await reopen('integrations');
   await page.waitForSelector('#mcp-connection-cockpit table');
   const cockpit = await page.textContent('#mcp-connection-cockpit');
   assert.match(cockpit, /1 connexion/);
