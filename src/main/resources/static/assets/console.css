@@ -2325,3 +2325,8 @@ table.grid th button.sort { min-height: 32px; display: inline-flex; align-items:
   .overview-hero { padding: 18px; }
   .overview-hero h1 { font-size: 24px; }
 }
+
+/* Liens vers les applications qui montrent le processus de près : sortants, donc marqués ↗. */
+.process-links { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0; }
+.process-links:empty { display: none; }
+.process-links a { min-height: 32px; display: inline-flex; align-items: center; }

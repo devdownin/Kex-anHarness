@@ -1000,6 +1000,17 @@ function coverageReason(coverage) {
   return `${reason}${coverage.detail ? ` (${coverage.detail})` : ''}${missed}`;
 }
 
+/**
+ * Les liens déclarés avec le processus (topic dans KafkaExplorer, carte…), lus une fois : ils
+ * viennent de la configuration et ne changent pas d'un sondage à l'autre. Une lecture en échec ne
+ * cache rien d'autre du panneau, elle n'affiche simplement pas de lien.
+ */
+let declaredProcesses = null;
+function processLinks(processId) {
+  declaredProcesses ??= api(`${BASE}/processes/definitions`).catch(() => { declaredProcesses = null; return []; });
+  return declaredProcesses.then((rows) => (rows || []).find((process) => process.id === processId)?.links || []);
+}
+
 function openProcess(row) {
   const data = current();
   const alerts = (data?.alerts || []).filter((alert) => alert.processId === row.processId);
@@ -1033,6 +1044,19 @@ function openProcess(row) {
   });
   actions.append(favorite, ...standard.children);
   extra.append(actions);
+  const links = el('div', 'process-links');
+  extra.append(links);
+  processLinks(row.processId).then((declared) => {
+    if (!declared.length) return;
+    links.append(el('span', 'muted', 'Voir aussi'));
+    declared.forEach((link) => {
+      const anchor = el('a', 'ghost', `${link.label} ↗`);
+      anchor.href = link.url;
+      anchor.target = '_blank';
+      anchor.rel = 'noopener noreferrer';
+      links.append(anchor);
+    });
+  });
   if (row.coverage && !row.coverage.complete && row.coverage.stopReason !== 'NOT_REPORTED') {
     const banner = el('p', 'banner',
       `Relevé partiel : ${coverageReason(row.coverage)}. Une passe incomplète peut prouver une `

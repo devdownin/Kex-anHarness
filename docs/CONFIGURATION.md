@@ -35,7 +35,7 @@ arrive.
 | `EXPLORER_PORT` | `8080` | Port publié de l'Explorer |
 | `KAFKA_PORT` | `9092` | Port publié du broker |
 | `BIND_ADDR` | `127.0.0.1` | Interface d'écoute. `0.0.0.0` expose hors de la machine |
-| `EXPLORER_IMAGE_TAG` | `2.4.0` | Version de l'image de l'Explorer. `latest` pour suivre les publications, au prix de la reproductibilité |
+| `EXPLORER_IMAGE_TAG` | `2.7.0` | Version de l'image de l'Explorer. `latest` pour suivre les publications, au prix de la reproductibilité |
 | `EXPLORER_IMAGE_NAMESPACE` | `compagnonsdudev` | Ou `ghcr.io/devdownin` |
 | `EXPLORER_MCP_READONLY` | `true` | Laisser à `true` sauf besoin explicite d'écriture |
 | `POSTGRES_PASSWORD` | `kex` | Surcouche `compose/shared-memory.yml` |
@@ -54,7 +54,7 @@ arrive.
 | `log-interactions` | `false` | Journalise prompts et réponses — le niveau `DEBUG` que `SimpleLoggerAdvisor` exige est déjà posé, la propriété suffit. Debug uniquement : données sensibles |
 | `api-key` | *(vide)* | Bearer de l'API sous le principal anonyme `kex-agent-api`. Vide = API fermée (`503`) |
 | `api-keys.<nom>` | *(vide)* | Bearers nommés, en plus ou à la place d'`api-key` : chaque nom devient le principal authentifié, donc l'acteur inscrit à l'audit de supervision |
-| `api-key-roles.<nom>` | `CHAT` | Rôle d'un bearer nommé : `CHAT`, `OPERATOR` ou `ADMIN`. La clé historique `api-key` reste administrateur |
+| `api-key-roles.<nom>` | `CHAT` | Rôle d'un bearer nommé : `CHAT`, `OPERATOR`, `ADMIN`, ou `METRICS` (lecture de `/actuator/prometheus` seulement, pour un collecteur). La clé historique `api-key` reste administrateur |
 | `api-key-tenants.<nom>` | *(le nom)* | Locataire d'une clé : l'espace où vivent ses souvenirs, compétences, charte et automatisations. Deux clés du même locataire travaillent au même endroit tout en restant deux acteurs distincts à l'audit |
 | `oidc.username-claim` | `preferred_username` | Claim porteur de l'acteur inscrit à l'audit. Repli sur `sub` |
 | `oidc.roles-claim` | `roles` | Claim des rôles, liste de chaînes ou chaîne séparée par des espaces |
@@ -82,7 +82,8 @@ qu'un cycle puisse partir sans qu'un humain clique :
 
 | Propriété | Défaut | Rôle |
 |---|---|---|
-| `schedule.enabled` | `false` | Départ autonome du cycle. N'a d'effet que sous le profil `shared-memory`, seul endroit où le verrou partagé qu'il exige peut exister |
+| `schedule.enabled` | `false` | Départ autonome du cycle. Exige le profil `shared-memory` (verrou en base) ou `schedule.single-instance` |
+| `schedule.single-instance` | `false` | L'exploitant garantit qu'une seule instance tourne : verrou local, sans base. Deux répliques qui le déclarent lanceraient chacune leur cycle — une déclaration, pas une détection |
 | `schedule.interval` | `5m` | Délai entre deux tentatives — une tentative, pas forcément un cycle : une réplique qui ne tient pas le verrou repart aussitôt |
 | `schedule.lock-at-most-for` | `10m` | Expiration du verrou si la réplique qui le tenait tombe en plein cycle |
 | `notify.webhook-url` | *(vide)* | Débouché par défaut de `NOTIFY` sans outil MCP lié — la seule capacité qui en a un |
@@ -107,6 +108,21 @@ kex.agent.supervision.processes[0].thresholds.consumer-lag: 5000
 
 Un processus à faible trafic et un à fort débit ne devraient pas partager le même seuil : trop
 sensible pour l'un, trop laxiste pour l'autre.
+
+### `kex.agent.supervision.processes[].links`
+
+Où regarder un processus de près, dans les autres applications : un topic dans Kafka SQL Explorer,
+une carte, un tableau de bord. Le détail du processus dans la console les affiche sous « Voir
+aussi », ouverts dans un nouvel onglet. L'agent ne devine aucune route : seuls les liens déclarés
+apparaissent, et le modèle ne les reçoit jamais.
+
+```yaml
+kex.agent.supervision.processes[0].links[0].label: Topic dans KafkaExplorer
+kex.agent.supervision.processes[0].links[0].url: http://localhost:8080/topic/toll-events
+```
+
+Seules les URL `http` et `https` absolues sont acceptées : l'agent refuse de démarrer sur une autre
+forme, dont un `javascript:` qui s'exécuterait au clic.
 
 ### Créer un processus depuis la conversation
 
