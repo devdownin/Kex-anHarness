@@ -128,6 +128,13 @@ class ApiKeyPrincipalTest {
         assertThat(status("/api/agent/skills/review-queue", "Bearer jeton-admin")).isEqualTo(200);
     }
 
+    @Test
+    void seul_un_admin_peut_rejouer_des_competences_ensemble() throws Exception {
+        assertThat(postStatus("/api/agent/skills/probe-together", "Bearer jeton-ops")).isEqualTo(403);
+        // Le 400 vient du corps absent : la sécurité a laissé passer l'admin.
+        assertThat(postStatus("/api/agent/skills/probe-together", "Bearer jeton-admin")).isEqualTo(400);
+    }
+
     /** La suggestion lit une compétence en attente de n'importe quel propriétaire, comme la file. */
     @Test
     void seul_un_admin_peut_lire_une_suggestion_de_rejeu() throws Exception {

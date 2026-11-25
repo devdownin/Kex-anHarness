@@ -11,6 +11,7 @@ import java.util.List;
 
 import com.kex.agent.memory.LearningEntry;
 import com.kex.agent.memory.LearningRepository;
+import com.kex.agent.memory.LongTermMemoryService;
 import com.kex.agent.memory.MemoryProperties;
 import com.kex.agent.memory.SkillScope;
 import org.junit.jupiter.api.Test;
@@ -26,10 +27,58 @@ class SkillCuratorTest {
     private final SkillsService skills = new SkillsService(repository, clock);
 
     private SkillCurator curator(int injected, Duration staleAfter) {
-        return new SkillCurator(skills,
+        return curator(new MemoryProperties.Skills(injected, 3000, staleAfter), "Prompt système");
+    }
+
+    private SkillCurator curator(MemoryProperties.Skills limits, String systemPrompt) {
+        MemoryProperties properties = new MemoryProperties(true, 200, 500, Duration.ofDays(30), limits);
+        LongTermMemoryService memory = new LongTermMemoryService(repository, skills,
+                new CharterService(repository, clock), properties, clock);
+        return new SkillCurator(skills, memory, systemPrompt, properties, clock);
+    }
+
+    /** Le compte doit être celui du texte réellement construit, pas une estimation à côté. */
+    @Test
+    void mesure_le_texte_present_dans_tout_echange() {
+        LongTermMemoryService memory = new LongTermMemoryService(repository, skills,
+                new CharterService(repository, clock), new MemoryProperties(true, 200, 500, Duration.ofDays(30),
+                        new MemoryProperties.Skills(5, 3000, Duration.ofDays(90))), clock);
+        new CharterService(repository, clock).update("ops", "Ne jamais redémarrer en heures ouvrées.", "admin", "test");
+        approved("toujours", NOW.minus(Duration.ofDays(1)));
+
+        SkillCuration.AlwaysOn alwaysOn = curator(5, Duration.ofDays(90)).curate("ops").alwaysOn();
+
+        assertThat(alwaysOn.systemPrompt()).isEqualTo("Prompt système".length());
+        assertThat(alwaysOn.durable()).isEqualTo(memory.durable("ops", null, null, true).text().length()).isPositive();
+        assertThat(alwaysOn.total()).isEqualTo(alwaysOn.systemPrompt() + alwaysOn.durable());
+        assertThat(alwaysOn.budget()).isEqualTo(12000);
+        assertThat(alwaysOn.overBudget()).isFalse();
+    }
+
+    /** Signalé, jamais tronqué : couper une invariante changerait ce qu'un humain a approuvé. */
+    @Test
+    void signale_un_toujours_actif_au_dela_du_budget_sans_rien_retirer() {
+        approved("toujours", NOW.minus(Duration.ofDays(1)));
+        MemoryProperties.Skills tight = new MemoryProperties.Skills(5, 3, 3000, Duration.ofDays(90),
+                new MemoryProperties.Probe(java.util.Set.of()), 100);
+
+        SkillCuration curation = curator(tight, "x".repeat(150)).curate("ops");
+
+        assertThat(curation.alwaysOn().overBudget()).isTrue();
+        assertThat(curation.alwaysOn().total()).isGreaterThan(100);
+        assertThat(curation.injected()).extracting(SkillCuration.Digest::title).containsExactly("toujours");
+    }
+
+    @Test
+    void sans_prompt_ni_contexte_le_toujours_actif_est_nul_et_sous_budget() {
+        SkillCuration.AlwaysOn alwaysOn = new SkillCurator(skills, new LongTermMemoryService(repository, skills,
+                new CharterService(repository, clock), new MemoryProperties(true, 200, 500, Duration.ofDays(30),
+                        new MemoryProperties.Skills(5, 3000, Duration.ofDays(90))), clock), null,
                 new MemoryProperties(true, 200, 500, Duration.ofDays(30),
-                        new MemoryProperties.Skills(injected, 3000, staleAfter)),
-                clock);
+                        new MemoryProperties.Skills(5, 3000, Duration.ofDays(90))), clock).curate("ops").alwaysOn();
+
+        assertThat(alwaysOn.total()).isZero();
+        assertThat(alwaysOn.overBudget()).isFalse();
     }
 
     @Test

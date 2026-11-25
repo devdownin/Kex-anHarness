@@ -591,7 +591,22 @@ await check('aucune commande sous 32 px ni texte sous 12 px sur la vue d’ensem
       .filter((node) => parseFloat(getComputedStyle(node).fontSize) < 12).map((node) => `texte ${node.textContent.trim().slice(0, 30)}`);
     return [...small, ...tiny];
   });
-  assert.deepEqual(offenders, []);
+  // check() ne garde que la première ligne du message : sans la liste dans cette ligne, un échec
+  // en CI disait qu'un élément dépassait, jamais lequel — et ne se reproduisait pas en local.
+  assert.deepEqual(offenders, [], `éléments en cause : ${offenders.join(' | ')}`);
+  await context.close();
+});
+
+// Le contrôle précédent ne voit le panneau « Personnaliser » que lorsqu'il est rendu : fermé, ses
+// flèches lui échappaient, et l'échec n'apparaissait qu'au gré du moment où le rendu les exposait.
+// Ouvert ici exprès, il se vérifie à chaque passage.
+await check('les flèches de « Personnaliser » offrent une cible de 32 px', async () => {
+  const { context, page } = await open(desktop, 'overview');
+  await page.click('#dashboard-customizer summary');
+  await page.locator('#dashboard-customizer-panel .dashboard-order-actions button').first().waitFor();
+  const small = await page.$$eval('#dashboard-customizer-panel .dashboard-order-actions button', (buttons) =>
+    buttons.map((button) => button.getBoundingClientRect()).filter((box) => box.height < 32 || box.width < 32).length);
+  assert.equal(small, 0, `${small} flèche(s) sous 32 px`);
   await context.close();
 });
 

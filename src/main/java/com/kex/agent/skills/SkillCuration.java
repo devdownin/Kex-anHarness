@@ -23,9 +23,11 @@ import com.kex.agent.memory.SkillScope;
  * @param stale       approuvées depuis plus longtemps que la fenêtre de fraîcheur configurée
  * @param duplicates  groupes de compétences au même titre normalisé, candidates à une consolidation
  * @param characters  caractères que les compétences injectées pèsent dans le prompt
+ * @param alwaysOn    ce que tout échange porte avant la demande elle-même, rapporté au budget
  */
 public record SkillCuration(int approved, List<Digest> injected, List<Digest> conditional, List<Digest> dormant,
-                            List<Digest> unread, List<Digest> stale, List<Duplicate> duplicates, int characters) {
+                            List<Digest> unread, List<Digest> stale, List<Duplicate> duplicates, int characters,
+                            AlwaysOn alwaysOn) {
 
     public SkillCuration {
         injected = List.copyOf(injected);
@@ -41,6 +43,24 @@ public record SkillCuration(int approved, List<Digest> injected, List<Digest> co
                          SkillScope scope, List<String> triggers, int reads, Instant lastReadAt) {
         public Digest {
             triggers = List.copyOf(triggers);
+        }
+    }
+
+    /**
+     * Le texte présent dans tout échange avec outils : le prompt système et le contexte durable du
+     * propriétaire tels qu'une demande sans déclencheur les reçoit — charte, résumés vérifiés,
+     * invariantes en entier, index des compétences de domaine. Le compte est en caractères : les
+     * jetons dépendent du fournisseur, et un seuil en jetons ne se lirait pas sans lui.
+     *
+     * <p>Une demande qui touche un déclencheur ajoute une ligne d'index par compétence ; le texte
+     * d'une procédure n'arrive qu'à sa lecture. Ce compte est donc un plancher par échange.
+     *
+     * @param overBudget dépassement signalé, jamais corrigé de lui-même
+     */
+    public record AlwaysOn(int systemPrompt, int durable, int total, int budget, boolean overBudget) {
+        static AlwaysOn of(int systemPrompt, int durable, int budget) {
+            int total = systemPrompt + durable;
+            return new AlwaysOn(systemPrompt, durable, total, budget, total > budget);
         }
     }
 

@@ -8,6 +8,7 @@
 import {
   $, ago, api, busy, confirmAction, definition, el, empty, report, stamp, stateTag, toast,
 } from './core.js';
+import { EQUAL, WITH, blindPairs, preferredSide, tally, tallyLine } from './blind-review.js';
 
 const SKILLS_BASE = '/api/agent/skills';
 const CHARTER_BASE = '/api/agent/charter';
@@ -128,10 +129,81 @@ async function reviewQueue() {
   }
 }
 
+const MAX_TOGETHER = 5;
+
 function reviewQueueList(rows) {
   const list = el('div', 'stack');
-  rows.forEach((row) => list.append(reviewQueueCard(row)));
+  // Un rejeu groupé ne se propose que là où il a un sens : deux candidates au moins d'un même
+  // propriétaire, le contexte durable étant celui d'une seule bibliothèque.
+  const owners = new Map();
+  rows.forEach((row) => owners.set(row.owner, (owners.get(row.owner) || 0) + 1));
+  const groupable = [...owners.values()].some((count) => count > 1);
+  const selected = new Set();
+  let bar = null;
+  if (groupable) {
+    bar = el('div', 'card-actions together-bar');
+    const button = el('button', 'ghost', 'Rejouer la sélection ensemble');
+    button.type = 'button';
+    button.disabled = true;
+    const hint = el('span', 'muted', 'Cochez de 2 à 5 compétences d’un même propriétaire.');
+    button.addEventListener('click', () => busy(button, () => probeTogether(rows.filter((row) => selected.has(row.id)))));
+    bar.append(button, hint);
+    bar.refresh = () => {
+      const chosen = rows.filter((row) => selected.has(row.id));
+      const sameOwner = new Set(chosen.map((row) => row.owner)).size <= 1;
+      button.disabled = chosen.length < 2 || chosen.length > MAX_TOGETHER || !sameOwner;
+      hint.textContent = !sameOwner ? 'Les compétences d’un rejeu groupé doivent avoir le même propriétaire.'
+        : `${chosen.length} sélectionnée(s) — de 2 à ${MAX_TOGETHER}.`;
+    };
+    list.append(bar);
+  }
+  rows.forEach((row) => {
+    const card = reviewQueueCard(row);
+    if (groupable && owners.get(row.owner) > 1) {
+      const label = el('label', 'together-pick');
+      const box = el('input');
+      box.type = 'checkbox';
+      box.dataset.together = row.id;
+      box.addEventListener('change', () => {
+        if (box.checked) selected.add(row.id); else selected.delete(row.id);
+        bar.refresh();
+      });
+      label.append(box, document.createTextNode(' Inclure dans un rejeu groupé'));
+      card.querySelector('.card-actions').prepend(label);
+    }
+    list.append(card);
+  });
   return list;
+}
+
+async function probeTogether(chosen) {
+  const triggers = [...new Set(chosen.flatMap((row) => (row.scope === 'INVARIANT' ? [] : row.triggers || [])))];
+  const { confirmed, reason } = await confirmAction({
+    title: 'Rejouer une demande sans ces compétences, puis avec toutes à la fois',
+    accept: `Rejouer ensemble : ${chosen.length} compétences`,
+    lines: [
+      ['Compétences', chosen.map((row) => row.title).join(', ')],
+      ['Exécution', `${PROBE_REPETITIONS} passes de chaque côté, soit ${PROBE_REPETITIONS * 2} appels au modèle, quel que soit leur nombre.`],
+      // Le rejeu groupé montre ce que les procédures font ensemble et ce que les plafonds évincent ;
+      // il n'attribue l'écart à aucune — d'où le rejeu seul, qui garde son rôle.
+      ['Lecture', 'L’écart revient à l’ensemble : il est joint à chacune, qualifié « confondu ».'],
+      triggers.length ? ['Déclencheurs', `La demande doit en citer pour que les compétences de domaine soient indexées : ${triggers.join(', ')}`] : null,
+      ['Coût', 'Imputé au budget du locataire propriétaire.'],
+    ],
+    reasonLabel: 'Demande à rejouer (une question où ces compétences devraient agir)',
+    reasonRequired: true,
+  });
+  if (!confirmed) return;
+  try {
+    await api(`${SKILLS_BASE}/probe-together`, {
+      method: 'POST', body: { ids: chosen.map((row) => row.id), request: reason, repetitions: PROBE_REPETITIONS },
+    });
+    toast('Rejeu groupé terminé : l’écart est joint à chaque compétence.');
+    await reviewQueue();
+  }
+  catch (error) {
+    report(error);
+  }
 }
 
 function reviewQueueCard(row) {
@@ -194,8 +266,10 @@ function probeSummary(probe, skillId) {
   const wrap = el('div', 'stack');
   const passes = probe.candidates.length;
   wrap.append(el('h4', 'drawer-sub',
-    `Dernier rejeu · ${passes} passe(s) de chaque côté · ${ago(probe.observedAt)} · ${probe.actor}`));
+    `Dernier rejeu${(probe.companions || []).length ? ' groupé' : ''} · ${passes} passe(s) de chaque côté · ${ago(probe.observedAt)} · ${probe.actor}`));
   wrap.append(definition('Demande', el('span', null, probe.request)));
+  const blind = blindComparison(probe);
+  if (blind) wrap.append(blind);
   // Absente sur un rejeu antérieur à la qualification : rien ne s'affiche plutôt qu'un défaut.
   if (probe.reading && READINGS[probe.reading.outcome]) {
     const [label, state] = READINGS[probe.reading.outcome];
@@ -203,6 +277,16 @@ function probeSummary(probe, skillId) {
     reading.append(stateTag(state, label));
     probe.reading.reasons.forEach((reason) => reading.append(el('span', 'muted', reason)));
     wrap.append(definition('Lecture de l’écart', reading));
+  }
+  // Le contexte du prompt, connu avant toute exécution : ce que le modèle avait sous les yeux.
+  if ((probe.companions || []).length) {
+    wrap.append(definition('Rejouée avec', el('span', null, probe.companions.join(', '))));
+  }
+  if ((probe.evicted || []).length) {
+    wrap.append(definition('Candidates évincées par un plafond', el('span', null, probe.evicted.join(', '))));
+  }
+  if ((probe.displaced || []).length) {
+    wrap.append(definition('Approuvées écartées du prompt', el('span', null, probe.displaced.join(', '))));
   }
   const read = probe.candidates.filter((run) => (run.skillsRead || []).includes(skillId)).length;
   // Une candidate jamais lue n'a pas pu produire l'écart : le dire avant de le montrer.
@@ -216,11 +300,60 @@ function probeSummary(probe, skillId) {
     wrap.append(definition('Fréquence des outils', list));
   }
   const runs = el('details');
-  runs.append(el('summary', null, 'Les exécutions et leurs réponses'));
+  // Ouvrir ce bloc révèle quel côté porte la compétence : il vient après la comparaison à l'aveugle.
+  runs.append(el('summary', null, 'Les exécutions et leurs réponses, côtés révélés'));
   probe.references.forEach((run, index) => runs.append(runBlock(`Sans la compétence, passe ${index + 1}`, run)));
   probe.candidates.forEach((run, index) => runs.append(runBlock(`Avec la compétence, passe ${index + 1}`, run)));
   wrap.append(runs);
   return wrap;
+}
+
+const SIDE_LABELS = { with: 'avec la compétence', without: 'sans la compétence' };
+
+/**
+ * Les réponses de chaque passe, tirées au sort en A et B. Le côté ne s'affiche qu'après le choix,
+ * et le choix ne se refait pas : changer d'avis une fois le côté connu, c'est retomber dans le
+ * biais que la comparaison existe pour écarter. Rien n'est enregistré côté serveur.
+ */
+function blindComparison(probe) {
+  const pairs = blindPairs(probe);
+  if (!pairs.length) return null;
+  const box = el('div', 'stack blind-review');
+  box.append(el('h4', 'drawer-sub', 'Comparaison à l’aveugle'));
+  box.append(el('p', 'muted',
+    'Les deux réponses d’une même passe, dans un ordre tiré au sort. Choisir la meilleure révèle laquelle portait la compétence. Préférer celle sans la compétence est une réponse valable.'));
+  const sides = [];
+  const summary = el('p', 'blind-tally');
+  pairs.forEach((pair) => {
+    const item = el('div', 'stack blind-pair');
+    item.append(el('strong', null, `Passe ${pair.pass}`));
+    const labelA = el('span', 'muted', 'Réponse A');
+    const labelB = el('span', 'muted', 'Réponse B');
+    item.append(labelA, el('pre', 'dump', pair.a.answer), labelB, el('pre', 'dump', pair.b.answer));
+    const actions = el('div', 'card-actions');
+    const verdict = el('span', 'blind-verdict');
+    const buttons = [['a', 'A est meilleure'], ['b', 'B est meilleure'], ['equal', 'Équivalentes']].map(([choice, text]) => {
+      const button = el('button', 'ghost', text);
+      button.type = 'button';
+      button.dataset.choice = choice;
+      button.addEventListener('click', () => {
+        const side = preferredSide(pair, choice);
+        sides.push(side);
+        buttons.forEach((other) => { other.disabled = true; });
+        labelA.textContent = `Réponse A — ${SIDE_LABELS[pair.a.side]}`;
+        labelB.textContent = `Réponse B — ${SIDE_LABELS[pair.b.side]}`;
+        verdict.textContent = side === EQUAL ? 'Jugées équivalentes.'
+          : `Préférée : ${side === WITH ? SIDE_LABELS.with : SIDE_LABELS.without}.`;
+        summary.textContent = tallyLine(tally(sides));
+      });
+      return button;
+    });
+    actions.append(...buttons, verdict);
+    item.append(actions);
+    box.append(item);
+  });
+  box.append(summary);
+  return box;
 }
 
 function runBlock(label, run) {
@@ -331,7 +464,23 @@ function curationReport(data) {
   tiles.append(tile('Jamais lues', data.unread.length));
   tiles.append(tile('Obsolètes', data.stale.length));
   tiles.append(tile('Caractères injectés', data.characters.toLocaleString('fr-FR')));
+  const alwaysOn = data.alwaysOn;
+  if (alwaysOn) {
+    tiles.append(tile('Toujours présent',
+      `${alwaysOn.total.toLocaleString('fr-FR')} / ${alwaysOn.budget.toLocaleString('fr-FR')}`));
+  }
   wrap.append(tiles);
+  // Signalé, jamais corrigé ici : alléger, c'est retirer ou réécrire une procédure qu'un humain a
+  // approuvée, ou raccourcir la charte. Le détail dit où se trouve le poids.
+  if (alwaysOn?.overBudget) {
+    const warning = el('p', 'banner always-on-warning',
+      `Le texte présent dans tout échange dépasse le budget : ${alwaysOn.total.toLocaleString('fr-FR')} caractères `
+      + `pour ${alwaysOn.budget.toLocaleString('fr-FR')} (prompt système ${alwaysOn.systemPrompt.toLocaleString('fr-FR')}, `
+      + `contexte durable ${alwaysOn.durable.toLocaleString('fr-FR')}). Chaque caractère y est payé à chaque échange ; `
+      + 'une procédure de domaine à déclencheur ne coûte qu’à la demande.');
+    warning.setAttribute('role', 'status');
+    wrap.append(warning);
+  }
 
   if (data.dormant.length) {
     wrap.append(digestGroup('En sommeil : approuvées, mais au-delà du plafond d’injection', data.dormant, true));

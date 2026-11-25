@@ -91,4 +91,16 @@ class SkillsControllerTest {
         verify(probes).probe("s-3", "Le lag de billing ?", 1, "admin");
         verify(supervision, org.mockito.Mockito.times(2)).auditAction("admin", "Compétence rejouée", "s-3");
     }
+
+    @Test
+    void le_rejeu_groupe_est_delegue_et_audite_avec_toutes_les_competences() {
+        LearningEntry entry = new LearningEntry("s-3", "ops-console", "SKILL", "Check Lag", "Markdown",
+                "Evidence", null, Instant.now(), "PENDING", null, null, null);
+        given(probes.probeTogether(java.util.List.of("s-3", "s-4"), "Le lag ?", 1, "admin"))
+                .willReturn(java.util.List.of(entry));
+
+        assertThat(controller.probeTogether(new SkillsController.TogetherRequest(java.util.List.of("s-3", "s-4"),
+                "Le lag ?", null), principal)).containsExactly(entry);
+        verify(supervision).auditAction("admin", "Compétences rejouées ensemble", "s-3, s-4");
+    }
 }

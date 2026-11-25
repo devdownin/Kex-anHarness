@@ -561,6 +561,9 @@ input[type="radio"], input[type="checkbox"] { width: auto; }
 .row-end { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
 .row-end button { margin: 0; }
 .card-actions, .context-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.blind-pair { border-top: 1px solid var(--line); padding-top: 8px; }
+.together-pick { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; }
+.blind-verdict, .blind-tally { font-weight: 600; }
 .card-actions { margin-top: auto; }
 .context-actions { margin-bottom: 4px; }
 .card-actions a, .context-actions a { text-decoration: none; }
@@ -2113,6 +2116,9 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
 .dashboard-customizer-row + .dashboard-customizer-row { border-top: 1px solid var(--line-soft); }
 .dashboard-customizer-row .choice { margin: 0; }
 .dashboard-order-actions { display: flex; gap: 4px; }
+/* Une flèche seule dans un bouton compact faisait une cible de moins de 32 px : la règle des
+   commandes de la vue d'ensemble vaut aussi dans son panneau de personnalisation. */
+.dashboard-order-actions .ghost.compact { min-width: 32px; min-height: 32px; }
 .dashboard-user-hidden { display: none !important; }
 
 .activity-stream { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }

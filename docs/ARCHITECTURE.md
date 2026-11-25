@@ -1769,6 +1769,31 @@ que le modèle n'avait jamais pu lire. `ProbeSuggestion` la tire de l'origine �
 tâche vérifiée (la première ligne de la procédure, le titre étant tronqué), ou les processus visés par
 les refus, qui sont les déclencheurs de la règle — et la console la pré-remplit sans l'imposer.
 
+*Harness²* rappelle enfin que le texte toujours présent est la forme la plus chère d'une consigne :
+il entre dans chaque échange, que la demande en ait besoin ou non, et pousse le modèle vers le
+plafond de sortie. Le plafond `invariant-injected` bornait un nombre, pas un poids — trois invariantes
+de 3 000 caractères plus une charte de 8 000 passaient sans un mot. `SkillCuration.AlwaysOn` mesure
+le prompt système et le contexte durable avec `LongTermMemoryService.durable` lui-même, pour que le
+compte ne diverge jamais de ce que le modèle reçoit, et le rapporte à `always-on-budget`. Le
+dépassement est signalé, jamais corrigé : tronquer une invariante changerait en silence ce qu'un
+humain a approuvé.
+
+Le rejeu seul, enfin, ne voyait qu'une compétence à la fois, quand l'article compose ses candidats
+avant de retenir un harness. Deux procédures approuvées le même jour peuvent se contredire, ou
+dépasser ensemble un plafond et évincer une approuvée — rien ne le montrait avant que ce soit fait.
+`SkillProbeService.probeTogether` rejoue la demande avec toutes les candidates à la fois, au même
+coût qu'un rejeu seul. L'écart est joint à chacune mais qualifié `CONFOUNDED` : mesuré à plusieurs,
+il ne s'attribue à aucune, et l'article lui-même réserve `confounded` à ce cas. Les évictions
+(`evicted`, `displaced`) sont calculées par `SkillsService.injectable`, la sélection même du prompt,
+pour tout rejeu, seul ou groupé : elles sont déterministes et précèdent l'exécution.
+
+Le même article sélectionne parmi des candidats anonymes et mélangés, en rappelant que retenir la
+sortie du harness non modifié est une issue valable. Le réviseur humain de Kex avait le biais
+inverse sous les yeux : chaque réponse portait son côté, et il avait souvent proposé la compétence
+lui-même. `blind-review.js` tire au sort l'ordre des deux réponses de chaque passe et ne révèle le
+côté qu'après le choix, qui ne se refait pas. Le choix n'est pas persisté : une préférence de lecture
+n'est ni une mesure ni une approbation, et la faire peser dans `reading` y ferait entrer un juge.
+
 Ce que l'article fait et que Kex ne reprend pas : réécrire seul le prompt système et les garde-fous.
 Ici la surface modifiable reste la bibliothèque de compétences, et tout passe par une approbation
 humaine nommée.

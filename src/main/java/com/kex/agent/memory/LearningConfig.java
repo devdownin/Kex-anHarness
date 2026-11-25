@@ -7,6 +7,7 @@ import java.time.Clock;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kex.agent.agent.AgentService;
+import com.kex.agent.config.AgentProperties;
 import com.kex.agent.skills.CharterService;
 import com.kex.agent.skills.RefusalSkillProposer;
 import com.kex.agent.skills.SkillCurator;
@@ -41,14 +42,15 @@ class LearningConfig {
     }
 
     @Bean
-    SkillCurator skillCurator(SkillsService skills, MemoryProperties properties, Clock clock) {
-        return new SkillCurator(skills, properties, clock);
+    SkillCurator skillCurator(SkillsService skills, LongTermMemoryService memory, AgentProperties agent,
+                              MemoryProperties properties, Clock clock) {
+        return new SkillCurator(skills, memory, agent.systemPrompt(), properties, clock);
     }
 
     @Bean
     SkillProbeService skillProbeService(SkillsService skills, AgentService agent, MemoryProperties properties,
                                         Clock clock) {
-        return new SkillProbeService(skills, agent, properties.skills().probe(), clock);
+        return new SkillProbeService(skills, agent, properties.skills(), clock);
     }
 
     /** Sans mémoire activée, personne n'écoute l'événement : les refus ne font que durcir le plancher. */

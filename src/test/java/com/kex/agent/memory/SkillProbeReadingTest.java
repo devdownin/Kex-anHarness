@@ -92,6 +92,19 @@ class SkillProbeReadingTest {
         assertThat(probe.reading().reasons()).contains("Chaque passe échoue avec la compétence, aucune sans.");
     }
 
+    /** Absente du prompt, une candidate n'a rien pu changer : sa lecture n'est même plus en question. */
+    @Test
+    void une_candidate_evincee_est_confondue_sans_exiger_sa_lecture() {
+        SkillProbe probe = SkillProbe.of(NOW, "admin", "lag ?", times(2, run(List.of(), "end_turn", false)),
+                times(2, run(List.of("a"), "end_turn", false)), SKILL, true,
+                new SkillProbe.Setting(List.of(), List.of("Lag"), List.of(), true));
+
+        assertThat(probe.reading().outcome()).isEqualTo(Outcome.CONFOUNDED);
+        assertThat(probe.reading().reasons()).containsExactly(
+                "Évincée par un plafond pour cette demande : elle n'était pas dans le prompt.");
+        assertThat(probe.evicted()).containsExactly("Lag");
+    }
+
     private static SkillProbe probe(List<Run> references, List<Run> candidates, boolean readRequired) {
         return SkillProbe.of(NOW, "admin", "lag ?", references, candidates, SKILL, readRequired);
     }

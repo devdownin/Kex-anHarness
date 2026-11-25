@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.kex.agent.memory.LearningEntry;
+import com.kex.agent.memory.LongTermMemoryService;
 import com.kex.agent.memory.MemoryProperties;
 import com.kex.agent.memory.SkillScope;
 
@@ -31,11 +32,21 @@ import com.kex.agent.memory.SkillScope;
  */
 public final class SkillCurator {
     private final SkillsService skills;
+    private final LongTermMemoryService memory;
+    private final String systemPrompt;
     private final MemoryProperties properties;
     private final Clock clock;
 
-    public SkillCurator(SkillsService skills, MemoryProperties properties, Clock clock) {
+    /**
+     * @param memory       pour mesurer le contexte durable avec le code qui le construit, et non une
+     *                     estimation qui divergerait de ce que le modèle reçoit vraiment
+     * @param systemPrompt le prompt système configuré, présent dans chaque échange
+     */
+    public SkillCurator(SkillsService skills, LongTermMemoryService memory, String systemPrompt,
+                        MemoryProperties properties, Clock clock) {
         this.skills = skills;
+        this.memory = memory;
+        this.systemPrompt = systemPrompt == null ? "" : systemPrompt;
         this.properties = properties;
         this.clock = clock;
     }
@@ -58,8 +69,11 @@ public final class SkillCurator {
         int characters = injected.stream().mapToInt(SkillCuration.Digest::characters).sum();
         List<SkillCuration.Digest> unread = digests(ranked.stream()
                 .filter(entry -> entry.effectiveScope() == SkillScope.DOMAIN && entry.reads() == 0).toList());
+        // Sans demande ni candidate, et avec outils : ce qu'un échange ordinaire reçoit quoi qu'il dise.
+        int durable = memory.durable(owner, null, null, true).text().length();
         return new SkillCuration(ranked.size(), injected, digests(conditional), digests(dormant), unread, stale,
-                duplicates(ranked), characters);
+                duplicates(ranked), characters,
+                SkillCuration.AlwaysOn.of(systemPrompt.length(), durable, limits.alwaysOnBudget()));
     }
 
     /**

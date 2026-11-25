@@ -93,16 +93,16 @@ public final class SkillsService {
      *
      * @param request   {@code null} hors demande (curation) : seules les compétences de domaine
      *                  sans déclencheur restent alors éligibles
-     * @param candidate une compétence en attente traitée comme si elle venait d'être approuvée —
-     *                  le rejeu mesure ainsi exactement ce que l'approbation changerait, éviction
-     *                  par le plafond comprise ; {@code null} hors rejeu
+     * @param candidates compétences en attente traitées comme si elles venaient d'être approuvées,
+     *                   dans l'ordre donné et devant les approuvées — le rejeu mesure ainsi exactement
+     *                   ce que leur approbation changerait, évictions par les plafonds comprises ;
+     *                   {@code null} ou vide hors rejeu
      */
-    public List<LearningEntry> injectable(String owner, String request, LearningEntry candidate,
+    public List<LearningEntry> injectable(String owner, String request, List<LearningEntry> candidates,
                                           MemoryProperties.Skills limits) {
-        List<LearningEntry> pool = new ArrayList<>();
-        if (candidate != null) pool.add(candidate);
-        ranked(owner).stream().filter(entry -> candidate == null || !entry.id().equals(candidate.id()))
-                .forEach(pool::add);
+        List<LearningEntry> pool = new ArrayList<>(candidates == null ? List.of() : candidates);
+        Set<String> candidateIds = pool.stream().map(LearningEntry::id).collect(java.util.stream.Collectors.toSet());
+        ranked(owner).stream().filter(entry -> !candidateIds.contains(entry.id())).forEach(pool::add);
         String text = request == null ? null : normalize(request);
         Stream<LearningEntry> invariants = pool.stream()
                 .filter(entry -> entry.effectiveScope() == SkillScope.INVARIANT)

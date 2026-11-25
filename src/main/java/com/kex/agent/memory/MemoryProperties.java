@@ -51,12 +51,17 @@ public record MemoryProperties(
      * @param charactersPerSkill troncature par compétence, avant le plafond global du bloc de contexte
      * @param staleAfter         au-delà, une compétence approuvée est signalée comme candidate à la
      *                           revue : signalée, jamais retirée d'elle-même
+     * @param alwaysOnBudget     caractères que le texte présent dans tout échange — prompt système et
+     *                           contexte durable — ne devrait pas dépasser. Un seuil de signalement,
+     *                           pas une troncature : couper une invariante changerait en silence ce
+     *                           qu'un humain a approuvé
      */
     public record Skills(@DefaultValue("5") @Positive int injected,
                          @DefaultValue("3") @Positive int invariantInjected,
                          @DefaultValue("3000") @Positive int charactersPerSkill,
                          @DefaultValue("90d") @DurationMin(millis = 1) Duration staleAfter,
-                         @DefaultValue @Valid Probe probe) {
+                         @DefaultValue @Valid Probe probe,
+                         @DefaultValue("12000") @Positive int alwaysOnBudget) {
 
         @ConstructorBinding
         public Skills {
@@ -64,7 +69,7 @@ public record MemoryProperties(
         }
 
         public Skills(int injected, int charactersPerSkill, Duration staleAfter) {
-            this(injected, 3, charactersPerSkill, staleAfter, new Probe(Set.of()));
+            this(injected, 3, charactersPerSkill, staleAfter, new Probe(Set.of()), 12000);
         }
     }
 

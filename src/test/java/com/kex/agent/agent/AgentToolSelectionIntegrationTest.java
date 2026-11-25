@@ -65,7 +65,7 @@ class AgentToolSelectionIntegrationTest {
         when(model.getOptions()).thenReturn(ToolCallingChatOptions.builder().build());
         when(model.call(any(Prompt.class))).thenReturn(new ChatResponse(List.of(new Generation(new AssistantMessage("ok")))));
         LongTermMemoryService durable = mock(LongTermMemoryService.class);
-        when(durable.durable("owner", "bonjour", null, true))
+        when(durable.durable("owner", "bonjour", java.util.List.of(), true))
                 .thenReturn(new com.kex.agent.memory.DurableContext("Donnée de référence durable", Map.of()));
         @SuppressWarnings("unchecked")
         ObjectProvider<LongTermMemoryService> memory = mock(ObjectProvider.class);

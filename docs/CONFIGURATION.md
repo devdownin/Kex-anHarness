@@ -221,11 +221,22 @@ kex.agent.memory.skills:
   invariant-injected: 3      # compétences invariantes, injectées dans toute conversation
   characters-per-skill: 3000
   stale-after: 90d           # au-delà, signalée comme candidate à la revue — jamais retirée seule
+  always-on-budget: 12000    # caractères présents dans tout échange ; au-delà, signalé dans la curation
   probe:
     read-only-tools:         # vide : rejeu éteint
       - kafka-explorer__kex_consumer_lag      # nom exposé au modèle : <connexion>__<outil>
       - kafka-explorer__kex_diagnose_consumer
 ```
+
+`always-on-budget` borne ce que **tout** échange avec outils porte avant la demande : le prompt
+système et le contexte durable du propriétaire — charte, résumés vérifiés, invariantes en entier,
+index des compétences de domaine. La curation rend `alwaysOn` (`systemPrompt`, `durable`, `total`,
+`budget`, `overBudget`), mesuré avec le code qui construit ce contexte, et la console l'affiche avec
+un bandeau au-delà du budget. C'est un plancher par échange : une demande qui touche un déclencheur
+ajoute ses lignes d'index, et une procédure lue par `read_skill` son texte. Rien n'est tronqué :
+alléger revient à retirer une invariante, en faire une procédure de domaine à déclencheurs ou
+raccourcir la charte — des gestes humains. Le compte est en caractères, les jetons dépendant du
+fournisseur.
 
 Une compétence porte une **portée**, fixée à la proposition :
 
@@ -278,6 +289,28 @@ les motifs d'arrêt diffèrent à chaque passe ; `NO_OBSERVED_EFFECT` sinon — 
 à lire. Les jetons n'entrent pas dans la qualification. `reasons` dit pourquoi, en clair. Un rejeu
 antérieur à la qualification garde `reading = null`.
 
+Chaque rejeu dit aussi ce que le prompt contenait, calculé par la sélection même du contexte durable
+et donc connu avant toute exécution : `evicted`, les candidates qu'un plafond a laissées dehors pour
+cette demande, et `displaced`, les compétences approuvées qu'elles écartent — ce que l'approbation
+retirerait. Une candidate évincée est qualifiée `CONFOUNDED` : absente du prompt, elle n'a rien pu
+changer.
+
+**Rejeu groupé.** `POST /api/agent/skills/probe-together` avec
+`{"ids":["…","…"],"request":"...","repetitions":3}` (`ADMIN`) rejoue la demande sans les candidates,
+puis avec toutes à la fois — de 2 à 5, d'un même propriétaire. Il montre ce qu'un rejeu seul ne voit
+pas : ce que deux procédures font l'une à l'autre, et ce que les plafonds évinceraient si toutes
+étaient approuvées. Le coût reste `2 × repetitions` échanges, quel que soit leur nombre. L'écart est
+joint à chacune avec `companions` (les autres titres) et qualifié `CONFOUNDED` : mesuré à plusieurs,
+il ne s'attribue à aucune. Il complète donc le rejeu seul, il ne le remplace pas. Dans la console, la
+file de revue propose une case « Inclure dans un rejeu groupé » dès que deux candidates partagent un
+propriétaire. Une compétence tranchée pendant le rejeu est sautée ; si toutes le sont, `409`.
+
+Dans la file de revue, la console présente d'abord les réponses de chaque passe **à l'aveugle** :
+les deux côtés tirés au sort en A et B, le côté révélé seulement après le choix (« A », « B » ou
+« Équivalentes »), sans retour possible, avec le décompte des préférences. Les passes en échec d'un
+côté ne se comparent pas. Rien n'est enregistré côté serveur : la comparaison aide le réviseur, elle
+ne tranche pas à sa place. Le détail des exécutions, côtés nommés, reste dépliable en dessous.
+
 `GET /api/agent/skills/{id}/probe-suggestion` (`ADMIN`) rend la demande que la console pré-remplit :
 l'objectif entier de la tâche vérifiée (`source = TASK`), ou une demande nommant les processus visés
 par les refus, qui sont les déclencheurs de la règle (`REFUSALS`). Une proposition manuelle ne
@@ -292,7 +325,8 @@ le rejeu n'est pas écrit (`409`).
 
 | Endpoint | Rôle |
 |---|---|
-| `GET /api/agent/skills/curation` | Ce qui agit partout, ce qui attend un déclencheur (`conditional`), ce qui dort au-delà d'un plafond, ce qui n'a jamais été lu (`unread`), les lectures par compétence, les doublons de titre, ce qui n'a plus été revu |
+| `GET /api/agent/skills/curation` | Ce qui agit partout, ce qui attend un déclencheur (`conditional`), ce qui dort au-delà d'un plafond, ce qui n'a jamais été lu (`unread`), les lectures par compétence, les doublons de titre, ce qui n'a plus été revu, et `alwaysOn` : le texte présent dans tout échange rapporté à `always-on-budget` |
+| `POST /api/agent/skills/probe-together` | `{"ids":[…],"request":"...","repetitions":1..3}` — `ADMIN`. Rejeu groupé de 2 à 5 compétences `PENDING` d'un même propriétaire, joint à chacune, tracé dans l'audit |
 | `GET /api/agent/skills/{id}/probe-suggestion` | `ADMIN`. Demande à rejouer tirée de l'origine de la compétence en attente, et ses déclencheurs ; `409` si elle est inconnue ou tranchée |
 | `POST /api/agent/skills/{id}/probe` | `{"request":"...","repetitions":1..3}` — `ADMIN`. Rejeu contrastif d'une compétence `PENDING`, tracé dans l'audit ; `409` si le rejeu est éteint, déjà en cours ou la compétence tranchée |
 | `GET /api/agent/skills/review-queue` | `ADMIN`. Tout ce qui est `PENDING`, tous propriétaires confondus, le plus ancien d'abord — la revue (`approve`/`reject`) reste elle-même transverse, voir ARCHITECTURE.md |
