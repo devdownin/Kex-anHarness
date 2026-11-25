@@ -8,11 +8,16 @@
 //   PLAYWRIGHT_MODULE=… KEX_AGENT_URL=http://localhost:8081 node src/test/browser/first-run.mjs
 
 import assert from 'node:assert/strict';
+import { throttle, throttleFactor } from './throttle.mjs';
 
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? 'playwright');
 
 const BASE = process.env.KEX_AGENT_URL ?? 'http://localhost:8081';
 const TOKEN = process.env.KEX_AGENT_API_KEY ?? 'ci-secret';
+
+// Validé une fois ici : une valeur invalide arrêterait le script au lieu de faire échouer chaque cas.
+const slowdown = throttleFactor();
+if (slowdown > 1) console.log(`Processeur ralenti ×${slowdown} (KEX_CPU_THROTTLE).`);
 
 const problems = [];
 const checks = [];
@@ -32,6 +37,7 @@ async function open(viewport, view) {
   const context = await browser.newContext({ viewport });
   const page = await context.newPage();
   page.setDefaultTimeout(10000);
+  await throttle(context, page);
   await page.addInitScript((token) => sessionStorage.setItem('kex.agent.api-key', token), TOKEN);
   await page.goto(`${BASE}/#/${view}`, { waitUntil: 'domcontentloaded' });
   await page.locator('#credentials').evaluate((dialog) => { if (dialog.open) dialog.close(); });
