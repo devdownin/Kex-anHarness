@@ -250,9 +250,23 @@ de revue : les outils ajoutés ou abandonnés *à chaque passe* (un écart qui n
 trois n'en est pas un), la fréquence de chaque outil de part et d'autre, les appels en échec, les
 jetons, le motif d'arrêt, les réponses, et les passes où la candidate a effectivement été lue par
 `read_skill` — sans lecture, un écart tient au hasard. Les cinq derniers rejeux sont conservés ; un
-rejeu écrit avant les répétitions se relit comme une passe de chaque côté. Aucun verdict n'est
-calculé : un rejeu montre que le comportement change, pas que la réponse est juste. Le coût est de
-`2 × repetitions` échanges complets.
+rejeu écrit avant les répétitions se relit comme une passe de chaque côté. Aucun verdict sur la
+réponse n'est calculé : un rejeu montre que le comportement change, pas que la réponse est juste. Le
+coût est de `2 × repetitions` échanges complets.
+
+`reading` qualifie l'écart, pas la réponse : `CONFOUNDED` quand une seule passe tient d'un côté,
+qu'une compétence de domaine n'a pas été lue à chaque passe (une invariante, recopiée en entier, agit
+sans lecture) ou que des échecs ne touchent qu'une partie des passes d'un côté ; `STABLE_DIFFERENCE`
+quand un outil est ajouté ou abandonné à chaque passe, que chaque passe échoue d'un seul côté, ou que
+les motifs d'arrêt diffèrent à chaque passe ; `NO_OBSERVED_EFFECT` sinon — la réponse elle-même reste
+à lire. Les jetons n'entrent pas dans la qualification. `reasons` dit pourquoi, en clair. Un rejeu
+antérieur à la qualification garde `reading = null`.
+
+`GET /api/agent/skills/{id}/probe-suggestion` (`ADMIN`) rend la demande que la console pré-remplit :
+l'objectif entier de la tâche vérifiée (`source = TASK`), ou une demande nommant les processus visés
+par les refus, qui sont les déclencheurs de la règle (`REFUSALS`). Une proposition manuelle ne
+suggère rien (`NONE`) ; `triggers` rappelle alors ce que la demande doit citer pour que la candidate
+soit seulement indexée.
 
 Le rejeu appelle réellement le modèle et les outils, au nom et sur le budget du locataire
 propriétaire : `ADMIN` seulement, outils limités à `probe.read-only-tools` (même règle que
@@ -263,6 +277,7 @@ le rejeu n'est pas écrit (`409`).
 | Endpoint | Rôle |
 |---|---|
 | `GET /api/agent/skills/curation` | Ce qui agit partout, ce qui attend un déclencheur (`conditional`), ce qui dort au-delà d'un plafond, ce qui n'a jamais été lu (`unread`), les lectures par compétence, les doublons de titre, ce qui n'a plus été revu |
+| `GET /api/agent/skills/{id}/probe-suggestion` | `ADMIN`. Demande à rejouer tirée de l'origine de la compétence en attente, et ses déclencheurs ; `409` si elle est inconnue ou tranchée |
 | `POST /api/agent/skills/{id}/probe` | `{"request":"...","repetitions":1..3}` — `ADMIN`. Rejeu contrastif d'une compétence `PENDING`, tracé dans l'audit ; `409` si le rejeu est éteint, déjà en cours ou la compétence tranchée |
 | `GET /api/agent/skills/review-queue` | `ADMIN`. Tout ce qui est `PENDING`, tous propriétaires confondus, le plus ancien d'abord — la revue (`approve`/`reject`) reste elle-même transverse, voir ARCHITECTURE.md |
 | `POST /api/agent/skills/{id}/retire` | `{"reason":"..."}` — `ADMIN`, motif obligatoire, tracé dans l'audit |
