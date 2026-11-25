@@ -117,12 +117,14 @@ class SecurityConfig {
                         // Transverse par construction — voir SkillsController.reviewQueue — donc
                         // au même niveau d'accès que trancher elle-même, pas celui d'une lecture
                         // ordinaire de compétences.
-                        .requestMatchers(HttpMethod.GET, "/api/agent/skills/review-queue").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/agent/skills/review-queue",
+                                "/api/agent/skills/*/probe-suggestion").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/agent/memory/*",
                                 "/api/agent/memory/summaries/*", "/api/agent/knowledge")
                                 .hasRole("ADMIN")
                         .requestMatchers("/api/agent/tasks/**", "/api/agent/tasks").hasAnyRole("OPERATOR", "ADMIN")
                         .requestMatchers("/api/agent/**").hasAnyRole("OPERATOR", "ADMIN")
+                        .requestMatchers(EndpointRequest.to("prometheus")).hasAnyRole("METRICS", "ADMIN")
                         .requestMatchers(EndpointRequest.toAnyEndpoint()).hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(new ApiKeyAuthFilter(credentialsByName),

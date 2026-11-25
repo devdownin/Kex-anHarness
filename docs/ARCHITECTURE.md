@@ -1754,6 +1754,21 @@ l'article lui-même : la stochasticité de l'exécution et les biais communs aux
 limitent ce qu'un écart prouve. Un sélecteur « la meilleure des deux » par un juge modèle aurait
 été un chiffre non reproductible de plus.
 
+Ce que le rejeu peut affirmer, en revanche, se mesure. *Harness²* classe chaque modification
+`helped`, `hurt`, `no observed effect` ou `confounded`, et préfère `confounded` dès qu'une seule
+exécution porte l'écart. Kex en garde la partie déterministe : `SkillProbe.Reading` dit si l'écart est
+lisible (`CONFOUNDED`, `NO_OBSERVED_EFFECT`, `STABLE_DIFFERENCE`), jamais s'il est bon — `helped` et
+`hurt` demanderaient un juge. `CONFOUNDED` l'emporte sur tout écart : une passe unique, une candidate
+de domaine non lue à chaque passe ou des échecs épars empêchent d'attribuer l'écart à la procédure.
+Les jetons restent hors de la qualification : sans seuil fondé, toute variation passerait pour un
+effet.
+
+La demande à rejouer, enfin, n'est plus inventée par le réviseur. Une question qui ne touche aucun
+déclencheur n'indexe même pas la candidate, et le rejeu concluait à l'absence d'effet d'une compétence
+que le modèle n'avait jamais pu lire. `ProbeSuggestion` la tire de l'origine — l'objectif entier d'une
+tâche vérifiée (la première ligne de la procédure, le titre étant tronqué), ou les processus visés par
+les refus, qui sont les déclencheurs de la règle — et la console la pré-remplit sans l'imposer.
+
 Ce que l'article fait et que Kex ne reprend pas : réécrire seul le prompt système et les garde-fous.
 Ici la surface modifiable reste la bibliothèque de compétences, et tout passe par une approbation
 humaine nommée.

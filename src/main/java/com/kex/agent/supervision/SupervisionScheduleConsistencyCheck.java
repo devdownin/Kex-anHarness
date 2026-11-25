@@ -37,10 +37,12 @@ class SupervisionScheduleConsistencyCheck {
 
     @EventListener(ApplicationReadyEvent.class)
     void check() {
-        if (properties.schedule().enabled() && !environment.acceptsProfiles(Profiles.of("shared-memory"))) {
+        if (properties.schedule().enabled() && !properties.schedule().singleInstance()
+                && !environment.acceptsProfiles(Profiles.of("shared-memory"))) {
             log.warn("kex.agent.supervision.schedule.enabled=true sans le profil 'shared-memory' actif : "
                     + "aucun cycle ne part seul, le verrou multi-instance qui protège le départ automatique "
-                    + "n'existe que sous ce profil");
+                    + "n'existe que sous ce profil. Sur une instance unique, déclarer "
+                    + "kex.agent.supervision.schedule.single-instance=true");
         }
     }
 }

@@ -136,7 +136,7 @@ class SkillScopeSelectionTest {
 
     private SkillProbe probe(String request) {
         SkillProbe.Run run = new SkillProbe.Run(List.of(), 0, null, null, null, "ok", null, List.of());
-        return SkillProbe.of(now, "admin", request, List.of(run), List.of(run));
+        return SkillProbe.of(now, "admin", request, List.of(run), List.of(run), "candidate", true);
     }
 
     private static List<String> titles(List<LearningEntry> entries) {
