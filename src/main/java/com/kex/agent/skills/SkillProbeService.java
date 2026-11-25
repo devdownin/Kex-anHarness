@@ -19,6 +19,7 @@ import com.kex.agent.memory.LearningEntry;
 import com.kex.agent.memory.MemoryIdentity;
 import com.kex.agent.memory.MemoryProperties;
 import com.kex.agent.memory.SkillProbe;
+import com.kex.agent.memory.SkillScope;
 
 /**
  * Rejoue une demande avec et sans une compétence en attente, et joint l'écart à la compétence
@@ -73,7 +74,10 @@ public final class SkillProbeService {
                     () -> run(candidate.owner(), message, tools, candidate));
             SkillProbe probe = SkillProbe.of(clock.instant(), actor, message,
                     references.stream().map(CompletableFuture::join).toList(),
-                    withSkill.stream().map(CompletableFuture::join).toList());
+                    withSkill.stream().map(CompletableFuture::join).toList(), candidate.id(),
+                    // Sous rejeu, l'allowlist n'est jamais vide : une compétence de domaine n'y est
+                    // qu'indexée et n'agit qu'une fois lue ; une invariante est recopiée en entier.
+                    candidate.effectiveScope() == SkillScope.DOMAIN);
             return skills.attachProbe(id, probe);
         }
         finally {

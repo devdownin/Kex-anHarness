@@ -329,7 +329,7 @@ class AgentControllerTest {
     void le_flux_annonce_la_conversation_puis_les_tokens() throws Exception {
         given(agentService.stream("Anonyme", null, "bonjour")).willReturn(new AgentStream("conv-9",
                 Flux.just(new AgentEvent.Token("sa"), new AgentEvent.ToolCall("echo", 12, false),
-                        new AgentEvent.Token("lut"))));
+                        new AgentEvent.Token("lut"), new AgentEvent.Token(" ensuite"))));
 
         var response = mvc.post().uri("/api/agent/chat/stream")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -339,11 +339,32 @@ class AgentControllerTest {
 
         assertThat(response).hasStatusOk();
         String body = response.getResponse().getContentAsString();
-        assertThat(body).contains("event:conversation").contains("data:conv-9")
-                .contains("event:token").contains("data:sa").contains("data:lut")
-                // Sans cet événement, le flux reste muet pendant l'exécution de l'outil.
-                .contains("event:tool").contains("\"tool\":\"echo\"").contains("\"durationMillis\":12")
-                .contains("event:done").contains("data:response-complete");
+        // Lu comme un client conforme le lit : `data:x` et `data: x` sont le même événement, et
+        // comparer le texte brut faisait échouer ce test sur un changement de mise en forme de Spring.
+        List<String> events = sseEvents(body);
+        assertThat(events).containsSubsequence("conversation=conv-9", "token=sa", "token=lut", "token= ensuite",
+                "done=response-complete");
+        // Sans cet événement, le flux reste muet pendant l'exécution de l'outil.
+        assertThat(events).anySatisfy(event -> assertThat(event).startsWith("tool=")
+                .contains("\"tool\":\"echo\"").contains("\"durationMillis\":12"));
+    }
+
+    /** Découpe un corps SSE comme la norme : une seule espace retirée après {@code data:}. */
+    private static List<String> sseEvents(String body) {
+        List<String> events = new java.util.ArrayList<>();
+        for (String block : body.replace("\r\n", "\n").split("\n\n")) {
+            String name = "message";
+            List<String> data = new java.util.ArrayList<>();
+            for (String line : block.split("\n")) {
+                if (line.startsWith("event:")) name = line.substring(6).strip();
+                else if (line.startsWith("data:")) {
+                    String value = line.substring(5);
+                    data.add(value.startsWith(" ") ? value.substring(1) : value);
+                }
+            }
+            if (!data.isEmpty()) events.add(name + "=" + String.join("\n", data));
+        }
+        return events;
     }
 
     @Test

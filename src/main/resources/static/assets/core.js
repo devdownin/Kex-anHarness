@@ -683,9 +683,10 @@ export function dismissDrawer() {
  * `{ confirmed, reason }` — un opt-in, jamais un défaut qui romprait un appelant qui ne
  * s'attendrait à recevoir qu'un booléen. `reasonRequired` pose l'attribut natif du champ, pas une
  * validation à la main ; sans `formnovalidate` sur Annuler, cette validation bloquerait aussi
- * l'abandon, ce que la balise porte déjà.
+ * l'abandon, ce que la balise porte déjà. `reasonValue` pré-remplit le champ, que l'utilisateur
+ * garde la main pour corriger.
  */
-export function confirmAction({ title, lines, accept, reasonLabel, reasonRequired = false }) {
+export function confirmAction({ title, lines, accept, reasonLabel, reasonRequired = false, reasonValue = '' }) {
   const dialog = $('#confirm');
   $('#confirm-title').textContent = title;
   $('#confirm-accept').textContent = accept;
@@ -701,7 +702,8 @@ export function confirmAction({ title, lines, accept, reasonLabel, reasonRequire
     const label = el('label', null, reasonLabel);
     reasonField = el('textarea');
     reasonField.id = 'confirm-reason';
-    reasonField.rows = 2;
+    reasonField.rows = reasonValue ? 4 : 2;
+    reasonField.value = reasonValue;
     label.htmlFor = reasonField.id;
     if (reasonRequired) reasonField.required = true;
     wrap.append(label, reasonField);

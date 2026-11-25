@@ -3,6 +3,7 @@
 package com.kex.agent.skills;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import com.kex.agent.memory.SkillScope;
 import com.kex.agent.supervision.Decision;
@@ -21,6 +22,8 @@ import org.springframework.context.event.EventListener;
  * cette comparaison, et la revue humaine verrait dix fois la même règle.
  */
 public final class RefusalSkillProposer {
+    /** Relu par {@link ProbeSuggestion} : c'est ce titre qui dit d'où vient la compétence. */
+    static final String TITLE_PREFIX = "Refus répétés sur ";
     private final SkillsService skills;
 
     public RefusalSkillProposer(SkillsService skills) {
@@ -29,7 +32,7 @@ public final class RefusalSkillProposer {
 
     @EventListener
     public void onRepeatedRefusals(RepeatedRefusals refusals) {
-        String title = "Refus répétés sur " + refusals.capability();
+        String title = TITLE_PREFIX + refusals.capability();
         String markdown = procedure(refusals);
         // Déjà en revue ou déjà approuvée : la règle est connue, seul un nouveau texte mérite un
         // nouvel arbitrage. Une proposition rejetée peut revenir : l'humain a tranché sur l'état
@@ -53,6 +56,17 @@ public final class RefusalSkillProposer {
         return refusals.decisions().stream().map(Decision::processName)
                 .filter(name -> name != null && name.strip().length() >= 2 && name.strip().length() <= 60)
                 .map(String::strip).distinct().limit(10).toList();
+    }
+
+    /**
+     * La demande à rejouer pour une règle de refus. Elle nomme les processus parce que ce sont les
+     * déclencheurs de la règle : sans eux, la candidate ne serait même pas indexée et le rejeu ne
+     * montrerait rien. Le prompt du cycle lui-même dépasse la taille d'une demande de rejeu.
+     */
+    static String probeRequest(String capability, List<String> processes) {
+        return "Relève l'état " + (processes.size() > 1 ? "des processus " : "du processus ")
+                + processes.stream().map(name -> "« " + name + " »").collect(Collectors.joining(", "))
+                + " et dis si une action de capacité `" + capability + "` serait à proposer, sans l'exécuter.";
     }
 
     private static String procedure(RepeatedRefusals refusals) {

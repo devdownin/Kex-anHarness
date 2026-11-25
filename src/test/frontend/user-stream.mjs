@@ -26,4 +26,9 @@ const early = new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode
 for await (const event of events(new Response(early))) { assert.equal(event.name, 'token'); break; }
 assert.equal(cancelled, true);
 assert.equal(early.locked, false);
+// La norme retire une seule espace après `data:` : un jeton qui commence lui-même par une espace la
+// garde, et une ligne sans espace reste lisible. Spring Framework 7.1 émet `data: <valeur>`.
+const spaced = [];
+for await (const event of events(new Response('event: token\ndata:  monde\n\nevent: token\ndata:collé\n\n'))) spaced.push(event);
+assert.deepEqual(spaced, [{ name: 'token', data: ' monde' }, { name: 'token', data: 'collé' }]);
 console.log('✓ SSE UTF-8, CRLF, multiline data, incomplete events and reader cleanup');

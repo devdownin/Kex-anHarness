@@ -10,6 +10,10 @@ import {
   params, setDrawerParam, setParams,
 } from './core.js';
 import { wireProcessWizard } from './process-creation.js';
+// EventSource est inutilisable ici : /chat/stream est un POST porteur d'un bearer. Un seul
+// découpeur SSE pour toute la console : une seconde copie gardait l'espace qui suit `data:`,
+// que la norme retire et que Spring Framework 7.1 émet désormais.
+import { events as serverSentEvents } from './user-stream.js';
 
 const CONVERSATION_STORAGE = 'kex.agent.conversation';
 
@@ -517,33 +521,6 @@ function renderToolLog(calls) {
     return line;
   }));
   $('#tool-log-empty').hidden = calls.length > 0;
-}
-
-/**
- * Découpe un flux SSE. EventSource est inutilisable ici : /chat/stream est un POST porteur d'un
- * bearer, deux choses qu'EventSource ne sait pas émettre.
- */
-async function* serverSentEvents(response) {
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer = (buffer + decoder.decode(value, { stream: true })).replace(/\r\n/g, '\n');
-    let boundary;
-    while ((boundary = buffer.indexOf('\n\n')) !== -1) {
-      const block = buffer.slice(0, boundary);
-      buffer = buffer.slice(boundary + 2);
-      let name = 'message';
-      const data = [];
-      for (const line of block.split('\n')) {
-        if (line.startsWith('event:')) name = line.slice(6).trim();
-        else if (line.startsWith('data:')) data.push(line.slice(5));
-      }
-      if (data.length) yield { name, data: data.join('\n') };
-    }
-  }
 }
 
 async function sendStreaming(message) {
