@@ -8,6 +8,7 @@
 import {
   $, ago, api, busy, confirmAction, definition, el, empty, report, stamp, stateTag, toast,
 } from './core.js';
+import { EQUAL, WITH, blindPairs, preferredSide, tally, tallyLine } from './blind-review.js';
 
 const SKILLS_BASE = '/api/agent/skills';
 const CHARTER_BASE = '/api/agent/charter';
@@ -196,6 +197,8 @@ function probeSummary(probe, skillId) {
   wrap.append(el('h4', 'drawer-sub',
     `Dernier rejeu · ${passes} passe(s) de chaque côté · ${ago(probe.observedAt)} · ${probe.actor}`));
   wrap.append(definition('Demande', el('span', null, probe.request)));
+  const blind = blindComparison(probe);
+  if (blind) wrap.append(blind);
   // Absente sur un rejeu antérieur à la qualification : rien ne s'affiche plutôt qu'un défaut.
   if (probe.reading && READINGS[probe.reading.outcome]) {
     const [label, state] = READINGS[probe.reading.outcome];
@@ -216,11 +219,60 @@ function probeSummary(probe, skillId) {
     wrap.append(definition('Fréquence des outils', list));
   }
   const runs = el('details');
-  runs.append(el('summary', null, 'Les exécutions et leurs réponses'));
+  // Ouvrir ce bloc révèle quel côté porte la compétence : il vient après la comparaison à l'aveugle.
+  runs.append(el('summary', null, 'Les exécutions et leurs réponses, côtés révélés'));
   probe.references.forEach((run, index) => runs.append(runBlock(`Sans la compétence, passe ${index + 1}`, run)));
   probe.candidates.forEach((run, index) => runs.append(runBlock(`Avec la compétence, passe ${index + 1}`, run)));
   wrap.append(runs);
   return wrap;
+}
+
+const SIDE_LABELS = { with: 'avec la compétence', without: 'sans la compétence' };
+
+/**
+ * Les réponses de chaque passe, tirées au sort en A et B. Le côté ne s'affiche qu'après le choix,
+ * et le choix ne se refait pas : changer d'avis une fois le côté connu, c'est retomber dans le
+ * biais que la comparaison existe pour écarter. Rien n'est enregistré côté serveur.
+ */
+function blindComparison(probe) {
+  const pairs = blindPairs(probe);
+  if (!pairs.length) return null;
+  const box = el('div', 'stack blind-review');
+  box.append(el('h4', 'drawer-sub', 'Comparaison à l’aveugle'));
+  box.append(el('p', 'muted',
+    'Les deux réponses d’une même passe, dans un ordre tiré au sort. Choisir la meilleure révèle laquelle portait la compétence. Préférer celle sans la compétence est une réponse valable.'));
+  const sides = [];
+  const summary = el('p', 'blind-tally');
+  pairs.forEach((pair) => {
+    const item = el('div', 'stack blind-pair');
+    item.append(el('strong', null, `Passe ${pair.pass}`));
+    const labelA = el('span', 'muted', 'Réponse A');
+    const labelB = el('span', 'muted', 'Réponse B');
+    item.append(labelA, el('pre', 'dump', pair.a.answer), labelB, el('pre', 'dump', pair.b.answer));
+    const actions = el('div', 'card-actions');
+    const verdict = el('span', 'blind-verdict');
+    const buttons = [['a', 'A est meilleure'], ['b', 'B est meilleure'], ['equal', 'Équivalentes']].map(([choice, text]) => {
+      const button = el('button', 'ghost', text);
+      button.type = 'button';
+      button.dataset.choice = choice;
+      button.addEventListener('click', () => {
+        const side = preferredSide(pair, choice);
+        sides.push(side);
+        buttons.forEach((other) => { other.disabled = true; });
+        labelA.textContent = `Réponse A — ${SIDE_LABELS[pair.a.side]}`;
+        labelB.textContent = `Réponse B — ${SIDE_LABELS[pair.b.side]}`;
+        verdict.textContent = side === EQUAL ? 'Jugées équivalentes.'
+          : `Préférée : ${side === WITH ? SIDE_LABELS.with : SIDE_LABELS.without}.`;
+        summary.textContent = tallyLine(tally(sides));
+      });
+      return button;
+    });
+    actions.append(...buttons, verdict);
+    item.append(actions);
+    box.append(item);
+  });
+  box.append(summary);
+  return box;
 }
 
 function runBlock(label, run) {

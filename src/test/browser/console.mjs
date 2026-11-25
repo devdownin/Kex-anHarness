@@ -1246,6 +1246,41 @@ await check('la carte dit la portée et le rejeu envoie la demande saisie', asyn
   await page.waitForSelector('dialog#confirm', { state: 'hidden' });
 });
 
+// Le rejeu est éteint en CI : la file est simulée avec un rejeu déjà joint, pour tester la
+// comparaison à l'aveugle elle-même — le côté caché avant le choix, révélé après.
+await check('la comparaison à l’aveugle cache le côté jusqu’au choix', async () => {
+  const run = (answer, skillsRead = []) => ({ tools: [], failedCalls: 0, inputTokens: null, outputTokens: null,
+    finishReason: 'end_turn', answer, error: null, skillsRead });
+  const probed = { ...proposed, probes: [{
+    observedAt: new Date().toISOString(), actor: 'admin', request: 'Le lag de billing ?',
+    references: [run('Réponse de référence')], candidates: [run('Réponse candidate', [proposed.id])],
+    toolsAdded: [], toolsDropped: [], tools: [], reading: { outcome: 'CONFOUNDED', reasons: ['Une seule passe.'] },
+  }] };
+  await page.route('**/api/agent/skills/review-queue', (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify([probed]) }));
+  try {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.click('[data-agent-tab="governance"]');
+    await page.waitForSelector('#skills-review-queue .blind-pair');
+    const before = await page.$eval('#skills-review-queue .blind-pair', (node) => node.textContent);
+    assert.match(before, /Réponse A/);
+    assert.doesNotMatch(before, /avec la compétence|sans la compétence/, 'le côté se lit avant le choix');
+    await page.click('#skills-review-queue .blind-pair button[data-choice="a"]');
+    const after = await page.$eval('#skills-review-queue .blind-pair', (node) => node.textContent);
+    assert.match(after, /Réponse A — (avec|sans) la compétence/);
+    assert.match(after, /Préférée : (avec|sans) la compétence/);
+    assert.equal(await page.$eval('#skills-review-queue .blind-pair button[data-choice="b"]', (node) => node.disabled), true,
+      'le choix se refait une fois le côté connu');
+    assert.match(await page.$eval('#skills-review-queue .blind-tally', (node) => node.textContent), /Sur 1 comparaison/);
+  }
+  finally {
+    await page.unroute('**/api/agent/skills/review-queue');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.click('[data-agent-tab="governance"]');
+    await page.waitForSelector('#skills-review-queue article.card');
+  }
+});
+
 await check('approuver la fait disparaître de la file et apparaître dans la bibliothèque', async () => {
   await page.click('#skills-review-queue article.card button:has-text("Approuver")');
   await page.waitForSelector('dialog#confirm[open]');

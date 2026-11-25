@@ -1769,6 +1769,13 @@ que le modèle n'avait jamais pu lire. `ProbeSuggestion` la tire de l'origine �
 tâche vérifiée (la première ligne de la procédure, le titre étant tronqué), ou les processus visés par
 les refus, qui sont les déclencheurs de la règle — et la console la pré-remplit sans l'imposer.
 
+Le même article sélectionne parmi des candidats anonymes et mélangés, en rappelant que retenir la
+sortie du harness non modifié est une issue valable. Le réviseur humain de Kex avait le biais
+inverse sous les yeux : chaque réponse portait son côté, et il avait souvent proposé la compétence
+lui-même. `blind-review.js` tire au sort l'ordre des deux réponses de chaque passe et ne révèle le
+côté qu'après le choix, qui ne se refait pas. Le choix n'est pas persisté : une préférence de lecture
+n'est ni une mesure ni une approbation, et la faire peser dans `reading` y ferait entrer un juge.
+
 Ce que l'article fait et que Kex ne reprend pas : réécrire seul le prompt système et les garde-fous.
 Ici la surface modifiable reste la bibliothèque de compétences, et tout passe par une approbation
 humaine nommée.

@@ -204,6 +204,7 @@ jobs:
           node src/test/frontend/user-context.mjs
           node src/test/frontend/mcp-services.mjs
           node src/test/frontend/overview-summary.mjs
+          node src/test/frontend/blind-review.mjs
           node src/test/browser/user-workspace.mjs
           node src/test/browser/user-approvals-favorites.mjs
           node src/test/browser/user-context-history.mjs

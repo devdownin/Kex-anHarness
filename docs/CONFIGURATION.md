@@ -278,6 +278,12 @@ les motifs d'arrêt diffèrent à chaque passe ; `NO_OBSERVED_EFFECT` sinon — 
 à lire. Les jetons n'entrent pas dans la qualification. `reasons` dit pourquoi, en clair. Un rejeu
 antérieur à la qualification garde `reading = null`.
 
+Dans la file de revue, la console présente d'abord les réponses de chaque passe **à l'aveugle** :
+les deux côtés tirés au sort en A et B, le côté révélé seulement après le choix (« A », « B » ou
+« Équivalentes »), sans retour possible, avec le décompte des préférences. Les passes en échec d'un
+côté ne se comparent pas. Rien n'est enregistré côté serveur : la comparaison aide le réviseur, elle
+ne tranche pas à sa place. Le détail des exécutions, côtés nommés, reste dépliable en dessous.
+
 `GET /api/agent/skills/{id}/probe-suggestion` (`ADMIN`) rend la demande que la console pré-remplit :
 l'objectif entier de la tâche vérifiée (`source = TASK`), ou une demande nommant les processus visés
 par les refus, qui sont les déclencheurs de la règle (`REFUSALS`). Une proposition manuelle ne
