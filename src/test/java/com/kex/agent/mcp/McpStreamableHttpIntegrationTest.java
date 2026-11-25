@@ -222,6 +222,35 @@ class McpStreamableHttpIntegrationTest {
         }
     }
 
+    /** Chaque message de conversation relit le catalogue des serveurs ajoutés à chaud. */
+    @Test
+    void ne_rejoue_pas_tools_list_a_chaque_requete_pour_un_serveur_ajoute_a_chaud() {
+        McpServerRegistration registration = new McpServerRegistration(
+                "runtime-cache", "HTTP", "http://127.0.0.1:" + SERVER.port(), "/mcp",
+                FakeMcpServer.TOKEN, Map.of(), null, List.of(), Map.of(), true, Set.of(), Map.of());
+        try {
+            catalog.register(registration);
+            catalog.dynamicServers();
+            long before = toolsListCalls();
+            for (int i = 0; i < 3; i++) {
+                assertThat(catalog.dynamicServers()).anySatisfy(server ->
+                        assertThat(server.tools()).isNotEmpty());
+            }
+            assertThat(toolsListCalls()).isEqualTo(before);
+
+            // Le rafraîchissement demandé par un opérateur, lui, relit le serveur.
+            catalog.refresh("runtime-cache");
+            assertThat(toolsListCalls()).isGreaterThan(before);
+        }
+        finally {
+            catalog.unregister("runtime-cache");
+        }
+    }
+
+    private static long toolsListCalls() {
+        return SERVER.methods().stream().filter("tools/list"::equals).count();
+    }
+
     @Test
     void administre_une_connexion_runtime_et_applique_les_permissions() {
         McpServerRegistration registration = new McpServerRegistration(

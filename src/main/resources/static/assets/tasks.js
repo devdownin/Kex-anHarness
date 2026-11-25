@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Kex Agent AI Contributors
 
-import { $, api, busy, confirmAction, el, onCredentialChange, report, stamp, viewName } from './core.js';
+import { $, api, featureApi, busy, confirmAction, el, onCredentialChange, report, stamp, viewName } from './core.js';
 
 const BASE = '/api/agent/tasks';
 const LABELS = { DRAFT: 'Plan à examiner', APPROVED: 'Plan approuvé', RUNNING: 'En cours',
@@ -31,7 +31,7 @@ export async function view() {
   inFlight = true;
   const current = generation;
   try {
-    const tasks = await api(BASE);
+    const tasks = await featureApi('tasks', BASE);
     if (current !== generation) return;
     $('#task-note').textContent = tasks.length ? 'Sélectionnez une tâche pour examiner son plan et ses preuves.'
       : 'Aucune tâche. Préparez un plan ou décrivez votre objectif.';

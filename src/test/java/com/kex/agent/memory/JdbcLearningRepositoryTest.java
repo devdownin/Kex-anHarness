@@ -55,7 +55,7 @@ class JdbcLearningRepositoryTest {
                 List.of());
         SkillProbe.Run candidate = SkillProbe.Run.failed("AgentTimeoutException");
         SkillProbe probe = SkillProbe.of(Instant.parse("2026-10-01T12:00:00Z"), "admin", "lag ?",
-                List.of(reference), List.of(candidate));
+                List.of(reference), List.of(candidate), "l-2", true);
         LearningEntry entry = new LearningEntry("l-2", "user1", "SKILL", "DLQ", "Markdown", "Evidence", null,
                 Instant.parse("2026-10-01T10:00:00Z"), "PENDING", null, null, null, null,
                 SkillScope.DOMAIN, List.of("dlq", "lettre morte"), List.of());
@@ -68,6 +68,7 @@ class JdbcLearningRepositoryTest {
         assertThat(stored.triggers()).containsExactly("dlq", "lettre morte");
         assertThat(stored.probes()).containsExactly(probe);
         assertThat(stored.probes().getFirst().toolsDropped()).containsExactly("kex_consumer_lag");
+        assertThat(stored.probes().getFirst().reading().outcome()).isEqualTo(SkillProbe.Outcome.CONFOUNDED);
         assertThat(repository.pending("SKILL").getFirst().probes()).hasSize(1);
     }
 
@@ -118,5 +119,7 @@ class JdbcLearningRepositoryTest {
         assertThat(probe.candidates()).singleElement()
                 .satisfies(run -> assertThat(run.error()).isEqualTo("AgentTimeoutException"));
         assertThat(probe.tools()).isEmpty();
+        // Rien ne dit plus si la candidate devait être lue : pas de qualification inventée après coup.
+        assertThat(probe.reading()).isNull();
     }
 }

@@ -77,8 +77,44 @@ class AgentToolSelectionIntegrationTest {
         service.ask("owner", "conversation", "bonjour");
         ArgumentCaptor<Prompt> prompt = ArgumentCaptor.forClass(Prompt.class);
         verify(model).call(prompt.capture());
-        assertThat(prompt.getValue().getSystemMessage().getText())
-                .contains("GOUVERNANCE à conserver", "Donnée de référence durable");
+        assertThat(systemBlocks(prompt.getValue()))
+                .containsExactly("GOUVERNANCE à conserver", "Donnée de référence durable");
+    }
+
+    /**
+     * Le bloc mis en cache ne doit pas dépendre du message : en un seul bloc, une compétence
+     * déclenchée par la demande changeait tout le prompt système, et l'historique qui le suit
+     * repartait de zéro dans le cache du fournisseur à chaque message.
+     */
+    @Test
+    void le_premier_bloc_systeme_ne_depend_pas_de_la_demande() {
+        ChatModel model = mock(ChatModel.class);
+        when(model.getOptions()).thenReturn(ToolCallingChatOptions.builder().build());
+        when(model.call(any(Prompt.class))).thenReturn(new ChatResponse(List.of(new Generation(new AssistantMessage("ok")))));
+        LongTermMemoryService durable = mock(LongTermMemoryService.class);
+        when(durable.durable(org.mockito.ArgumentMatchers.eq("owner"), any(), any(), org.mockito.ArgumentMatchers.anyBoolean()))
+                .thenAnswer(call -> new com.kex.agent.memory.DurableContext("Compétence pour " + call.getArgument(1), Map.of()));
+        @SuppressWarnings("unchecked")
+        ObjectProvider<LongTermMemoryService> memory = mock(ObjectProvider.class);
+        when(memory.getIfAvailable()).thenReturn(durable);
+        AgentService service = new AgentService(ChatClient.create(model), mock(ChatMemory.class),
+                new AgentProperties("GOUVERNANCE", 40, 4000, false, "", Map.of(), Map.of(), Map.of(), Duration.ofSeconds(10)),
+                CircuitBreakerRegistry.ofDefaults(), mock(TokenBudgetService.class), memory,
+                new ToolSelectionService(ToolControlProperties.defaults(), () -> new ToolCallback[0]));
+        service.ask("owner", "conversation", "quel est le lag du groupe ?");
+        service.ask("owner", "conversation", "une gare est muette");
+        ArgumentCaptor<Prompt> prompts = ArgumentCaptor.forClass(Prompt.class);
+        verify(model, org.mockito.Mockito.times(2)).call(prompts.capture());
+        List<String> first = systemBlocks(prompts.getAllValues().get(0));
+        List<String> second = systemBlocks(prompts.getAllValues().get(1));
+        assertThat(first.get(0)).isEqualTo(second.get(0)).isEqualTo("GOUVERNANCE");
+        assertThat(first.get(1)).isNotEqualTo(second.get(1));
+    }
+
+    private static List<String> systemBlocks(Prompt prompt) {
+        return prompt.getInstructions().stream()
+                .filter(message -> message.getMessageType() == org.springframework.ai.chat.messages.MessageType.SYSTEM)
+                .map(org.springframework.ai.chat.messages.Message::getText).toList();
     }
 
     private static ToolCallback tool(String name) {

@@ -137,6 +137,7 @@ class AgentServiceTest {
         blockingCall();
         given(callSpec.chatResponse()).willReturn(response("État lu"));
         given(requestSpec.system(anyString())).willReturn(requestSpec);
+        given(requestSpec.messages(any(org.springframework.ai.chat.messages.Message[].class))).willReturn(requestSpec);
         given(requestSpec.toolCallbacks(any(org.springframework.ai.tool.ToolCallback[].class))).willReturn(requestSpec);
         var tool = mock(org.springframework.ai.tool.ToolCallback.class);
         given(tool.getToolDefinition()).willReturn(org.springframework.ai.tool.definition.DefaultToolDefinition.builder()
@@ -351,6 +352,7 @@ class AgentServiceTest {
     void un_rejeu_injecte_la_candidate_sous_l_allowlist_sans_trace_durable() {
         blockingCall();
         given(requestSpec.system(anyString())).willReturn(requestSpec);
+        given(requestSpec.messages(any(org.springframework.ai.chat.messages.Message[].class))).willReturn(requestSpec);
         org.springframework.ai.tool.ToolCallback[][] offered = new org.springframework.ai.tool.ToolCallback[1][];
         given(requestSpec.toolCallbacks(any(org.springframework.ai.tool.ToolCallback[].class))).willAnswer(invocation -> {
             offered[0] = java.util.Arrays.stream(invocation.getArguments())
@@ -380,7 +382,12 @@ class AgentServiceTest {
         verify(chatMemory).clear(anyString());
         ArgumentCaptor<String> system = ArgumentCaptor.forClass(String.class);
         verify(requestSpec).system(system.capture());
-        assertThat(system.getValue()).contains("prompt", "Index des compétences");
+        assertThat(system.getValue()).isEqualTo("prompt");
+        // L'index dépend de la demande : il part dans le second bloc, hors du point de cache.
+        ArgumentCaptor<org.springframework.ai.chat.messages.Message> perRequest =
+                ArgumentCaptor.forClass(org.springframework.ai.chat.messages.Message.class);
+        verify(requestSpec).messages(perRequest.capture());
+        assertThat(perRequest.getValue().getText()).contains("Index des compétences");
         ArgumentCaptor<Map<String, Object>> context = ArgumentCaptor.forClass(Map.class);
         verify(requestSpec).toolContext(context.capture());
         assertThat(context.getValue().get(TaskToolPolicy.ALLOWED_TOOLS)).isEqualTo(java.util.Set.of("kex_consumer_lag"));
@@ -390,6 +397,7 @@ class AgentServiceTest {
     void une_lecture_d_un_vrai_echange_compte_comme_usage() {
         blockingCall();
         given(requestSpec.system(anyString())).willReturn(requestSpec);
+        given(requestSpec.messages(any(org.springframework.ai.chat.messages.Message[].class))).willReturn(requestSpec);
         org.springframework.ai.tool.ToolCallback[][] offered = new org.springframework.ai.tool.ToolCallback[1][];
         given(requestSpec.toolCallbacks(any(org.springframework.ai.tool.ToolCallback[].class))).willAnswer(invocation -> {
             offered[0] = java.util.Arrays.stream(invocation.getArguments())

@@ -91,6 +91,15 @@ class SkillsController {
      * Même niveau d'accès que trancher : le rejeu dépense du budget de modèle et appelle des
      * outils réels au nom du locataire propriétaire, pas de celui qui le demande.
      */
+    /**
+     * Même niveau d'accès que le rejeu qu'elle prépare : elle lit une compétence en attente de
+     * n'importe quel propriétaire, comme la file de revue.
+     */
+    @GetMapping("/{id}/probe-suggestion")
+    ProbeSuggestion probeSuggestion(@PathVariable String id) {
+        return ProbeSuggestion.of(skills.pending(id));
+    }
+
     @PostMapping("/{id}/probe")
     LearningEntry probe(@PathVariable String id, @Valid @RequestBody ProbeRequest request, Principal principal) {
         String actor = actor(principal);

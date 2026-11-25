@@ -29,4 +29,16 @@ class LlmRoutingConfigTest {
 
         assertThat(router).isNotNull();
     }
+
+    /** Une route Anthropic garde le cache du modèle par défaut : sinon un modèle plus léger coûte plus. */
+    @Test
+    void une_route_anthropic_garde_le_cache_de_l_historique() {
+        LlmRoutingProperties.Endpoint light = new LlmRoutingProperties.Endpoint(
+                LlmRoutingProperties.Provider.ANTHROPIC, null, "key", "claude-haiku-5-5", null, null, null);
+
+        var cache = LlmRoutingConfig.anthropicOptions(light).getCacheOptions();
+
+        assertThat(cache.getStrategy()).isEqualTo(org.springframework.ai.anthropic.AnthropicCacheStrategy.CONVERSATION_HISTORY);
+        assertThat(cache.isMultiBlockSystemCaching()).isTrue();
+    }
 }

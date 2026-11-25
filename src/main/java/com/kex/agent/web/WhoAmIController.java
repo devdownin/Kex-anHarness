@@ -26,6 +26,20 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/api/agent/whoami")
 class WhoAmIController {
 
+    /**
+     * Les fonctions dont la route n'existe que sous une propriété (et parfois un profil). Lire la
+     * présence du contrôleur plutôt que recopier ses conditions : profil et propriété restent dits
+     * à un seul endroit.
+     */
+    private static final java.util.Map<String, String> OPTIONAL_FEATURES = java.util.Map.of(
+            "tasks", "taskController", "automations", "automationController");
+
+    private final org.springframework.context.ApplicationContext context;
+
+    WhoAmIController(org.springframework.context.ApplicationContext context) {
+        this.context = context;
+    }
+
     @GetMapping
     WhoAmI current(Authentication authentication) {
         if (authentication == null) {
@@ -37,7 +51,9 @@ class WhoAmIController {
                 .map(authority -> authority.startsWith("ROLE_") ? authority.substring(5) : authority)
                 .sorted()
                 .toList();
-        return new WhoAmI(authentication.getName(), tenant, roles);
+        java.util.Map<String, Boolean> features = new java.util.TreeMap<>();
+        OPTIONAL_FEATURES.forEach((feature, bean) -> features.put(feature, context.containsBean(bean)));
+        return new WhoAmI(authentication.getName(), tenant, roles, features);
     }
 
     /**
@@ -45,6 +61,8 @@ class WhoAmIController {
      *               avec une clé API
      * @param tenant l'espace de données que ce principal lit et modifie : mémoire, compétences,
      *               charte. Égal à {@code name} tant qu'aucun locataire n'est déclaré
+     * @param features fonctions optionnelles montées sur ce serveur : la console n'appelle pas une
+     *               route éteinte pour en lire le 404
      */
-    record WhoAmI(String name, String tenant, List<String> roles) { }
+    record WhoAmI(String name, String tenant, List<String> roles, java.util.Map<String, Boolean> features) { }
 }

@@ -329,7 +329,7 @@ class AgentControllerTest {
     void le_flux_annonce_la_conversation_puis_les_tokens() throws Exception {
         given(agentService.stream("Anonyme", null, "bonjour")).willReturn(new AgentStream("conv-9",
                 Flux.just(new AgentEvent.Token("sa"), new AgentEvent.ToolCall("echo", 12, false),
-                        new AgentEvent.Token("lut"))));
+                        new AgentEvent.Token("lut"), new AgentEvent.Token(" ensuite"))));
 
         var response = mvc.post().uri("/api/agent/chat/stream")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -339,11 +339,32 @@ class AgentControllerTest {
 
         assertThat(response).hasStatusOk();
         String body = response.getResponse().getContentAsString();
-        assertThat(body).contains("event:conversation").contains("data:conv-9")
-                .contains("event:token").contains("data:sa").contains("data:lut")
-                // Sans cet événement, le flux reste muet pendant l'exécution de l'outil.
-                .contains("event:tool").contains("\"tool\":\"echo\"").contains("\"durationMillis\":12")
-                .contains("event:done").contains("data:response-complete");
+        // Lu comme un client conforme le lit : `data:x` et `data: x` sont le même événement, et
+        // comparer le texte brut faisait échouer ce test sur un changement de mise en forme de Spring.
+        List<String> events = sseEvents(body);
+        assertThat(events).containsSubsequence("conversation=conv-9", "token=sa", "token=lut", "token= ensuite",
+                "done=response-complete");
+        // Sans cet événement, le flux reste muet pendant l'exécution de l'outil.
+        assertThat(events).anySatisfy(event -> assertThat(event).startsWith("tool=")
+                .contains("\"tool\":\"echo\"").contains("\"durationMillis\":12"));
+    }
+
+    /** Découpe un corps SSE comme la norme : une seule espace retirée après {@code data:}. */
+    private static List<String> sseEvents(String body) {
+        List<String> events = new java.util.ArrayList<>();
+        for (String block : body.replace("\r\n", "\n").split("\n\n")) {
+            String name = "message";
+            List<String> data = new java.util.ArrayList<>();
+            for (String line : block.split("\n")) {
+                if (line.startsWith("event:")) name = line.substring(6).strip();
+                else if (line.startsWith("data:")) {
+                    String value = line.substring(5);
+                    data.add(value.startsWith(" ") ? value.substring(1) : value);
+                }
+            }
+            if (!data.isEmpty()) events.add(name + "=" + String.join("\n", data));
+        }
+        return events;
     }
 
     @Test
@@ -383,6 +404,36 @@ class AgentControllerTest {
         assertThat(response).hasStatusOk();
         assertThat(response.getResponse().getContentAsString())
                 .contains("event:error").contains("nouvel essai dans quelques instants");
+    }
+
+    /** Une clé refusée ne se raconte pas comme une coupure réseau sur le chemin que prend la console. */
+    @Test
+    void le_flux_dit_que_le_fournisseur_a_refuse_la_cle() throws Exception {
+        given(agentService.stream("Anonyme", "conv-1", "bonjour")).willReturn(new AgentStream("conv-1",
+                Flux.error(com.anthropic.errors.UnauthorizedException.builder()
+                        .headers(com.anthropic.core.http.Headers.builder().build())
+                        .body(com.anthropic.core.JsonValue.from(java.util.Map.of("error", "invalid x-api-key")))
+                        .build())));
+
+        var response = mvc.post().uri("/api/agent/chat/stream")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"conversationId":"conv-1","message":"bonjour"}""")
+                .exchange();
+
+        assertThat(response).hasStatusOk();
+        assertThat(response.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
+                .contains("event:error").contains("refusé la clé (HTTP 401)")
+                .doesNotContain("interrompu").doesNotContain("invalid x-api-key");
+    }
+
+    @Test
+    void le_flux_distingue_une_limite_de_debit_d_une_panne_sans_code() {
+        assertThat(AgentController.modelProviderMessage(new AnthropicException("connexion refusée")))
+                .contains("injoignable");
+        assertThat(AgentController.modelProviderMessage(com.openai.errors.RateLimitException.builder()
+                .headers(com.openai.core.http.Headers.builder().build())
+                .build())).contains("HTTP 429");
     }
 
     @Test
