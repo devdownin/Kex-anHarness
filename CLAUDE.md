@@ -532,4 +532,14 @@ JDK 21 au minimum (la CI et l'image tournent en 21). La CI construit aussi l'ima
   procédure en fin de parcours, et une seconde exécution contre le même agent échouait en
   « 409 !== 201 ». Son texte porte donc un horodatage.
 
+- **Un `backdrop-filter` imbriqué dans une surface déjà floutée ne floute que cette surface.** Le menu
+  « Réglages », ouvert depuis la barre du haut en verre, laissait lire net le contenu de la page à
+  travers lui : son flou ne voyait que la barre. Un menu porte donc sa lisibilité par l'opacité
+  (`--glass-popover-bg`), et le flou reste réservé aux plans parents.
+
+- **Une animation d'entrée à l'échelle fausse toute mesure prise à l'ouverture.** `scale(.97)` sur
+  le menu « Personnaliser » faisait mesurer ses flèches à 31 px pendant 180 ms, et le contrôle de
+  cible de 32 px échouait sur un bouton conforme. Les menus entrent en fondu et en translation
+  (`popover-in`) ; l'agrandissement reste aux dialogues et aux tiroirs.
+
 Le détail et les raisons sont dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
