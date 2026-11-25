@@ -6,6 +6,7 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
 ## [Non publié]
 
 ### Ajouté
+- **Catalogue Agent Skills KafkaExplorer dans les connexions MCP** : découverte via `kex://skills`, chargement à la demande des `SKILL.md`, contrôle taille/SHA-256 et proposition dans la file de revue Kex. Aucun skill distant n'est activé automatiquement et les droits MCP restent inchangés.
 
 - **Départ autonome du cycle sans base de données**, sur une instance déclarée unique
   (`kex.agent.supervision.schedule.single-instance`) : verrou local au lieu de la ligne en base

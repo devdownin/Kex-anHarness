@@ -240,6 +240,28 @@ export KEX_MCP_STDIO_ALLOWED_COMMANDS=npx,uvx
 Les arguments ne passent jamais par un shell et l'environnement transmis est limité aux valeurs
 configurées, en plus de la liste minimale héritée par le SDK MCP.
 
+### Compétences Agent Skills de KafkaExplorer
+
+La fiche de chaque connexion MCP propose **Compétences KafkaExplorer**. Le bouton de découverte
+cherche la ressource `kex://skills` dans le catalogue MCP ; si elle existe, Kex lit son manifeste
+JSON puis affiche les compétences publiées (nom, description, URI, taille et SHA-256).
+
+Chaque `SKILL.md` est chargé à la demande depuis son URI `skill://…/SKILL.md`. Avant de
+proposer l'import, le navigateur vérifie la taille et recalcule SHA-256 sur les octets UTF-8 exacts.
+Une différence d'empreinte, un manifeste incomplet ou une ressource inaccessible bloque la
+proposition. La limite d'import est celle de la bibliothèque Kex (12 000 caractères).
+
+**Proposer à Kex** ne copie pas une compétence dans le prompt et ne l'active pas. L'API
+`POST /api/agent/skills` crée une proposition `DOMAIN` dans l'espace du principal connecté ;
+elle apparaît dans la file de revue habituelle. Un administrateur doit l'approuver explicitement
+avant qu'elle puisse être injectée. Les compétences d'ingénierie (`kafkaexplorer-*`) sont
+identifiées séparément des compétences Kafka. L'import ne modifie jamais les permissions MCP :
+les appels de tools restent soumis aux règles Kex et à celles du serveur source.
+
+Cette intégration utilise uniquement les primitives MCP Resources déjà publiées par KafkaExplorer
+(`kex://skills` et `skill://{name}/SKILL.md`) ; elle ne prétend pas prendre en charge
+`skills/list` / `skills/get` natifs SEP-2640.
+
 ### Découvrir des serveurs depuis des registres externes
 
 Au-delà des deux entrées curées de `GET /api/agent/mcp/catalog` (GitHub en lecture seule,
