@@ -32,7 +32,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  browser:
+  # Pas `browser` : le contrôle de ci.yml porte ce nom, et deux contrôles homonymes se confondent
+  # dans la liste d'une pull request comme dans une règle de protection qui exigerait l'un d'eux.
+  browser-throttled:
     # Même système que le job `browser` de ci.yml : Playwright 1.56.1 ne fournit pas les
     # dépendances Chromium pour Ubuntu 26.04.
     runs-on: ubuntu-24.04
