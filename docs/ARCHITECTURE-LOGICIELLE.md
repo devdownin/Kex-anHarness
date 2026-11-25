@@ -627,7 +627,7 @@ Détail : [`OBSERVABILITE.md`](OBSERVABILITE.md).
 | Unitaires et intégration Java | 165 classes `*Test` (JUnit, Mockito, MockMvc, H2 + vraie migration Flyway, `reactor-test`) |
 | Fonctions pures de la console | `src/test/frontend/*.mjs` sous Node |
 | Navigateur | `src/test/browser/*.mjs` sous Playwright, contre un agent réel ; `KEX_CPU_THROTTLE` ralentit le processeur |
-| Surfaces | `src/test/frontend/contrast.mjs` (contraste AA des jetons, clair et sombre) ; `src/test/browser/surfaces.mjs` (verre, opacité des menus, téléphone, mouvement réduit, contraste renforcé, grille), captures en artefact CI `console-surfaces` |
+| Surfaces | `src/test/frontend/contrast.mjs` (contraste AA des jetons, clair et sombre) ; `src/test/frontend/user-workspace-tokens.mjs` (les valeurs recopiées par l'espace utilisateur restent celles de la console, et ses textes passent AA) ; `src/test/browser/surfaces.mjs` (verre, opacité des menus, téléphone, mouvement réduit, contraste renforcé, grille), captures en artefact CI `console-surfaces` |
 | Documentation | `scripts/check-architecture-doc.py` (chaque nom cité ici existe dans le code) ; `scripts/check-guide-values.py` (les valeurs du guide pédagogique sont celles de `application.yml`) |
 | Évaluations d'agent | `agent-evals.yml`, corpus avec garde anti-fuite ([`AGENT-EVALUATIONS.md`](AGENT-EVALUATIONS.md)) |
 

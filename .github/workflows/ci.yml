@@ -228,6 +228,7 @@ jobs:
           node src/test/frontend/blind-review.mjs
           node src/test/frontend/throttle.mjs
           node src/test/frontend/contrast.mjs
+          node src/test/frontend/user-workspace-tokens.mjs
           node src/test/browser/user-workspace.mjs
           node src/test/browser/user-approvals-favorites.mjs
           node src/test/browser/user-context-history.mjs

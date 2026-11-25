@@ -582,4 +582,13 @@ JDK 21 au minimum (la CI et l'image tournent en 21). La CI construit aussi l'ima
   entre les deux, sous processeur ralenti, interrogeait le vrai agent sur un identifiant inconnu, et son
   `409` finissait dans les erreurs du parcours.
 
+- **Une valeur recopiée d'une feuille à l'autre dérive, et un contrôle de contraste ne protège que les
+  fonds qu'il regarde.** L'espace utilisateur (`/app`) recopie les valeurs de la console dans sa propre
+  syntaxe (`light-dark()`, quand la console bascule par `data-theme`) ; cinq d'entre elles — `surface`,
+  `ink`, `soft`, `line`, le verre épais — avaient déjà divergé sans que personne le voie.
+  `user-workspace-tokens.mjs` les compare, au lieu de les partager : deux mécanismes de thème, une
+  refonte bien plus large que ce que la dérive justifie. En l'écrivant, il a aussi montré que l'accent
+  clair (`#167d73`) ne faisait que 4,24:1 sur le bas du dégradé de fond, là où un lien tombe hors d'un
+  panneau : `contrast.mjs` ne le mesurait que sur `--surface`. L'accent clair vaut `#14776d`.
+
 Le détail et les raisons sont dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).

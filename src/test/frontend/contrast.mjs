@@ -1,44 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Kex Agent AI Contributors
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { block, declarations, over, parse, ratio, read } from './css-tokens.mjs';
 
 // Le contraste se vérifie sur les jetons eux-mêmes, pas sur une capture : un texte secondaire passé
 // sous 4,5:1 se lit encore très bien sur l'écran de celui qui le règle, et nulle part ailleurs.
 // Les matériaux translucides sont composés sur le fond le plus défavorable qu'ils puissent couvrir.
 
-const css = readFileSync(new URL('../../main/resources/static/assets/console.css', import.meta.url), 'utf8');
-
-function block(selector) {
-  const start = css.indexOf(`${selector} {`);
-  assert.ok(start >= 0, `bloc ${selector} introuvable`);
-  const body = css.slice(start, css.indexOf('\n}', start));
-  return Object.fromEntries([...body.matchAll(/--([a-z0-9-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]));
-}
-
-function parse(value) {
-  const hex = value.match(/^#([0-9a-f]{6})$/i);
-  if (hex) return { rgb: [0, 2, 4].map((i) => parseInt(hex[1].slice(i, i + 2), 16)), alpha: 1 };
-  const rgb = value.match(/^rgb\((\d+) (\d+) (\d+)(?: \/ ([\d.]+)%)?\)$/);
-  if (rgb) return { rgb: rgb.slice(1, 4).map(Number), alpha: rgb[4] === undefined ? 1 : Number(rgb[4]) / 100 };
-  throw new Error(`couleur illisible : ${value}`);
-}
-
-const over = (top, under) => top.rgb.map((c, i) => c * top.alpha + under[i] * (1 - top.alpha));
-
-function luminance(rgb) {
-  const [r, g, b] = rgb.map((c) => c / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-function ratio(fg, bg) {
-  const [a, b] = [luminance(fg), luminance(bg)].sort((x, y) => y - x);
-  return (a + 0.05) / (b + 0.05);
-}
+const css = read('console.css');
 
 const themes = {
-  clair: block(':root'),
-  sombre: block(':root[data-theme="dark"]'),
+  clair: declarations(block(css, ':root {')),
+  sombre: declarations(block(css, ':root[data-theme="dark"] {')),
 };
 
 for (const [name, t] of Object.entries(themes)) {
@@ -57,15 +30,17 @@ for (const [name, t] of Object.entries(themes)) {
     }
   }
   // L'accent sert de texte (liens, rubriques) : même seuil. Sur lui, l'encre d'accent des boutons.
-  assert.ok(ratio(solid('accent'), solid('surface')) >= 4.5, `${name} : --accent sur --surface sous AA`);
+  // Sur le fond aussi, bas du dégradé compris : un lien d'accent posé hors d'un panneau tombe dessus.
+  for (const ground of ['surface', 'bg', 'bg-deep']) {
+    const measured = ratio(solid('accent'), solid(ground));
+    assert.ok(measured >= 4.5, `${name} : --accent sur --${ground} = ${measured.toFixed(2)}:1, sous le seuil AA de 4,5:1`);
+  }
   assert.ok(ratio(solid('accent-ink'), solid('accent')) >= 4.5, `${name} : --accent-ink sur --accent sous AA`);
 }
 
 // Le thème sombre suivant les préférences du système doit reprendre exactement les mêmes valeurs
 // que le thème sombre choisi à la main : deux copies qui divergent, et un seul des deux est vérifié.
-const media = css.slice(css.indexOf('@media (prefers-color-scheme: dark)'));
-const auto = Object.fromEntries([...media.slice(0, media.indexOf('\n}')).matchAll(/--([a-z0-9-]+):\s*([^;]+);/g)]
-  .map((m) => [m[1], m[2].trim()]));
+const auto = declarations(block(block(css, '@media (prefers-color-scheme: dark)'), ':root:not([data-theme="light"])'));
 assert.deepEqual(auto, themes.sombre, 'le sombre du système et le sombre choisi divergent');
 
 console.log('✓ contraste des jetons : encres et accent au-dessus de 4,5:1 sur chaque matériau, en clair et en sombre');
