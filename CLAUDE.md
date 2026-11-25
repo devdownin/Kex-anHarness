@@ -126,8 +126,9 @@ JDK 21 au minimum (la CI et l'image tournent en 21). La CI construit aussi l'ima
 - **Un taux calculé sur zéro verdict est un chiffre inventé.** Le taux de pertinence reste `null`
   tant qu'aucun humain n'a tranché : un `0` se lirait « l'agent se trompe toujours ».
 
-- **Pas de `@Scheduled` sur le cycle de supervision.** En multi-instance, chaque réplique lancerait
-  le sien et les actions partiraient en double.
+- **Pas de `@Scheduled` nu sur le cycle de supervision.** En multi-instance, chaque réplique lancerait
+  le sien et les actions partiraient en double. Le planificateur passe toujours par un `CycleLock` : en
+  base sous `shared-memory`, local seulement quand l'exploitant déclare `schedule.single-instance`.
 
 - **Le `permitAll` de la console reste borné au `GET` et aux chemins énumérés.** Un joker de
   racine ferait hériter l'ouverture à toute route future servie ici.
@@ -454,5 +455,39 @@ JDK 21 au minimum (la CI et l'image tournent en 21). La CI construit aussi l'ima
   auraient pris la capacité pour déclencheur ; mais le prompt du cycle ne nomme jamais les
   capacités, seulement les processus — la règle ne se serait jamais activée. Ses déclencheurs sont
   donc les noms des processus visés par les refus.
+
+- **Une postcondition relue aussitôt l'action ne voit pas un effet appliqué en différé.** Autoroutes
+  publie une déclaration sur Kafka et l'applique ensuite : la relecture immédiate rendait l'ancienne
+  version, et `VERIFICATION_FAILED` tombait sur une action réussie. `verification.settle` relit une
+  contradiction — seulement elle — jusqu'à l'échéance. Le banc de bout en bout de la suite Convergence
+  l'a montré ; aucun test unitaire ne le pouvait, le faux outil répondait juste du premier coup.
+
+- **Cacher un outil d'écriture au modèle ne doit pas le retirer à l'action qui en a besoin.** `denied`
+  s'appliquait partout, y compris à `McpToolCatalog.call` depuis une décision approuvée : une
+  déclaration d'anomalie gouvernée finissait `FAILED`. `governed-only` cache au modèle et à l'appel
+  direct ; seul `callGoverned`, réservé à `SupervisionService.execute`, l'atteint. `denied` reste absolu.
+
+- **Tomcat ne compresse pas une réponse qui porte un ETag fort.** Le corps compressé n'est plus
+  celui que l'ETag désigne : `ShallowEtagHeaderFilter` doit écrire un ETag faible
+  (`setWriteWeakETag(true)`), sans quoi `server.compression` reste sans effet sur la console. Le filtre
+  ne s'applique pas non plus à `/` ni `/app` : ce sont des renvois internes vers `index.html`, que son
+  tampon rendait vides.
+
+- **Le cache du fournisseur suit l'ordre outils → système → messages.** Ce qui change en tête
+  invalide tout ce qui suit, historique compris. Le prompt système part donc en deux blocs, l'installation
+  puis la demande, avec `multi-block-system-caching` ; et un jeu d'outils qui varie d'un message à
+  l'autre coûte plus qu'il n'économise, d'où la sélection éteinte par défaut et triée par nom.
+
+- **Un échange de cycle ne parle que de son processus.** Chaque processus a désormais son échange ; une
+  ligne rendue sur un autre processus est écartée à la fusion, sans quoi elle compterait deux fois.
+
+- **Une fonction éteinte ne s'appelle plus pour lire son 404.** Le navigateur inscrit chaque 404 dans
+  sa console, ce qui fait passer une propriété à `false` pour une panne. `whoami` porte `features`,
+  lu dans la présence du contrôleur et pas recopié de ses conditions, et `featureApi` (`core.js`)
+  rend le 404 sans requête. Un test qui simule une de ces routes doit aussi déclarer la fonction
+  active dans `whoami`, puis recharger la page : la déclaration est lue une fois par jeton.
+
+- **`display: flex` sur un `summary` retire son triangle de dépliage dans Chromium.** Le marqueur
+  n'existe que pour `display: list-item` ; une hauteur minimale suffit à agrandir la cible.
 
 Le détail et les raisons sont dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).

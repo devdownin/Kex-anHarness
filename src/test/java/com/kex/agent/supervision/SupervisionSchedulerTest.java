@@ -127,6 +127,22 @@ class SupervisionSchedulerTest {
         verify(supervision).runCycle("scheduler");
     }
 
+    /** Instance unique : verrou local, aucune base, et un battement ne double jamais un cycle en cours. */
+    @Test
+    void le_verrou_local_lance_le_cycle_et_refuse_un_second_depart_simultane() {
+        LocalCycleLock lock = new LocalCycleLock();
+        SupervisionScheduler local = new SupervisionScheduler(supervision, lock, clock,
+                new SupervisionProperties.Adaptive(false, Duration.ofMinutes(5), Duration.ofMinutes(30)));
+
+        local.tick();
+        verify(supervision).runCycle("scheduler");
+        // Relâché en sortie : le battement suivant peut repartir.
+        assertThat(lock.acquire()).isTrue();
+        // Tenu : un second départ n'a pas lieu.
+        local.tick();
+        verify(supervision, org.mockito.Mockito.times(1)).runCycle("scheduler");
+    }
+
     @Test
     void ne_lance_pas_de_cycle_si_une_autre_replique_tient_deja_le_verrou() {
         scheduler(mock(SupervisionService.class)); // crée la table et sa ligne de départ

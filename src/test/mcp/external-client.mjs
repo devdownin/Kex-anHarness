@@ -14,7 +14,7 @@ try {
   await client.connect(transport);
   const tools = await client.listTools();
   assert.equal(tools.tools.length, 7);
-  assert.ok(tools.tools.some((tool) => tool.name === 'kex_status'));
+  assert.ok(tools.tools.some((tool) => tool.name === 'harness_status'));
 
   const resources = await client.listResources();
   assert.ok(resources.resources.length >= 5);
@@ -23,9 +23,9 @@ try {
   assert.equal(templates.resourceTemplates.length, 4);
 
   const prompts = await client.listPrompts();
-  assert.ok(prompts.prompts.some((prompt) => prompt.name === 'kex_supervision_triage'));
+  assert.ok(prompts.prompts.some((prompt) => prompt.name === 'harness_supervision_triage'));
 
-  const safeTools = ['kex_status', 'kex_overview', 'kex_alerts', 'kex_incidents', 'kex_pending_decisions'];
+  const safeTools = ['harness_status', 'harness_overview', 'harness_alerts', 'harness_incidents', 'harness_pending_decisions'];
   for (const name of safeTools) {
     try {
       const result = await client.callTool({ name, arguments: {} });

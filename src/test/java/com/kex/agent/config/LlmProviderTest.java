@@ -113,14 +113,18 @@ class LlmProviderTest {
      * simplement inactif sans que rien ne le signale.
      */
     @Test
-    void active_le_cache_anthropic_sur_le_systeme_et_les_outils() {
+    void active_le_cache_anthropic_sur_l_historique_et_le_bloc_systeme_stable() {
         context.withPropertyValues("spring.ai.model.chat=anthropic",
-                        "spring.ai.anthropic.chat.options.cache-options.strategy=SYSTEM_AND_TOOLS")
+                        "spring.ai.anthropic.chat.options.cache-options.strategy=CONVERSATION_HISTORY",
+                        "spring.ai.anthropic.chat.options.cache-options.multi-block-system-caching=true")
                 .run(ctx -> {
                     AnthropicChatOptions options = (AnthropicChatOptions) ctx.getBean(ChatModel.class)
                             .getDefaultOptions();
                     assertThat(options.getCacheOptions().getStrategy())
-                            .isEqualTo(AnthropicCacheStrategy.SYSTEM_AND_TOOLS);
+                            .isEqualTo(AnthropicCacheStrategy.CONVERSATION_HISTORY);
+                    // Sans lui, le point de cache se pose sur le dernier bloc système, celui qui
+                    // change avec chaque demande (AgentService.request).
+                    assertThat(options.getCacheOptions().isMultiBlockSystemCaching()).isTrue();
                 });
     }
 

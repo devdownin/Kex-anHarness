@@ -58,6 +58,8 @@ public class SupervisionService {
     private final McpToolCatalog toolCatalog;
     private final SupervisionProperties properties;
     private final Clock clock;
+    /** Attente entre deux relectures d'une vérification ; remplacée en test pour avancer l'horloge. */
+    private java.util.function.Consumer<Duration> pause = SupervisionService::sleep;
     private final ModelAvailability model;
     private final Tracer tracer;
     private final CircuitBreakerRegistry circuitBreakerRegistry;
@@ -582,28 +584,34 @@ public class SupervisionService {
         events.add(new CycleEvent(clock.instant(), "Interrogation des outils",
                 monitored.size() + " processus à relever"));
 
-        AgentStructuredAnswer answer;
-        // La conversation du cycle est jetable : réutiliser un identifiant ferait grossir la
-        // mémoire à chaque exécution jusqu'au plafond, en payant du contexte pour des faits périmés.
-        String conversationId = "supervision-" + cycleId;
-        try {
-            answer = agentService.askStructured(conversationId, prompt(monitored), CycleAnalysis.schema());
+        List<ProcessAnalysis> analyses = analyse(cycleId, monitored);
+        List<ProcessAnalysis> failed = analyses.stream().filter(analysis -> analysis.failure() != null).toList();
+        failed.forEach(analysis -> {
+            events.add(new CycleEvent(clock.instant(), "Analyse interrompue · " + analysis.process().name(),
+                    analysis.failure()));
+            record(AGENT, "Cycle interrompu", analysis.process().id(), null, analysis.failure(), "Échec");
+        });
+        // Tous en échec : le cycle n'a rien relevé, comme lorsqu'il ne tenait qu'en un échange.
+        // Une partie seulement : les autres processus restent mesurés, et ceux-là passent en UNKNOWN.
+        if (failed.size() == analyses.size()) {
+            return finish(cycleId, started, events, 0, 0, List.of(), failed.getFirst().failure());
         }
-        catch (RuntimeException ex) {
-            log.warn("Cycle de supervision {} interrompu", cycleId, ex);
-            events.add(new CycleEvent(clock.instant(), "Analyse interrompue", ex.getMessage()));
-            record(AGENT, "Cycle interrompu", null, null, ex.getMessage(), "Échec");
-            return finish(cycleId, started, events, 0, 0, List.of(), ex.getMessage());
-        }
-        finally {
-            agentService.clear(conversationId);
-        }
+        // Chaque échange ne parle que de son processus : une ligne sur un autre serait relevée deux fois.
+        Map<String, Object> merged = Map.of(
+                "processes", analyses.stream().flatMap(analysis -> ownRows(analysis, "processes")).toList(),
+                "anomalies", analyses.stream().flatMap(analysis -> ownRows(analysis, "anomalies")).toList());
+        List<com.kex.agent.agent.AgentEvent.ToolCall> calls = analyses.stream()
+                .flatMap(analysis -> analysis.tools().stream()).toList();
+        AgentStructuredAnswer answer = new AgentStructuredAnswer(null, merged, calls, null, null);
 
         Instant at = clock.instant();
         CycleAnalysis.Findings findings = CycleAnalysis.findings(answer.content(), monitored, cycleId, at,
                 answer.tools());
         snapshots = CycleAnalysis.withoutUnsourcedSeverity(CycleAnalysis.snapshots(answer.content(), monitored),
-                findings);
+                findings).stream().map(snapshot -> failed.stream().anyMatch(f -> f.process().id().equals(snapshot.processId()))
+                        ? new ProcessSnapshot(snapshot.processId(), snapshot.name(), ProcessState.UNKNOWN, null, null, null,
+                                "Analyse de ce processus interrompue — détail dans le déroulé du cycle", Coverage.notReported())
+                        : snapshot).toList();
         snapshotHistory.add(new SnapshotSet(cycleId, at, snapshots));
         List<Anomaly> detected = findings.sourced();
 
@@ -635,6 +643,75 @@ public class SupervisionService {
                 pendingCount + " en attente de validation"));
 
         return finish(cycleId, started, events, monitored.size(), detected.size(), taken, null);
+    }
+
+    private record ProcessAnalysis(MonitoredProcess process, Map<String, Object> content,
+                                   List<com.kex.agent.agent.AgentEvent.ToolCall> tools, String failure) {
+    }
+
+    /**
+     * Un échange par processus : chacun dispose de tout le plafond d'appels d'outils et du délai, au
+     * lieu de les partager. Au plus {@code analysis-parallelism} à la fois — chaque échange est un
+     * appel au fournisseur, et un tiers gratuit limite les requêtes par minute. Un seul processus,
+     * ou un seul à la fois, reste sur le thread du cycle et garde sa trace.
+     */
+    private List<ProcessAnalysis> analyse(String cycleId, List<MonitoredProcess> monitored) {
+        int parallelism = Math.min(properties.analysisParallelism(), monitored.size());
+        if (parallelism <= 1) return monitored.stream().map(process -> analyse(cycleId, process)).toList();
+        java.util.concurrent.Semaphore permits = new java.util.concurrent.Semaphore(parallelism);
+        var snapshot = io.micrometer.context.ContextSnapshotFactory.builder().build().captureAll();
+        try (var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            List<java.util.concurrent.Future<ProcessAnalysis>> futures = monitored.stream()
+                    .map(process -> executor.submit(snapshot.wrap(() -> {
+                        permits.acquire();
+                        try {
+                            return analyse(cycleId, process);
+                        }
+                        finally {
+                            permits.release();
+                        }
+                    }))).toList();
+            List<ProcessAnalysis> result = new ArrayList<>();
+            for (int i = 0; i < futures.size(); i++) {
+                try {
+                    result.add(futures.get(i).get());
+                }
+                catch (java.util.concurrent.ExecutionException ex) {
+                    result.add(new ProcessAnalysis(monitored.get(i), Map.of(), List.of(), String.valueOf(ex.getCause())));
+                }
+                catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    result.add(new ProcessAnalysis(monitored.get(i), Map.of(), List.of(), "Analyse interrompue"));
+                }
+            }
+            return result;
+        }
+    }
+
+    private ProcessAnalysis analyse(String cycleId, MonitoredProcess process) {
+        // La conversation est jetable : réutiliser un identifiant ferait grossir la mémoire à
+        // chaque exécution jusqu'au plafond, en payant du contexte pour des faits périmés.
+        String conversationId = "supervision-" + cycleId + "-" + process.id();
+        try {
+            AgentStructuredAnswer answer = agentService.askStructured(conversationId, prompt(List.of(process)),
+                    CycleAnalysis.schema());
+            return new ProcessAnalysis(process, answer.content() == null ? Map.of() : answer.content(),
+                    answer.tools() == null ? List.of() : answer.tools(), null);
+        }
+        catch (RuntimeException ex) {
+            log.warn("Analyse du processus {} interrompue au cycle {}", process.id(), cycleId, ex);
+            return new ProcessAnalysis(process, Map.of(), List.of(),
+                    ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage());
+        }
+        finally {
+            agentService.clear(conversationId);
+        }
+    }
+
+    private static java.util.stream.Stream<Object> ownRows(ProcessAnalysis analysis, String key) {
+        if (!(analysis.content().get(key) instanceof List<?> rows)) return java.util.stream.Stream.empty();
+        return rows.stream().filter(row -> row instanceof Map<?, ?> map
+                && analysis.process().id().equals(map.get("processId"))).map(Object.class::cast);
     }
 
     private CycleReport finish(String cycleId, Instant started, List<CycleEvent> events, int analysed,
@@ -762,13 +839,19 @@ public class SupervisionService {
         Autonomy autonomy = current.effectiveAutonomy(capability);
         double floor = current.confidenceThresholdOf(capability);
         Instant at = clock.instant();
+        Map<String, Object> proposed = allowedArguments(capability, anomaly.actionArguments());
+        if (!proposed.isEmpty() && autonomy == Autonomy.AUTOMATIC) {
+            // Ce que le modèle a écrit n'atteint jamais un outil sans qu'un humain l'ait lu.
+            autonomy = Autonomy.SUPERVISED;
+        }
 
         Decision decision = new Decision(UUID.randomUUID().toString(), cycleId, anomaly.id(),
                 anomaly.processId(), anomaly.processName(), capability,
                 "Ramener %s sous les seuils de surveillance".formatted(anomaly.processName()),
                 anomaly.analysis(), action(capability, anomaly), anomaly.observations(),
                 impact(capability), anomaly.confidence(), DecisionStatus.PENDING_APPROVAL, null,
-                current.version(), anomaly.id(), null, at, null, at.plus(properties.approvalTimeout()));
+                current.version(), anomaly.id(), null, at, null, at.plus(properties.approvalTimeout()),
+                proposed);
 
         if (autonomy == Autonomy.FORBIDDEN) {
             decision = decision.resolvedAs(DecisionStatus.BLOCKED,
@@ -945,6 +1028,27 @@ public class SupervisionService {
         }
     }
 
+    /** Plafond de ce qu'une proposition peut porter : l'humain doit pouvoir la relire en entier. */
+    private static final int MAX_ARGUMENT_CHARS = 4_000;
+
+    /**
+     * Garde de la proposition du modèle que les noms autorisés par la liaison ; le reste est écarté sans
+     * bruit, et une proposition trop longue pour être relue l'est entièrement.
+     */
+    private Map<String, Object> allowedArguments(Capability capability, Map<String, Object> proposed) {
+        ActionBinding binding = properties.actions().get(capability);
+        if (binding == null || binding.allowedArguments().isEmpty() || proposed == null || proposed.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> kept = new java.util.LinkedHashMap<>();
+        proposed.forEach((name, value) -> {
+            if (binding.allowedArguments().contains(name)) {
+                kept.put(name, value);
+            }
+        });
+        return String.valueOf(kept).length() > MAX_ARGUMENT_CHARS ? Map.of() : kept;
+    }
+
     private Decision execute(Decision decision, String actor) {
         ActionBinding binding = properties.actions().get(decision.capability());
         Instant at = clock.instant();
@@ -960,6 +1064,9 @@ public class SupervisionService {
                 || decision.confidence() < current.confidenceThresholdOf(decision.capability()))) {
             return decision.withResult("Politique modifiée avant exécution : validation humaine requise ("
                     + current.version() + ")");
+        }
+        if (AGENT.equals(actor) && !decision.actionArguments().isEmpty()) {
+            return decision.withResult("Arguments proposés par le modèle : validation humaine requise");
         }
         if (binding == null || !StringUtils.hasText(binding.connection()) || !StringUtils.hasText(binding.tool())) {
             // NOTIFY est la seule capacité dont WebhookNotifier sait tenir lieu d'outil : son
@@ -984,17 +1091,21 @@ public class SupervisionService {
             return decision.resolvedAs(DecisionStatus.FAILED,
                     "Aucun outil MCP lié à la capacité " + decision.capability(), actor, at);
         }
-        Map<String, Object> arguments = new HashMap<>(binding.arguments());
+        // Ce que le modèle a proposé passe d'abord : un argument fixe de la liaison, puis l'identité de la
+        // décision, l'emportent toujours dessus.
+        Map<String, Object> arguments = new HashMap<>(decision.actionArguments());
+        arguments.putAll(binding.arguments());
         arguments.put("processId", decision.processId());
         arguments.put("decisionId", decision.id());
         try {
-            McpToolResult result = toolCatalog.call(binding.connection(), binding.tool(), arguments);
+            McpToolResult result = toolCatalog.callGoverned(binding.connection(), binding.tool(), arguments);
             String output = String.join("\n", result.content());
             String receipt = StringUtils.hasText(output) ? output : "Exécutée par " + actor;
             if (result.error()) {
                 return decision.resolvedAs(DecisionStatus.FAILED, receipt, actor, clock.instant());
             }
-            return ActionVerification.verify(decision, binding, actor, clock.instant(), clock, toolCatalog, receipt);
+            return ActionVerification.verify(decision, binding, actor, clock.instant(), clock, toolCatalog, receipt,
+                    result.structuredContent(), pause);
         }
         catch (RuntimeException ex) {
             log.warn("Exécution de la décision {} en échec", decision.id(), ex);
@@ -1011,6 +1122,8 @@ public class SupervisionService {
                     case RESTART_CONSUMER -> "Redémarrer le consumer";
                     case REPLAY_MESSAGES -> "Rejouer les messages en attente";
                     case MODIFY_CONFIGURATION -> "Modifier la configuration";
+                    case DECLARE_ANOMALY -> "Déclarer l'anomalie sur le système tiers";
+                    case CLEAR_ANOMALY -> "Lever l'anomalie sur le système tiers";
                 };
     }
 
@@ -1021,6 +1134,8 @@ public class SupervisionService {
             case RESTART_CONSUMER -> "Faible : interruption de quelques secondes de la consommation";
             case REPLAY_MESSAGES -> "Modéré : des messages peuvent être traités deux fois";
             case MODIFY_CONFIGURATION -> "Élevé : effet durable sur le système surveillé";
+            case DECLARE_ANOMALY, CLEAR_ANOMALY ->
+                    "Modéré : l'état d'une source change sur un système tiers, visible de ses utilisateurs";
         };
     }
 
@@ -1043,5 +1158,18 @@ public class SupervisionService {
     private String currentTraceId() {
         Span span = tracer.currentSpan();
         return span == null ? null : span.context().traceId();
+    }
+
+    void pauseWith(java.util.function.Consumer<Duration> pause) {
+        this.pause = pause;
+    }
+
+    private static void sleep(Duration duration) {
+        try {
+            Thread.sleep(duration);
+        }
+        catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+        }
     }
 }

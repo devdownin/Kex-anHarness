@@ -5,6 +5,67 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
 
 ## [Non publié]
 
+### Ajouté
+
+- **Départ autonome du cycle sans base de données**, sur une instance déclarée unique
+  (`kex.agent.supervision.schedule.single-instance`) : verrou local au lieu de la ligne en base
+  de `shared-memory`. Une suite Compose à une instance n'avait sinon aucun moyen de superviser seule.
+- **Liens d'un processus vers les autres applications** (`processes[].links`) : la console les
+  affiche dans le détail du processus. Seules des URL `http(s)` déclarées par l'exploitant.
+- **Rôle `METRICS`** pour une clé nommée : lecture de `/actuator/prometheus`, rien d'autre. Un
+  collecteur n'avait jusqu'ici que la clé `ADMIN` pour lire les métriques.
+
+### Corrigé
+
+- **Un cycle en échec ne s'affiche plus « aucune intervention requise ».** La synthèse de la vue
+  d'ensemble gardait son point vert sous un en-tête « EN ERREUR », et comptait « 0 alerte » d'un
+  cycle qui n'avait rien relevé. Un processus inconnu n'est plus compté comme sain.
+- **Une panne du fournisseur se dit en flux comme en bloquant.** Le chat en direct affichait « le flux
+  s'est interrompu » pour une clé refusée ou une limite de débit ; il dit maintenant laquelle, sans
+  recopier le corps renvoyé par le fournisseur, et propose **Réessayer**.
+- **Console plus lisible et plus sobre en requêtes.** La barre du haut tient sur une ligne et son
+  motif d'erreur mène au déroulé ; la barre basse mobile garde cinq entrées et un bouton **Plus** au
+  lieu de dix-sept qui défilaient ; le chat propose des questions d'exploitation et abrège
+  l'identifiant de conversation ; `/app` garde ses onglets sur une ligne et chaque groupe vide mène au
+  geste qui le remplit ; plus aucune commande sous 32 px ni texte sous 12 px sur la vue d'ensemble.
+  `whoami` déclare les fonctions optionnelles montées (`features`) : la console n'appelle plus une
+  route éteinte pour lire son 404.
+
+- **Une action à effet différé ne se lit plus comme un échec.** La vérification relisait une seule
+  fois, aussitôt l'action acceptée ; Autoroutes applique une déclaration d'anomalie après coup, et
+  `VERIFICATION_FAILED` tombait sur une action réussie. `verification.settle` relit une postcondition
+  contredite jusqu'à concordance ou échéance (60 s au plus). Voir `docs/ACTION-VERIFICATION.md`.
+- **Une action gouvernée peut appeler un outil caché au modèle.** `denied`, seul moyen d'empêcher le
+  modèle d'appeler `declarer_anomalies` hors approbation, bloquait aussi l'action approuvée :
+  `FAILED`, « outil non autorisé ». `kex.agent.tools.rules.<outil>.governed-only` cache l'outil au
+  modèle et à l'appel direct, et le laisse aux seules actions de supervision. Voir
+  `docs/TOOL-CONTROLS.md`.
+
+### Modifié
+
+- **Performances.** Console servie compressée et revalidée par ETag (304) au lieu de `no-store` ;
+  cache Anthropic étendu à l'historique, avec un bloc système stable séparé de ce que la demande
+  déclenche ; sélection d'outils dans un ordre fixe ; `tools/list` des serveurs ajoutés à chaud mis
+  en cache ; un échange par processus dans le cycle (`analysis-parallelism`, défaut `2`) ; routes
+  `kex.models` Anthropic avec le même cache. Voir « Outils, prompt système et historique sont mis en
+  cache » dans `docs/ARCHITECTURE.md`.
+
+- **Serveur MCP : `kex_*` devient `harness_*`** pour les sept outils et le prompt de supervision, qui
+  partageaient leur préfixe avec les outils de Kafka SQL Explorer. Les anciens noms restent acceptés à
+  l'appel pendant une version ; voir `docs/MCP.md`.
+
+### Ajouté
+
+- **`kex.mcp.bearer-tokens[].client-credentials`** : jeton OAuth2 obtenu par `client_credentials` et
+  renouvelé avant son expiration, pour les serveurs MCP à jeton court (Autoroutes : 5 minutes).
+
+- **Actions à arguments dynamiques** : capacités `DECLARE_ANOMALY` et `CLEAR_ANOMALY`, et
+  `actions.<capacité>.allowed-arguments`. Le modèle propose des arguments (`actionArguments`), seuls
+  les noms autorisés sont retenus, un argument fixe de la liaison l'emporte, et toute décision qui en
+  porte attend une validation humaine, même en autonomie `AUTOMATIC`. Le vérificateur peut lire ce que
+  l'action a rendu (`arguments-from-action`, `expected-from-action-pointer`), par exemple l'identifiant
+  d'événement à retrouver. Voir `docs/ACTION-VERIFICATION.md`.
+
 ### Intégrations
 
 - **MCP autoroutes optionnel** : surcouche Docker `compose/autoroutes.yml`, connexion `mcpautoroute`

@@ -429,7 +429,7 @@ await check('fiche Agent : la politique se résume en actions, le dernier cycle 
   await summary.getByText('Dernier cycle').waitFor();
   const text = await summary.innerText();
   assert.match(text, /Jamais exécuté/);
-  assert.match(text, /\d+ (automatiques?|sous validation|interdites?).* sur 5 actions/);
+  assert.match(text, /\d+ (automatiques?|sous validation|interdites?).* sur [0-9]+ actions/);
   await page.evaluate(() => { document.documentElement.dataset.identifiers = 'hidden'; });
   assert.doesNotMatch(await summary.innerText(), /policy-v1/, 'l’identifiant brut reste affiché');
   await context.close();
@@ -507,6 +507,108 @@ await check('Connaissance parle d’usage, pas d’implémentation, et nomme un 
   const toChat = await page.locator('#view-knowledge a[href="#/chat"]').allInnerTexts();
   assert.ok(toChat.length >= 1);
   assert.equal(new Set(toChat).size, 1, `deux libellés pour le même lien : ${toChat.join(' / ')}`);
+  await context.close();
+});
+
+await check('un motif d’état long tient sur une ligne et mène au déroulé', async () => {
+  const { context, page } = await open(desktop, 'overview');
+  await page.route('**/api/agent/supervision/status', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    await route.fulfill({ response, json: { ...body, state: 'ERROR', lastCycleAt: new Date().toISOString(),
+      stateReason: 'Dernier cycle en échec — détail dans le déroulé du cycle et l’audit, motif volontairement long pour déborder' } });
+  });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('#freshness a[href="#/audit"]').waitFor();
+  const topbar = await page.locator('.topbar').boundingBox();
+  assert.ok(topbar.height <= 80, `barre du haut de ${Math.round(topbar.height)} px : elle passe sur deux lignes`);
+  assert.match(await page.locator('#freshness').getAttribute('title'), /motif volontairement long/);
+  await context.close();
+});
+
+await check('une fonction éteinte n’est pas appelée pour lire son 404', async () => {
+  const { context, page } = await open(desktop, 'agent');
+  const disabled = [];
+  page.on('request', (request) => {
+    if (/\/api\/agent\/(tasks|automations)(\/|$|\?)/.test(new URL(request.url()).pathname)) disabled.push(request.url());
+  });
+  await page.click('[data-agent-tab="automations"]');
+  await page.waitForFunction(() => document.querySelector('#automations-list').textContent.includes('désactivées'));
+  await page.goto(`${BASE}/#/tasks`);
+  await page.waitForFunction(() => /désactivées/.test(document.querySelector('#task-note').textContent));
+  await page.goto(`${BASE}/app/#/work`, { waitUntil: 'networkidle' });
+  await page.waitForFunction(() => /non activée/.test(document.querySelector('#work-freshness')?.textContent || ''));
+  assert.deepEqual(disabled, []);
+  await context.close();
+});
+
+await check('le chat propose des questions d’exploitation et sélectionne ce qui reste à compléter', async () => {
+  const { context, page } = await open(desktop, 'chat');
+  await page.locator('#chat-ops-starters button').first().click();
+  const selected = await page.evaluate(() => {
+    const field = document.querySelector('#prompt');
+    return field.value.slice(field.selectionStart, field.selectionEnd);
+  });
+  assert.equal(selected, '[groupe]');
+  await context.close();
+});
+
+await check('sur mobile, la barre basse tient sans défiler et « Plus » ouvre le reste', async () => {
+  const { context, page } = await open(phone, 'overview');
+  const more = page.locator('#nav-more');
+  const box = await more.boundingBox();
+  assert.ok(box && box.x + box.width <= phone.width + 1, '« Plus » sort de l’écran');
+  assert.ok(await page.locator('.rail nav .nav-item:visible').count() <= 7);
+  await more.click();
+  assert.equal(await more.getAttribute('aria-expanded'), 'true');
+  await page.locator('.rail nav .nav-item[data-view="audit"]').click();
+  await page.locator('#view-audit:not([hidden])').waitFor();
+  assert.equal(await more.getAttribute('aria-expanded'), 'false');
+  // L'entrée courante reste visible une fois la barre refermée.
+  assert.ok(await page.locator('.rail nav .nav-item[data-view="audit"]').isVisible());
+  await context.close();
+});
+
+await check('l’espace utilisateur garde ses onglets sur une ligne et dit quoi faire d’un groupe vide', async () => {
+  const { context, page } = await open(desktop, 'overview');
+  await page.goto(`${BASE}/app/#/work`, { waitUntil: 'networkidle' });
+  const tops = await page.$$eval('nav[aria-label="Navigation utilisateur"] a:not([hidden])',
+    (links) => [...new Set(links.map((link) => Math.round(link.getBoundingClientRect().top)))]);
+  assert.equal(tops.length, 1, 'les onglets passent sur plusieurs lignes');
+  assert.equal(await page.locator('#work-running a[href="#/new"]').count(), 1);
+  await context.close();
+});
+
+await check('aucune commande sous 32 px ni texte sous 12 px sur la vue d’ensemble', async () => {
+  const { context, page } = await open(desktop, 'overview');
+  await page.locator('#onboarding:not([hidden])').waitFor();
+  const offenders = await page.evaluate(() => {
+    const visible = (node) => node.offsetParent !== null && node.getBoundingClientRect().width > 0;
+    const small = [...document.querySelectorAll('button, summary, select, a.nav-item')].filter(visible)
+      .filter((node) => node.getBoundingClientRect().height < 32).map((node) => `cible ${node.textContent.trim().slice(0, 30)}`);
+    const tiny = [...document.querySelectorAll('body *')].filter(visible)
+      .filter((node) => [...node.childNodes].some((child) => child.nodeType === 3 && child.textContent.trim()))
+      .filter((node) => parseFloat(getComputedStyle(node).fontSize) < 12).map((node) => `texte ${node.textContent.trim().slice(0, 30)}`);
+    return [...small, ...tiny];
+  });
+  assert.deepEqual(offenders, []);
+  await context.close();
+});
+
+await check('le détail d’un processus mène aux applications déclarées avec lui', async () => {
+  const { context, page } = await open(desktop, 'overview');
+  await page.route('**/api/agent/supervision/processes/definitions', async (route) => {
+    const response = await route.fetch();
+    const rows = await response.json();
+    await route.fulfill({ response, json: rows.map((row) => row.id === 'order-integration'
+      ? { ...row, links: [{ label: 'Topic dans KafkaExplorer', url: 'http://localhost:8080/topic/orders' }] } : row) });
+  });
+  await page.goto(`${BASE}/#/processes?processus=order-integration`);
+  const link = page.locator('.process-links a', { hasText: 'Topic dans KafkaExplorer' });
+  await link.waitFor();
+  assert.equal(await link.getAttribute('href'), 'http://localhost:8080/topic/orders');
+  assert.equal(await link.getAttribute('target'), '_blank');
+  assert.match(await link.getAttribute('rel'), /noopener/);
   await context.close();
 });
 

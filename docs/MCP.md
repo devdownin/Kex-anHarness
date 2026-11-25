@@ -431,8 +431,8 @@ y reste — voir « Un relevé partiel prouve une présence, jamais une absence 
 ## Exposer Kex comme serveur MCP
 
 Kex peut aussi être consommé par un autre client MCP. Cette surface est **opt-in et en lecture seule**
-dans sa première phase. Les mêmes observations sont disponibles comme **tools** (`kex_status`, `kex_overview`,
-`kex_alerts`, `kex_incidents`, `kex_pending_decisions`) et comme **resources** stables :
+dans sa première phase. Les mêmes observations sont disponibles comme **tools** (`harness_status`, `harness_overview`,
+`harness_alerts`, `harness_incidents`, `harness_pending_decisions`) et comme **resources** stables :
 `kex://supervision/status`, `kex://supervision/overview`, `kex://supervision/alerts`,
 `kex://supervision/incidents` et `kex://supervision/decisions/pending`. Elle n'expose ni lancement de cycle, ni pause, ni
 approbation/rejet de décision.
@@ -507,8 +507,8 @@ CI replays an MCP client handshake against the public HTTP contract: `initialize
 `resources/list` and `prompts/list`. This catches wire-level drift independently from individual
 controller tests.
 
-State-changing MCP tools remain disabled. The reserved contracts are `kex_approve_decision` and
-`kex_reject_decision`; they are guarded by `kex.mcp.server.governed-mutations-enabled=false` by
+State-changing MCP tools remain disabled. The reserved contracts are `harness_approve_decision` and
+`harness_reject_decision`; they are guarded by `kex.mcp.server.governed-mutations-enabled=false` by
 default and are not advertised or dispatched. A future activation must route an existing pending
 decision through the current supervision approval/rejection service so policy checks, human identity,
 audit and single-execution locking cannot be bypassed.
@@ -528,10 +528,10 @@ replaces the authenticated identity.
 Kafka discovery is available through `kex://kafka/topics`,
 `kex://kafka/topics/{topic}`, `kex://kafka/topics/{topic}/lag` and
 `kex://kafka/topics/{topic}/consumer-groups`. Topic metadata exposes the partition count already
-provided by the configured Kafka MCP source. The `kex_diagnose_topic` output contract is typed
+provided by the configured Kafka MCP source. The `harness_diagnose_topic` output contract is typed
 instead of an unconstrained object.
 
-The read-only `kex_diagnose_process(processId)` tool correlates the current process snapshot,
+The read-only `harness_diagnose_process(processId)` tool correlates the current process snapshot,
 active alerts and pending decisions. It does not execute, approve or reject anything.
 
 The interoperability suite exercises both supported protocol versions, initialization/session
@@ -555,3 +555,19 @@ de liens explicites YAML ou persistés depuis la console, jamais d’une déduct
 Une erreur, une série invisible ou une couverture incomplète n’équivaut pas à zéro incident.
 Les dates de lecture, de génération et d’évaluation de qualité ont des sens distincts.
 Voir le [guide TimesFM](TIMESFM.md) et les [exemples](EXEMPLES.md#timesfm--démonstration-et-prompts-opérationnels).
+
+## Migration : `kex_*` devient `harness_*`
+
+Les sept outils et le prompt de ce serveur ne portent plus le préfixe `kex_`, que Kafka SQL Explorer
+utilise déjà pour ses propres outils : un agent branché sur les deux voyait des noms en double.
+
+| Avant | Après |
+|---|---|
+| `kex_status`, `kex_overview`, `kex_alerts`, `kex_incidents` | `harness_status`, `harness_overview`, `harness_alerts`, `harness_incidents` |
+| `kex_pending_decisions` | `harness_pending_decisions` |
+| `kex_diagnose_topic`, `kex_diagnose_process` | `harness_diagnose_topic`, `harness_diagnose_process` |
+| prompt `kex_supervision_triage` | prompt `harness_supervision_triage` |
+| réservés : `kex_approve_decision`, `kex_reject_decision` | `harness_approve_decision`, `harness_reject_decision` |
+
+Les anciens noms restent acceptés à l'appel (`tools/call`, `prompts/get`) pendant une version, mais
+n'apparaissent plus dans `tools/list`. Ils seront retirés à la version mineure suivante.

@@ -6,5 +6,11 @@ package com.kex.agent.config;
 public enum ApiRole {
     CHAT,
     OPERATOR,
-    ADMIN
+    ADMIN,
+    /**
+     * Lecture de {@code /actuator/prometheus} et rien d'autre : un collecteur n'avait jusqu'ici que
+     * la clé {@code ADMIN} pour lire les métriques, et la garder dans sa configuration lui donnait
+     * aussi le droit de changer la politique de supervision.
+     */
+    METRICS
 }

@@ -9,7 +9,18 @@ package com.kex.agent.supervision;
  *
  * @param thresholds seuils propres à ce processus, {@code null} par défaut pour hériter des seuils
  *                   globaux de la politique en vigueur — voir {@link Thresholds#withOverrides}
+ * @param links      où regarder ce processus de près, dans les autres applications — voir
+ *                   {@link ProcessLink}. Jamais transmis au modèle : ce sont des adresses pour un humain
  */
 public record MonitoredProcess(String id, String name, String description, String hint,
-                               ThresholdOverrides thresholds) {
+                               ThresholdOverrides thresholds, java.util.List<ProcessLink> links) {
+
+    @org.springframework.boot.context.properties.bind.ConstructorBinding
+    public MonitoredProcess {
+        links = links == null ? java.util.List.of() : java.util.List.copyOf(links);
+    }
+
+    public MonitoredProcess(String id, String name, String description, String hint, ThresholdOverrides thresholds) {
+        this(id, name, description, hint, thresholds, java.util.List.of());
+    }
 }

@@ -91,3 +91,42 @@ Les tests de supervision couvrent : confirmation après appel, postcondition fau
 ```sh
 ./mvnw -Dtest=SupervisionServiceTest,SupervisionCycleIntegrationTest,ActionBindingTest test
 ```
+
+## Arguments proposés et preuve dynamique
+
+Une capacité comme `DECLARE_ANOMALY` agit sur une cible que seul le modèle connaît (la gare). La liaison
+la rend possible sans lui donner la main :
+
+```yaml
+kex.agent.supervision.actions:
+  DECLARE_ANOMALY:
+    connection: autoroutes
+    tool: declarer_anomalies
+    arguments: { source: kex }          # fixe : l'emporte toujours sur le modèle
+    allowed-arguments: [gare, anomalies] # seuls noms que le modèle peut proposer
+    verification:
+      connection: autoroutes
+      tool: etat_gare
+      arguments-from-action: { eventId: /eventId }  # copié de la réponse de l'action
+      expected-from-action-pointer: /eventId
+      result-pointer: /eventId
+      observed-at-pointer: /observedAt
+      settle: 15s   # l'effet est appliqué en différé : relire avant de conclure à l'échec
+```
+
+- L'outil d'écriture se déclare `governed-only` dans `kex.agent.tools.rules` : caché au modèle, qui ne
+  peut donc pas l'appeler hors approbation, mais appelable par l'action. `denied` le bloquerait aussi
+  pour elle (voir `docs/TOOL-CONTROLS.md`).
+- Les arguments proposés sont figés dans la décision et affichés à l'humain avant validation.
+- Une décision qui en porte n'est jamais exécutée par l'agent seul, quelle que soit l'autonomie.
+- Si l'action ne rend pas la valeur pointée, le résultat reste `VERIFICATION_UNKNOWN`, jamais `VERIFIED`.
+
+### Effet appliqué en différé : `settle`
+
+Un serveur qui accepte l'action puis l'applique de façon asynchrone rend encore l'ancienne valeur juste
+après : Autoroutes publie la déclaration sur Kafka, son backend l'applique une à deux secondes plus tard.
+Sans fenêtre, une action réussie se lisait `VERIFICATION_FAILED`. `settle` (0 par défaut, 60 s au plus)
+relit le vérificateur toutes les secondes tant que la postcondition est **contredite** ; le dernier
+relevé fait foi et le résultat dit combien de relectures il a fallu. Une preuve absente, incomplète ou
+périmée n'est pas relue : attendre ne l'améliore pas. La vérification tient la requête d'approbation
+ouverte pendant la fenêtre, d'où sa borne.

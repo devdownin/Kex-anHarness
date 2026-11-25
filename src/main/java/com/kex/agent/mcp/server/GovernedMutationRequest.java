@@ -16,7 +16,7 @@ import java.util.Map;
 public record GovernedMutationRequest(String decisionId, String reason) {
 
     public static final List<String> RESERVED_TOOL_NAMES =
-            List.of("kex_approve_decision", "kex_reject_decision");
+            List.of("harness_approve_decision", "harness_reject_decision");
 
     public static final Map<String, Object> INPUT_SCHEMA = Map.of(
             "type", "object",

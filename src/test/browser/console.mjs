@@ -1234,6 +1234,8 @@ await check('la carte dit la portée et le rejeu envoie la demande saisie', asyn
     /Domaine — sans déclencheur/);
   await page.click('#skills-review-queue article.card button:has-text("Rejouer")');
   await page.waitForSelector('dialog#confirm[open]');
+  // Proposition manuelle : rien à suggérer, le champ reste vide plutôt qu'inventé.
+  assert.equal(await page.inputValue('#confirm-reason'), '');
   await page.fill('#confirm-reason', 'Le lag de billing est-il stable ?');
   const probed = page.waitForResponse((response) =>
     response.url().endsWith(`/api/agent/skills/${proposed.id}/probe`));
@@ -1355,16 +1357,18 @@ await check('l’automatisation planifiée se supprime depuis la liste', async (
     return route.fallback();
   });
 
-  // Un aller-retour de vue plutôt qu'un rechargement complet : la même adresse ne redéclenche
-  // pas route() (voir CLAUDE.md), donc pas automations.panel() — le détour par une autre vue
-  // fait relire la liste sous la simulation qui vient d'être posée.
-  await page.goto(`${BASE}/#/overview`, { waitUntil: 'domcontentloaded' });
-  // Une navigation par fragment ne charge pas de document : attendre la vue réellement
-  // affichée évite que le retour vers Agent devance son événement hashchange.
-  await page.waitForSelector('#view-overview:not([hidden])');
+  // La console lit dans whoami les fonctions montées et n'appelle pas une route éteinte : la
+  // simulation doit donc aussi déclarer l'automatisation active, et un rechargement complet
+  // relit cette déclaration.
+  await page.route('**/api/agent/whoami', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    await route.fulfill({ response, json: { ...body, features: { ...body.features, automations: true } } });
+  });
+  await page.goto(`${BASE}/#/agent`, { waitUntil: 'domcontentloaded' });
   const listLoaded = page.waitForResponse((response) =>
     response.request().method() === 'GET' && response.url().endsWith('/api/agent/automations'));
-  await page.goto(`${BASE}/#/agent`, { waitUntil: 'domcontentloaded' });
+  await page.reload({ waitUntil: 'domcontentloaded' });
   await listLoaded;
   await page.click('[data-agent-tab="automations"]');
   await page.waitForSelector('#automations-list table.grid');
@@ -1377,6 +1381,7 @@ await check('l’automatisation planifiée se supprime depuis la liste', async (
   assert.equal(deletedId, 'auto-1');
 
   await page.unroute('**/api/agent/automations**');
+  await page.unroute('**/api/agent/whoami');
 });
 
 await check('créer une automatisation envoie le cron et le prompt, puis referme le panneau', async () => {
@@ -1513,6 +1518,29 @@ await check('le cockpit MCP synthétise les connexions et leurs métriques', asy
   await page.unroute('**/api/agent/mcp/metrics');
   await page.unroute('**/api/agent/mcp/runtime-servers');
   await page.unroute('**/api/agent/mcp/storage');
+});
+
+await check('une panne du fournisseur en flux propose de réessayer le même message', async () => {
+  let calls = 0;
+  await page.route('**/api/agent/chat/stream', (route) => {
+    calls += 1;
+    const body = calls === 1
+      ? 'event: conversation\ndata: conv-retry\n\nevent: error\ndata: Le fournisseur du modèle a refusé la clé (HTTP 401)\n\n'
+      : 'event: conversation\ndata: conv-retry\n\nevent: token\ndata: Réponse après reprise\n\nevent: done\ndata: ok\n\n';
+    return route.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream' }, body });
+  });
+  await page.goto(`${BASE}/#/chat`);
+  await page.locator('#stream-mode').check();
+  await page.locator('#prompt').fill('Quel est le lag ?');
+  await page.locator('#send').click();
+  const retry = page.locator('#transcript .turn-retry');
+  await retry.waitFor();
+  assert.match(await page.locator('#transcript').innerText(), /refusé la clé/);
+  await retry.click();
+  await page.getByText('Réponse après reprise').waitFor();
+  assert.equal(calls, 2);
+  assert.equal(await retry.count(), 0);
+  await page.unroute('**/api/agent/chat/stream');
 });
 
 await check('aucune erreur de script sur le parcours', () => {

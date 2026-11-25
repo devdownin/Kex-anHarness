@@ -31,9 +31,17 @@ kex:
               schemes: [https]
         restart_cluster:
           denied: true
+        declarer_anomalies:
+          governed-only: true
         kex_list_topics:
           read-only: true
 ```
+
+`denied` est un refus absolu : ni le modèle, ni l'appel MCP direct, ni une action de supervision.
+`governed-only` retire l'outil au modèle et à l'appel direct, mais le laisse à une action de
+supervision liée par l'administrateur (`kex.agent.supervision.actions`) et approuvée. C'est la forme
+qu'il faut à un outil d'écriture qu'une décision gouvernée appelle : `denied` l'aurait bloqué aussi.
+Les deux ensemble valent `denied`.
 
 Dans les maps Spring Boot, les crochets autour d'une clé JSON Pointer conservent son `/` littéral.
 Chaque pointeur déclaré est obligatoire. Une valeur absente, un objet à la place d'une valeur,

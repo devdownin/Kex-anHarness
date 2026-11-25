@@ -35,7 +35,7 @@ arrive.
 | `EXPLORER_PORT` | `8080` | Port publié de l'Explorer |
 | `KAFKA_PORT` | `9092` | Port publié du broker |
 | `BIND_ADDR` | `127.0.0.1` | Interface d'écoute. `0.0.0.0` expose hors de la machine |
-| `EXPLORER_IMAGE_TAG` | `2.3.1` | Version de l'image de l'Explorer. `latest` pour suivre les publications, au prix de la reproductibilité |
+| `EXPLORER_IMAGE_TAG` | `2.7.0` | Version de l'image de l'Explorer. `latest` pour suivre les publications, au prix de la reproductibilité |
 | `EXPLORER_IMAGE_NAMESPACE` | `compagnonsdudev` | Ou `ghcr.io/devdownin` |
 | `EXPLORER_MCP_READONLY` | `true` | Laisser à `true` sauf besoin explicite d'écriture |
 | `POSTGRES_PASSWORD` | `kex` | Surcouche `compose/shared-memory.yml` |
@@ -54,7 +54,7 @@ arrive.
 | `log-interactions` | `false` | Journalise prompts et réponses — le niveau `DEBUG` que `SimpleLoggerAdvisor` exige est déjà posé, la propriété suffit. Debug uniquement : données sensibles |
 | `api-key` | *(vide)* | Bearer de l'API sous le principal anonyme `kex-agent-api`. Vide = API fermée (`503`) |
 | `api-keys.<nom>` | *(vide)* | Bearers nommés, en plus ou à la place d'`api-key` : chaque nom devient le principal authentifié, donc l'acteur inscrit à l'audit de supervision |
-| `api-key-roles.<nom>` | `CHAT` | Rôle d'un bearer nommé : `CHAT`, `OPERATOR` ou `ADMIN`. La clé historique `api-key` reste administrateur |
+| `api-key-roles.<nom>` | `CHAT` | Rôle d'un bearer nommé : `CHAT`, `OPERATOR`, `ADMIN`, ou `METRICS` (lecture de `/actuator/prometheus` seulement, pour un collecteur). La clé historique `api-key` reste administrateur |
 | `api-key-tenants.<nom>` | *(le nom)* | Locataire d'une clé : l'espace où vivent ses souvenirs, compétences, charte et automatisations. Deux clés du même locataire travaillent au même endroit tout en restant deux acteurs distincts à l'audit |
 | `oidc.username-claim` | `preferred_username` | Claim porteur de l'acteur inscrit à l'audit. Repli sur `sub` |
 | `oidc.roles-claim` | `roles` | Claim des rôles, liste de chaînes ou chaîne séparée par des espaces |
@@ -82,7 +82,8 @@ qu'un cycle puisse partir sans qu'un humain clique :
 
 | Propriété | Défaut | Rôle |
 |---|---|---|
-| `schedule.enabled` | `false` | Départ autonome du cycle. N'a d'effet que sous le profil `shared-memory`, seul endroit où le verrou partagé qu'il exige peut exister |
+| `schedule.enabled` | `false` | Départ autonome du cycle. Exige le profil `shared-memory` (verrou en base) ou `schedule.single-instance` |
+| `schedule.single-instance` | `false` | L'exploitant garantit qu'une seule instance tourne : verrou local, sans base. Deux répliques qui le déclarent lanceraient chacune leur cycle — une déclaration, pas une détection |
 | `schedule.interval` | `5m` | Délai entre deux tentatives — une tentative, pas forcément un cycle : une réplique qui ne tient pas le verrou repart aussitôt |
 | `schedule.lock-at-most-for` | `10m` | Expiration du verrou si la réplique qui le tenait tombe en plein cycle |
 | `notify.webhook-url` | *(vide)* | Débouché par défaut de `NOTIFY` sans outil MCP lié — la seule capacité qui en a un |
@@ -94,6 +95,7 @@ qu'un cycle puisse partir sans qu'un humain clique :
 | `correlation.enabled` | `true` | Signale un incident corrélé quand plusieurs processus sont en anomalie au même cycle |
 | `correlation.min-processes` | `3` | Nombre de processus distincts à partir duquel la concomitance est signalée — une heuristique grossière, pas un diagnostic |
 | `simulate-unbound-actions` | `false` | Une capacité sans outil MCP lié se résout en `SIMULATED` plutôt qu'en `FAILED` — ce que l'agent aurait fait, sans le faire, pour calibrer la confiance avant qu'un exécuteur réel n'existe |
+| `analysis-parallelism` | `2` | Un cycle analyse chaque processus dans son propre échange, au plus N à la fois : chacun a son propre plafond d'appels d'outils et son propre délai. Un échec isolé passe ce processus en `UNKNOWN` sans effacer les autres ; tous en échec font un cycle en échec. Baisser à `1` sur un tiers gratuit limité en requêtes par minute |
 
 ### `kex.agent.supervision.processes[].thresholds`
 
@@ -106,6 +108,21 @@ kex.agent.supervision.processes[0].thresholds.consumer-lag: 5000
 
 Un processus à faible trafic et un à fort débit ne devraient pas partager le même seuil : trop
 sensible pour l'un, trop laxiste pour l'autre.
+
+### `kex.agent.supervision.processes[].links`
+
+Où regarder un processus de près, dans les autres applications : un topic dans Kafka SQL Explorer,
+une carte, un tableau de bord. Le détail du processus dans la console les affiche sous « Voir
+aussi », ouverts dans un nouvel onglet. L'agent ne devine aucune route : seuls les liens déclarés
+apparaissent, et le modèle ne les reçoit jamais.
+
+```yaml
+kex.agent.supervision.processes[0].links[0].label: Topic dans KafkaExplorer
+kex.agent.supervision.processes[0].links[0].url: http://localhost:8080/topic/toll-events
+```
+
+Seules les URL `http` et `https` absolues sont acceptées : l'agent refuse de démarrer sur une autre
+forme, dont un `javascript:` qui s'exécuterait au clic.
 
 ### Créer un processus depuis la conversation
 
@@ -249,9 +266,23 @@ de revue : les outils ajoutés ou abandonnés *à chaque passe* (un écart qui n
 trois n'en est pas un), la fréquence de chaque outil de part et d'autre, les appels en échec, les
 jetons, le motif d'arrêt, les réponses, et les passes où la candidate a effectivement été lue par
 `read_skill` — sans lecture, un écart tient au hasard. Les cinq derniers rejeux sont conservés ; un
-rejeu écrit avant les répétitions se relit comme une passe de chaque côté. Aucun verdict n'est
-calculé : un rejeu montre que le comportement change, pas que la réponse est juste. Le coût est de
-`2 × repetitions` échanges complets.
+rejeu écrit avant les répétitions se relit comme une passe de chaque côté. Aucun verdict sur la
+réponse n'est calculé : un rejeu montre que le comportement change, pas que la réponse est juste. Le
+coût est de `2 × repetitions` échanges complets.
+
+`reading` qualifie l'écart, pas la réponse : `CONFOUNDED` quand une seule passe tient d'un côté,
+qu'une compétence de domaine n'a pas été lue à chaque passe (une invariante, recopiée en entier, agit
+sans lecture) ou que des échecs ne touchent qu'une partie des passes d'un côté ; `STABLE_DIFFERENCE`
+quand un outil est ajouté ou abandonné à chaque passe, que chaque passe échoue d'un seul côté, ou que
+les motifs d'arrêt diffèrent à chaque passe ; `NO_OBSERVED_EFFECT` sinon — la réponse elle-même reste
+à lire. Les jetons n'entrent pas dans la qualification. `reasons` dit pourquoi, en clair. Un rejeu
+antérieur à la qualification garde `reading = null`.
+
+`GET /api/agent/skills/{id}/probe-suggestion` (`ADMIN`) rend la demande que la console pré-remplit :
+l'objectif entier de la tâche vérifiée (`source = TASK`), ou une demande nommant les processus visés
+par les refus, qui sont les déclencheurs de la règle (`REFUSALS`). Une proposition manuelle ne
+suggère rien (`NONE`) ; `triggers` rappelle alors ce que la demande doit citer pour que la candidate
+soit seulement indexée.
 
 Le rejeu appelle réellement le modèle et les outils, au nom et sur le budget du locataire
 propriétaire : `ADMIN` seulement, outils limités à `probe.read-only-tools` (même règle que
@@ -262,6 +293,7 @@ le rejeu n'est pas écrit (`409`).
 | Endpoint | Rôle |
 |---|---|
 | `GET /api/agent/skills/curation` | Ce qui agit partout, ce qui attend un déclencheur (`conditional`), ce qui dort au-delà d'un plafond, ce qui n'a jamais été lu (`unread`), les lectures par compétence, les doublons de titre, ce qui n'a plus été revu |
+| `GET /api/agent/skills/{id}/probe-suggestion` | `ADMIN`. Demande à rejouer tirée de l'origine de la compétence en attente, et ses déclencheurs ; `409` si elle est inconnue ou tranchée |
 | `POST /api/agent/skills/{id}/probe` | `{"request":"...","repetitions":1..3}` — `ADMIN`. Rejeu contrastif d'une compétence `PENDING`, tracé dans l'audit ; `409` si le rejeu est éteint, déjà en cours ou la compétence tranchée |
 | `GET /api/agent/skills/review-queue` | `ADMIN`. Tout ce qui est `PENDING`, tous propriétaires confondus, le plus ancien d'abord — la revue (`approve`/`reject`) reste elle-même transverse, voir ARCHITECTURE.md |
 | `POST /api/agent/skills/{id}/retire` | `{"reason":"..."}` — `ADMIN`, motif obligatoire, tracé dans l'audit |
@@ -419,7 +451,26 @@ instances créées sous ces noms.
 | Propriété | Rôle |
 |---|---|
 | `url-prefix` | Préfixe d'URL auquel le jeton s'applique |
-| `token` | Valeur du bearer. Une entrée sans jeton est ignorée |
+| `token` | Valeur du bearer. Une entrée sans jeton ni `client-credentials` est ignorée |
+| `header` | En-tête qui porte le jeton tel quel (`X-API-Key`). Absent : `Authorization: Bearer` |
+| `client-credentials.token-uri` | Endpoint de jeton OAuth2 (Keycloak : `.../protocol/openid-connect/token`). Posé, l'entrée obtient son jeton par `client_credentials` au lieu de `token` |
+| `client-credentials.client-id` / `client-secret` | Identifiants du client |
+| `client-credentials.scope` | Facultatif, séparé par des espaces |
+
+`client-credentials` sert aux serveurs dont le jeton est de courte durée (Autoroutes sous Keycloak :
+5 minutes). Le jeton est gardé jusqu'à 30 secondes avant son expiration puis redemandé, d'un seul appel
+même sous requêtes simultanées. Si le fournisseur d'identité ne répond pas, la requête MCP échoue
+(avertissement `ClientCredentialsTokenSource`) : un jeton périmé n'est jamais renvoyé en silence, et la
+requête suivante retente.
+
+```yaml
+kex.mcp.bearer-tokens[0]:
+  url-prefix: http://autoroutes-mcp:8090
+  client-credentials:
+    token-uri: http://keycloak:8180/realms/supervision/protocol/openid-connect/token
+    client-id: kex-supervisor
+    client-secret: ${KEX_SUPERVISOR_SECRET}
+```
 
 Le filtrage par préfixe évite qu'un jeton parte vers un serveur MCP autre que le sien. Un préfixe
 sans jeton (le défaut pour Kafka SQL Explorer, qui ne demande aucune authentification) est ignoré en
@@ -585,6 +636,31 @@ C'est la capacité dont cet agent ne peut pas se passer : un modèle qui ne l'a 
 Trois réponses et non deux — « Outils », « Sans outils », « Non annoncé ». Une passerelle qui ne
 publie pas ses paramètres ne refuse rien, et afficher « non » écarterait des modèles utilisables.
 Le catalogue est celui que la passerelle déclare : il n'est pas vérifié par un appel réel.
+
+### Un modèle plus léger pour les cycles
+
+Le cycle de supervision appelle le modèle avec la tâche `DIAGNOSTIC`, la conversation avec `CHAT`.
+`kex.models` permet de les router séparément, par exemple Opus pour la conversation et un modèle
+plus léger pour les cycles, qui partent seuls et se répètent :
+
+```bash
+KEX_MODELS_ENABLED=true
+KEX_MODELS_ENDPOINTS_PRINCIPAL_PROVIDER=ANTHROPIC
+KEX_MODELS_ENDPOINTS_PRINCIPAL_MODEL=claude-opus-5
+KEX_MODELS_ENDPOINTS_PRINCIPAL_API_KEY=$ANTHROPIC_API_KEY
+KEX_MODELS_ENDPOINTS_LEGER_PROVIDER=ANTHROPIC
+KEX_MODELS_ENDPOINTS_LEGER_MODEL=claude-haiku-5-5
+KEX_MODELS_ENDPOINTS_LEGER_API_KEY=$ANTHROPIC_API_KEY
+KEX_MODELS_ROUTES_CHAT_0=principal
+KEX_MODELS_ROUTES_DIAGNOSTIC_0=leger
+KEX_MODELS_ROUTES_DIAGNOSTIC_1=principal   # repli si le léger est indisponible
+```
+
+Une route Anthropic garde le même cache que le modèle par défaut (historique et bloc système stable,
+`LlmRoutingConfig.anthropicOptions`) : sans lui, le modèle léger relirait tout l'historique de la
+boucle d'outils au plein tarif. Avant de basculer, rejouer les évals de jugement sur le modèle
+candidat (voir [Évals de jugement du modèle](#évals-de-jugement-du-modèle)) : un cycle qui manque une
+anomalie coûte plus cher que les jetons économisés.
 
 ### Un autre fournisseur
 

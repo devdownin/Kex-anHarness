@@ -205,6 +205,26 @@ class SkillProbeServiceTest {
         assertThat(probe.tools()).contains(new SkillProbe.ToolFrequency("kex_diagnose_consumer", 0, 1),
                 new SkillProbe.ToolFrequency("kex_consumer_lag", 3, 3));
         assertThat(probe.candidates()).allSatisfy(run -> assertThat(run.skillsRead()).containsExactly(pending.id()));
+        assertThat(probe.reading().outcome()).isEqualTo(SkillProbe.Outcome.STABLE_DIFFERENCE);
+    }
+
+    /**
+     * Une compétence de domaine n'est qu'indexée sous rejeu : jamais lue, elle n'a pas pu produire
+     * l'écart. Une invariante, recopiée en entier, agit sans lecture.
+     */
+    @Test
+    void la_lecture_n_est_exigee_que_d_une_competence_de_domaine() {
+        given(agent.probe(any(), any(), any(), any())).willAnswer(invocation -> invocation.getArgument(3) == null
+                ? answer(List.of("kex_consumer_lag"), null)
+                : answer(List.of("kex_consumer_lag", "kex_lag_trend"), null));
+        LearningEntry invariant = skills.propose("ops-console", "Couverture", "Toujours citer la couverture", "Preuve",
+                null, null, com.kex.agent.memory.SkillScope.INVARIANT, List.of());
+
+        SkillProbe domain = service(TOOLS).probe(pending.id(), "lag ?", 2, "admin").probes().getFirst();
+        SkillProbe always = service(TOOLS).probe(invariant.id(), "lag ?", 2, "admin").probes().getFirst();
+
+        assertThat(domain.reading().outcome()).isEqualTo(SkillProbe.Outcome.CONFOUNDED);
+        assertThat(always.reading().outcome()).isEqualTo(SkillProbe.Outcome.STABLE_DIFFERENCE);
     }
 
     @Test
