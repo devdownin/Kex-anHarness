@@ -178,9 +178,17 @@ function scopeLabel(entry) {
   return triggers.length ? `Domaine — sur : ${triggers.join(', ')}` : 'Domaine — sans déclencheur, toujours éligible';
 }
 
+// Un écart stable n'est pas « bon » : il dit que la compétence change le comportement, pas
+// qu'elle l'améliore. D'où une pastille neutre, et l'avertissement réservé au confondu.
+const READINGS = {
+  CONFOUNDED: ['Écart confondu', 'WARNING'],
+  NO_OBSERVED_EFFECT: ['Aucun effet observé', 'UNKNOWN'],
+  STABLE_DIFFERENCE: ['Écart stable', 'INFO'],
+};
+
 /**
- * Un écart de comportement, jamais un verdict : le serveur n'en calcule aucun, l'écran non plus.
- * Une réponse qui « a l'air meilleure » se lit dans les réponses dépliées, pas dans un score.
+ * Un écart de comportement, jamais un verdict sur la réponse : la qualification dit seulement si
+ * l'écart est lisible. Une réponse qui « a l'air meilleure » se lit dans les réponses dépliées.
  */
 function probeSummary(probe, skillId) {
   const wrap = el('div', 'stack');
@@ -188,6 +196,14 @@ function probeSummary(probe, skillId) {
   wrap.append(el('h4', 'drawer-sub',
     `Dernier rejeu · ${passes} passe(s) de chaque côté · ${ago(probe.observedAt)} · ${probe.actor}`));
   wrap.append(definition('Demande', el('span', null, probe.request)));
+  // Absente sur un rejeu antérieur à la qualification : rien ne s'affiche plutôt qu'un défaut.
+  if (probe.reading && READINGS[probe.reading.outcome]) {
+    const [label, state] = READINGS[probe.reading.outcome];
+    const reading = el('div', 'stack');
+    reading.append(stateTag(state, label));
+    probe.reading.reasons.forEach((reason) => reading.append(el('span', 'muted', reason)));
+    wrap.append(definition('Lecture de l’écart', reading));
+  }
   const read = probe.candidates.filter((run) => (run.skillsRead || []).includes(skillId)).length;
   // Une candidate jamais lue n'a pas pu produire l'écart : le dire avant de le montrer.
   wrap.append(definition('Compétence lue', el('span', null, `${read} passe(s) sur ${passes}`)));
@@ -225,7 +241,21 @@ function runLine(run) {
 
 const PROBE_REPETITIONS = 3;
 
+const SUGGESTION_SOURCES = {
+  TASK: 'Pré-remplie avec l’objectif de la tâche vérifiée dont la procédure est issue.',
+  REFUSALS: 'Pré-remplie avec les processus visés par les refus : ce sont les déclencheurs de la règle.',
+};
+
 async function probeSkill(row) {
+  // Une suggestion indisponible ne bloque pas le rejeu : le réviseur écrit sa demande comme avant.
+  let suggestion = null;
+  try {
+    suggestion = await api(`${SKILLS_BASE}/${encodeURIComponent(row.id)}/probe-suggestion`);
+  }
+  catch {
+    suggestion = null;
+  }
+  const triggers = suggestion?.triggers?.length ? suggestion.triggers : (row.triggers || []);
   const { confirmed, reason } = await confirmAction({
     title: 'Rejouer une demande avec et sans cette compétence',
     accept: `Rejouer : ${row.title}`,
@@ -233,9 +263,13 @@ async function probeSkill(row) {
       ['Compétence', row.title],
       ['Exécution', `${PROBE_REPETITIONS} passes de chaque côté, soit ${PROBE_REPETITIONS * 2} appels au modèle en parallèle, sous l’allowlist d’outils de la configuration.`],
       ['Coût', 'Imputé au budget du locataire propriétaire.'],
+      SUGGESTION_SOURCES[suggestion?.source] ? ['Demande', SUGGESTION_SOURCES[suggestion.source]] : null,
+      // Une demande qui ne touche aucun déclencheur n'indexe même pas la candidate.
+      row.scope !== 'INVARIANT' && triggers.length ? ['Déclencheurs', `La demande doit en citer un : ${triggers.join(', ')}`] : null,
     ],
     reasonLabel: 'Demande à rejouer (une question où la compétence devrait agir)',
     reasonRequired: true,
+    reasonValue: suggestion?.request || '',
   });
   if (!confirmed) return;
   try {

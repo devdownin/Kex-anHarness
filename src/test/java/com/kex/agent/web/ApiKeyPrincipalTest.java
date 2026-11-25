@@ -128,6 +128,14 @@ class ApiKeyPrincipalTest {
         assertThat(status("/api/agent/skills/review-queue", "Bearer jeton-admin")).isEqualTo(200);
     }
 
+    /** La suggestion lit une compétence en attente de n'importe quel propriétaire, comme la file. */
+    @Test
+    void seul_un_admin_peut_lire_une_suggestion_de_rejeu() throws Exception {
+        assertThat(status("/api/agent/skills/inconnue/probe-suggestion", "Bearer jeton-ops")).isEqualTo(403);
+        // Le 409 vient de la compétence inconnue : la sécurité a laissé passer l'admin.
+        assertThat(status("/api/agent/skills/inconnue/probe-suggestion", "Bearer jeton-admin")).isEqualTo(409);
+    }
+
     /**
      * Rejeter engage autant qu'approuver depuis que la revue porte sur n'importe quel propriétaire :
      * sans cette règle, un opérateur pourrait vider la file de revue d'une autre équipe.

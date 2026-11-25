@@ -1234,6 +1234,8 @@ await check('la carte dit la portée et le rejeu envoie la demande saisie', asyn
     /Domaine — sans déclencheur/);
   await page.click('#skills-review-queue article.card button:has-text("Rejouer")');
   await page.waitForSelector('dialog#confirm[open]');
+  // Proposition manuelle : rien à suggérer, le champ reste vide plutôt qu'inventé.
+  assert.equal(await page.inputValue('#confirm-reason'), '');
   await page.fill('#confirm-reason', 'Le lag de billing est-il stable ?');
   const probed = page.waitForResponse((response) =>
     response.url().endsWith(`/api/agent/skills/${proposed.id}/probe`));
