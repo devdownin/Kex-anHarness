@@ -31,3 +31,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # L'image et la CI tournent en JDK 21, la LTS. Le 24 n'est pas une LTS : sa montée fermée
+      # (#202) reviendrait chaque semaine sans cette règle. La prochaine LTS reste proposée.
+      - dependency-name: eclipse-temurin
+        versions: [">= 24, < 25"]
