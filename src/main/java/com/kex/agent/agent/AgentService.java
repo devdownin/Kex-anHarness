@@ -144,7 +144,17 @@ public class AgentService {
      *                  {@code null} pour l'exécution de référence
      */
     public AgentProbe probe(String owner, String message, Set<String> allowedTools, LearningEntry candidate) {
-        Conversation probe = conversation(owner, null, "CHAT", Set.copyOf(allowedTools)).probing(candidate);
+        return probeTogether(owner, message, allowedTools,
+                candidate == null ? java.util.List.of() : java.util.List.of(candidate));
+    }
+
+    /**
+     * @param candidates les compétences en attente injectées ensemble comme si elles étaient
+     *                   approuvées ; vide pour l'exécution de référence
+     */
+    public AgentProbe probeTogether(String owner, String message, Set<String> allowedTools,
+                                    java.util.List<LearningEntry> candidates) {
+        Conversation probe = conversation(owner, null, "CHAT", Set.copyOf(allowedTools)).probing(candidates);
         AgentAnswer answer = ask(probe, message);
         // Sur échec ou délai, `bounded` purge déjà — après la fin de la tâche orpheline pour un délai.
         forget(probe);
@@ -298,7 +308,7 @@ public class AgentService {
         // Une allowlist vide interdit tout appel : un index à lire par outil y serait une procédure perdue.
         boolean readable = conversation.allowedTools() == null || !conversation.allowedTools().isEmpty();
         DurableContext durable = longTermMemory == null ? DurableContext.EMPTY
-                : longTermMemory.durable(conversation.owner(), message, conversation.candidate(), readable);
+                : longTermMemory.durable(conversation.owner(), message, conversation.candidates(), readable);
         java.util.List<org.springframework.ai.tool.ToolCallback> tools = new java.util.ArrayList<>();
         if (toolSelection != null) {
             // Les suivis courts bénéficient des deux derniers échanges, sans donner de droits à l'historique.
@@ -416,7 +426,7 @@ public class AgentService {
 
     /**
      * @param generated  l'appelant n'a pas fourni d'identifiant : celui-ci a été tiré ici
-     * @param candidate  compétence en attente injectée pour un rejeu, {@code null} sinon
+     * @param candidates compétences en attente injectées pour un rejeu, vide sinon
      * @param remembered l'échange nourrit la mémoire long-terme ; faux pour un rejeu
      * @param skillsRead compétences lues par {@code read_skill} pendant l'échange — la boucle d'outils
      *                   du flux tourne sur des threads Reactor, d'où un ensemble concurrent
@@ -424,12 +434,12 @@ public class AgentService {
     private record Conversation(String id, String memoryId, boolean generated, String owner,
                                 String task, Set<String> allowedTools, com.kex.agent.knowledge.KnowledgeAccess knowledgeAccess,
                                 java.util.concurrent.atomic.AtomicReference<java.util.List<com.kex.agent.knowledge.KnowledgeSource>> evidence,
-                                LearningEntry candidate, boolean remembered, Set<String> skillsRead) {
+                                java.util.List<LearningEntry> candidates, boolean remembered, Set<String> skillsRead) {
         java.util.List<com.kex.agent.knowledge.KnowledgeSource> sources() { return evidence.get(); }
 
-        Conversation probing(LearningEntry skill) {
+        Conversation probing(java.util.List<LearningEntry> skills) {
             return new Conversation(id, memoryId, generated, owner, task, allowedTools, knowledgeAccess, evidence,
-                    skill, false, skillsRead);
+                    java.util.List.copyOf(skills), false, skillsRead);
         }
     }
 
@@ -444,7 +454,7 @@ public class AgentService {
         }
         boolean generated = !StringUtils.hasText(conversationId);
         String id = generated ? UUID.randomUUID().toString() : conversationId;
-        return new Conversation(id, memoryId(owner, id), generated, owner, route, allowedTools, com.kex.agent.knowledge.KnowledgeAccess.current(owner), new java.util.concurrent.atomic.AtomicReference<>(java.util.List.of()), null, true,
+        return new Conversation(id, memoryId(owner, id), generated, owner, route, allowedTools, com.kex.agent.knowledge.KnowledgeAccess.current(owner), new java.util.concurrent.atomic.AtomicReference<>(java.util.List.of()), java.util.List.of(), true,
                 java.util.concurrent.ConcurrentHashMap.newKeySet());
     }
 

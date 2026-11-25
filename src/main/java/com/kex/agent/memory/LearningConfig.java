@@ -50,7 +50,7 @@ class LearningConfig {
     @Bean
     SkillProbeService skillProbeService(SkillsService skills, AgentService agent, MemoryProperties properties,
                                         Clock clock) {
-        return new SkillProbeService(skills, agent, properties.skills().probe(), clock);
+        return new SkillProbeService(skills, agent, properties.skills(), clock);
     }
 
     /** Sans mémoire activée, personne n'écoute l'événement : les refus ne font que durcir le plancher. */

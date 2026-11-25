@@ -3,12 +3,14 @@
 package com.kex.agent.skills;
 
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import com.kex.agent.agent.AgentAnswer;
@@ -35,21 +37,135 @@ import com.kex.agent.memory.SkillScope;
 public final class SkillProbeService {
     private static final int ANSWER_LIMIT = 2000;
     public static final int MAX_REPETITIONS = 3;
+    /** Au-delà, un écart d'ensemble ne dit plus rien d'exploitable, et le prompt déborde des plafonds. */
+    public static final int MAX_TOGETHER = 5;
 
     private final SkillsService skills;
     private final AgentService agent;
-    private final MemoryProperties.Probe properties;
+    private final MemoryProperties.Skills limits;
     private final Clock clock;
     private final Set<String> running = ConcurrentHashMap.newKeySet();
 
-    public SkillProbeService(SkillsService skills, AgentService agent, MemoryProperties.Probe properties, Clock clock) {
+    public SkillProbeService(SkillsService skills, AgentService agent, MemoryProperties.Skills limits, Clock clock) {
         this.skills = skills;
         this.agent = agent;
-        this.properties = properties;
+        this.limits = limits;
         this.clock = clock;
     }
 
+    /** Plafonds par défaut : pour les appelants qui ne règlent que l'allowlist du rejeu. */
+    public SkillProbeService(SkillsService skills, AgentService agent, MemoryProperties.Probe probe, Clock clock) {
+        this(skills, agent, new MemoryProperties.Skills(5, 3, 3000, java.time.Duration.ofDays(90), probe, 12000), clock);
+    }
+
     public LearningEntry probe(String id, String request, int repetitions, String actor) {
+        String message = validated(request, repetitions, actor);
+        Set<String> tools = tools();
+        LearningEntry candidate = skills.pending(id);
+        // Un double-clic paierait deux rejeux pour un seul écart utile, et le second écraserait le
+        // premier dans l'ordre d'arrivée plutôt que dans celui des demandes.
+        if (!running.add(id)) throw new IllegalStateException("Rejeu déjà en cours pour cette compétence");
+        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            List<CompletableFuture<SkillProbe.Run>> references = launch(repetitions, executor,
+                    () -> run(candidate.owner(), message, tools, null));
+            List<CompletableFuture<SkillProbe.Run>> withSkill = launch(repetitions, executor,
+                    () -> run(candidate.owner(), message, tools, candidate));
+            SkillProbe probe = SkillProbe.of(clock.instant(), actor, message, joined(references), joined(withSkill),
+                    candidate.id(), readRequired(candidate), setting(candidate, List.of(candidate), message));
+            return skills.attachProbe(id, probe);
+        }
+        finally {
+            running.remove(id);
+        }
+    }
+
+    /**
+     * Rejoue la même demande sans les candidates, puis avec toutes à la fois. Un rejeu seul ne voit
+     * ni ce que deux procédures font l'une à l'autre, ni qu'approuvées ensemble elles dépasseraient
+     * un plafond et en évinceraient une — ou une approuvée. Le coût reste {@code 2 × repetitions}
+     * échanges, quel que soit leur nombre.
+     *
+     * <p>L'écart est joint à chacune, qualifié {@code CONFOUNDED} : mesuré à plusieurs, il ne
+     * s'attribue à aucune. Il ne remplace donc pas le rejeu seul, il le complète.
+     *
+     * @return les compétences auxquelles le rejeu a été joint ; une tranchée entre-temps est sautée
+     */
+    public List<LearningEntry> probeTogether(List<String> ids, String request, int repetitions, String actor) {
+        String message = validated(request, repetitions, actor);
+        List<String> distinct = ids == null ? List.of() : ids.stream().distinct().toList();
+        if (distinct.size() < 2 || distinct.size() > MAX_TOGETHER) {
+            throw new IllegalArgumentException("De 2 à " + MAX_TOGETHER + " compétences distinctes à rejouer ensemble");
+        }
+        Set<String> tools = tools();
+        List<LearningEntry> candidates = distinct.stream().map(skills::pending).toList();
+        // Le contexte durable est celui d'un propriétaire : mêler deux bibliothèques mesurerait un
+        // prompt que personne ne reçoit jamais.
+        String owner = candidates.getFirst().owner();
+        if (candidates.stream().anyMatch(candidate -> !candidate.owner().equals(owner))) {
+            throw new IllegalArgumentException("Les compétences rejouées ensemble doivent appartenir au même propriétaire");
+        }
+        List<String> claimed = new ArrayList<>();
+        try {
+            for (String id : distinct) {
+                if (!running.add(id)) throw new IllegalStateException("Rejeu déjà en cours pour une de ces compétences");
+                claimed.add(id);
+            }
+            try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+                List<CompletableFuture<SkillProbe.Run>> references = launch(repetitions, executor,
+                        () -> runTogether(owner, message, tools, List.of()));
+                List<CompletableFuture<SkillProbe.Run>> together = launch(repetitions, executor,
+                        () -> runTogether(owner, message, tools, candidates));
+                List<SkillProbe.Run> referenceRuns = joined(references);
+                List<SkillProbe.Run> togetherRuns = joined(together);
+                List<LearningEntry> attached = new ArrayList<>();
+                for (LearningEntry candidate : candidates) {
+                    SkillProbe probe = SkillProbe.of(clock.instant(), actor, message, referenceRuns, togetherRuns,
+                            candidate.id(), readRequired(candidate), setting(candidate, candidates, message));
+                    try {
+                        attached.add(skills.attachProbe(candidate.id(), probe));
+                    }
+                    catch (IllegalStateException ex) {
+                        // Tranchée pendant le rejeu : la revue l'emporte, comme pour un rejeu seul.
+                    }
+                }
+                if (attached.isEmpty()) throw new IllegalStateException("Compétences examinées pendant le rejeu ; rejeu non conservé");
+                return attached;
+            }
+        }
+        finally {
+            claimed.forEach(running::remove);
+        }
+    }
+
+    /**
+     * Ce que le prompt contient de part et d'autre, calculé par la sélection même du contexte
+     * durable : il dépend des plafonds et des déclencheurs, pas du modèle.
+     */
+    private SkillProbe.Setting setting(LearningEntry subject, List<LearningEntry> candidates, String message) {
+        String owner = subject.owner();
+        List<LearningEntry> without = skills.injectable(owner, message, List.of(), limits);
+        List<LearningEntry> with = skills.injectable(owner, message, candidates, limits);
+        Set<String> injected = with.stream().map(LearningEntry::id).collect(Collectors.toSet());
+        Set<String> candidateIds = candidates.stream().map(LearningEntry::id).collect(Collectors.toSet());
+        List<String> companions = candidates.stream().filter(candidate -> !candidate.id().equals(subject.id()))
+                .map(LearningEntry::title).toList();
+        List<String> evicted = candidates.stream().filter(candidate -> !injected.contains(candidate.id()))
+                .map(LearningEntry::title).toList();
+        List<String> displaced = without.stream()
+                .filter(entry -> !candidateIds.contains(entry.id()) && !injected.contains(entry.id()))
+                .map(LearningEntry::title).toList();
+        return new SkillProbe.Setting(companions, evicted, displaced, !injected.contains(subject.id()));
+    }
+
+    /**
+     * Sous rejeu, l'allowlist n'est jamais vide : une compétence de domaine n'y est qu'indexée et
+     * n'agit qu'une fois lue ; une invariante est recopiée en entier.
+     */
+    private static boolean readRequired(LearningEntry candidate) {
+        return candidate.effectiveScope() == SkillScope.DOMAIN;
+    }
+
+    private static String validated(String request, int repetitions, String actor) {
         MemoryIdentity.require(actor);
         if (repetitions < 1 || repetitions > MAX_REPETITIONS) {
             throw new IllegalArgumentException("Répétitions de 1 à " + MAX_REPETITIONS);
@@ -57,32 +173,20 @@ public final class SkillProbeService {
         if (request == null || request.isBlank() || request.length() > 4000) {
             throw new IllegalArgumentException("Demande à rejouer requise et limitée à 4000 caractères");
         }
-        Set<String> tools = properties.readOnlyTools();
+        return request.strip();
+    }
+
+    private Set<String> tools() {
+        Set<String> tools = limits.probe().readOnlyTools();
         if (tools.isEmpty()) {
             throw new IllegalStateException(
                     "Rejeu désactivé : kex.agent.memory.skills.probe.read-only-tools est vide");
         }
-        LearningEntry candidate = skills.pending(id);
-        // Un double-clic paierait deux rejeux pour un seul écart utile, et le second écraserait le
-        // premier dans l'ordre d'arrivée plutôt que dans celui des demandes.
-        if (!running.add(id)) throw new IllegalStateException("Rejeu déjà en cours pour cette compétence");
-        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            String message = request.strip();
-            List<CompletableFuture<SkillProbe.Run>> references = launch(repetitions, executor,
-                    () -> run(candidate.owner(), message, tools, null));
-            List<CompletableFuture<SkillProbe.Run>> withSkill = launch(repetitions, executor,
-                    () -> run(candidate.owner(), message, tools, candidate));
-            SkillProbe probe = SkillProbe.of(clock.instant(), actor, message,
-                    references.stream().map(CompletableFuture::join).toList(),
-                    withSkill.stream().map(CompletableFuture::join).toList(), candidate.id(),
-                    // Sous rejeu, l'allowlist n'est jamais vide : une compétence de domaine n'y est
-                    // qu'indexée et n'agit qu'une fois lue ; une invariante est recopiée en entier.
-                    candidate.effectiveScope() == SkillScope.DOMAIN);
-            return skills.attachProbe(id, probe);
-        }
-        finally {
-            running.remove(id);
-        }
+        return tools;
+    }
+
+    private static List<SkillProbe.Run> joined(List<CompletableFuture<SkillProbe.Run>> runs) {
+        return runs.stream().map(CompletableFuture::join).toList();
     }
 
     private static List<CompletableFuture<SkillProbe.Run>> launch(int repetitions, ExecutorService executor,
@@ -91,8 +195,16 @@ public final class SkillProbeService {
     }
 
     private SkillProbe.Run run(String owner, String message, Set<String> tools, LearningEntry candidate) {
+        return measured(() -> agent.probe(owner, message, tools, candidate));
+    }
+
+    private SkillProbe.Run runTogether(String owner, String message, Set<String> tools, List<LearningEntry> candidates) {
+        return measured(() -> agent.probeTogether(owner, message, tools, candidates));
+    }
+
+    private static SkillProbe.Run measured(java.util.function.Supplier<AgentProbe> call) {
         try {
-            AgentProbe probe = agent.probe(owner, message, tools, candidate);
+            AgentProbe probe = call.get();
             AgentAnswer answer = probe.answer();
             List<AgentEvent.ToolCall> calls = answer.tools();
             return new SkillProbe.Run(calls.stream().map(AgentEvent.ToolCall::tool).toList(),

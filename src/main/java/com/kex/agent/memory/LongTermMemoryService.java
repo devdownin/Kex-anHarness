@@ -117,13 +117,13 @@ public final class LongTermMemoryService {
 
     /**
      * @param request   la demande en cours, qui décide des compétences de domaine pertinentes
-     * @param candidate une compétence en attente injectée comme si elle était approuvée, pour le
-     *                  seul rejeu contrastif ; {@code null} partout ailleurs
+     * @param candidates les compétences en attente injectées comme si elles étaient approuvées, pour
+     *                   le seul rejeu contrastif ; {@code null} ou vide partout ailleurs
      * @param indexed   l'échange peut appeler {@code read_skill} : les compétences de domaine n'y
      *                  figurent alors que par une ligne d'index. Faux pour une tâche à qui aucun
      *                  outil n'est permis — un index sans moyen de lire serait une procédure perdue
      */
-    public DurableContext durable(String owner, String request, LearningEntry candidate, boolean indexed) {
+    public DurableContext durable(String owner, String request, List<LearningEntry> candidates, boolean indexed) {
         MemoryIdentity.require(owner);
         StringBuilder result = new StringBuilder();
         // En tête du bloc : la charte dit sous quelles consignes l'exploitant veut que l'agent
@@ -138,7 +138,7 @@ public final class LongTermMemoryService {
                 .append(entry.markdown()).append('\n'));
         // La troncature porte sur un ordre explicite, par portée, au lieu de l'ordre de stockage du
         // dépôt. Ce qui tombe au-delà d'un plafond est visible dans le rapport de curation.
-        List<LearningEntry> selected = skills.injectable(owner, request, candidate, properties.skills());
+        List<LearningEntry> selected = skills.injectable(owner, request, candidates, properties.skills());
         Map<String, String> index = new LinkedHashMap<>();
         // Une invariante vaut pour tout échange : la faire lire d'abord, c'est risquer qu'elle ne
         // le soit jamais. Elle reste injectée en entier ; seules les procédures de domaine s'indexent.

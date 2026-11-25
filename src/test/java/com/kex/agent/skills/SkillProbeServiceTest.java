@@ -227,6 +227,65 @@ class SkillProbeServiceTest {
         assertThat(always.reading().outcome()).isEqualTo(SkillProbe.Outcome.STABLE_DIFFERENCE);
     }
 
+    /** Mesuré à plusieurs, un écart ne s'attribue à aucune : chacune le reçoit, qualifié confondu. */
+    @Test
+    void le_rejeu_groupe_injecte_toutes_les_candidates_et_joint_l_ecart_a_chacune() {
+        LearningEntry other = skills.propose("ops-console", "Tendance", "Lire la tendance du lag", "Preuve", null);
+        given(agent.probeTogether(any(), any(), any(), any())).willAnswer(invocation -> {
+            List<LearningEntry> candidates = invocation.getArgument(3);
+            return candidates.isEmpty() ? answer(List.of("kex_consumer_lag"), null)
+                    : answer(List.of("kex_consumer_lag", "kex_lag_trend"), null, List.of(pending.id(), other.id()));
+        });
+
+        List<LearningEntry> probed = service(TOOLS).probeTogether(List.of(pending.id(), other.id(), pending.id()),
+                "lag ?", 2, "admin");
+
+        assertThat(probed).extracting(LearningEntry::id).containsExactly(pending.id(), other.id());
+        SkillProbe first = skills.pending(pending.id()).probes().getFirst();
+        assertThat(first.companions()).containsExactly("Tendance");
+        assertThat(first.toolsAdded()).containsExactly("kex_lag_trend");
+        assertThat(first.reading().outcome()).isEqualTo(SkillProbe.Outcome.CONFOUNDED);
+        assertThat(first.reading().reasons()).anyMatch(reason -> reason.contains("l'écart revient à l'ensemble"));
+        assertThat(skills.pending(other.id()).probes().getFirst().companions()).containsExactly("Lag");
+        verify(agent, org.mockito.Mockito.times(2)).probeTogether(eq("ops-console"), eq("lag ?"), eq(TOOLS),
+                org.mockito.ArgumentMatchers.argThat(candidates -> candidates.size() == 2));
+        verify(agent, org.mockito.Mockito.times(2)).probeTogether(eq("ops-console"), eq("lag ?"), eq(TOOLS),
+                org.mockito.ArgumentMatchers.argThat(List::isEmpty));
+    }
+
+    @Test
+    void le_rejeu_groupe_refuse_une_seule_compétence_ou_deux_proprietaires() {
+        LearningEntry elsewhere = skills.propose("autre-equipe", "Ailleurs", "Procédure", "Preuve", null);
+
+        assertThatThrownBy(() -> service(TOOLS).probeTogether(List.of(pending.id(), pending.id()), "lag ?", 1, "admin"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service(TOOLS).probeTogether(List.of(pending.id(), elsewhere.id()), "lag ?", 1, "admin"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("même propriétaire");
+        verify(agent, never()).probeTogether(any(), any(), any(), any());
+    }
+
+    /**
+     * Le plafond de domaine à un : la candidate prend la place de l'approuvée. Ce que son approbation
+     * retirerait du prompt est dit, et une candidate évincée n'est pas réputée avoir agi.
+     */
+    @Test
+    void le_rejeu_dit_ce_que_les_plafonds_evincent() {
+        LearningEntry approvedEntry = skills.propose("ops-console", "Approuvée", "Procédure en place", "Preuve", null);
+        skills.review(approvedEntry.id(), true, "admin", "ok");
+        LearningEntry other = skills.propose("ops-console", "Tendance", "Lire la tendance du lag", "Preuve", null);
+        given(agent.probeTogether(any(), any(), any(), any())).willReturn(answer(List.of("kex_consumer_lag"), null));
+        SkillProbeService tight = new SkillProbeService(skills, agent, new MemoryProperties.Skills(1, 3, 3000,
+                java.time.Duration.ofDays(90), new MemoryProperties.Probe(TOOLS), 12000), Clock.fixed(NOW, ZoneId.of("UTC")));
+
+        tight.probeTogether(List.of(pending.id(), other.id()), "lag ?", 1, "admin");
+
+        SkillProbe first = skills.pending(pending.id()).probes().getFirst();
+        assertThat(first.displaced()).containsExactly("Approuvée");
+        assertThat(first.evicted()).containsExactly("Tendance");
+        SkillProbe second = skills.pending(other.id()).probes().getFirst();
+        assertThat(second.reading().reasons()).first().asString().startsWith("Évincée par un plafond");
+    }
+
     @Test
     void les_repetitions_sont_bornees() {
         assertThatThrownBy(() -> service(TOOLS).probe(pending.id(), "lag ?", 0, "admin"))

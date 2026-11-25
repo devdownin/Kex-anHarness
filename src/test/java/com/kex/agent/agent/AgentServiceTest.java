@@ -368,7 +368,7 @@ class AgentServiceTest {
         LearningEntry candidate = new LearningEntry("s-1", "ops", "SKILL", "Lag", "Procédure", "Preuve", null,
                 java.time.Instant.EPOCH, "PENDING", null, null, null);
         AgentService service = serviceWithLongTermMemory(Duration.ofSeconds(10));
-        given(longTermMemory.durable("ops", "le lag ?", candidate, true)).willReturn(
+        given(longTermMemory.durable("ops", "le lag ?", java.util.List.of(candidate), true)).willReturn(
                 new com.kex.agent.memory.DurableContext("Index des compétences", Map.of("s-1", "Procédure")));
 
         AgentProbe probe = service.probe("ops", "le lag ?", java.util.Set.of("kex_consumer_lag"), candidate);
@@ -411,7 +411,7 @@ class AgentServiceTest {
             return response("pong");
         });
         AgentService service = serviceWithLongTermMemory(Duration.ofSeconds(10));
-        given(longTermMemory.durable("kex-internal", "ping", null, true)).willReturn(
+        given(longTermMemory.durable("kex-internal", "ping", java.util.List.of(), true)).willReturn(
                 new com.kex.agent.memory.DurableContext("Index", Map.of("s-1", "Procédure")));
 
         service.ask("conv-1", "ping");
@@ -430,7 +430,7 @@ class AgentServiceTest {
 
         service.askStructuredReadOnly("ops", "conv-1", "plan ?", Map.of("type", "object"), java.util.Set.of());
 
-        verify(longTermMemory).durable("ops", "plan ?", null, false);
+        verify(longTermMemory).durable("ops", "plan ?", java.util.List.of(), false);
         verify(requestSpec, never()).toolCallbacks(any(org.springframework.ai.tool.ToolCallback[].class));
     }
 

@@ -93,7 +93,7 @@ class SkillScopeSelectionTest {
                 SkillScope.DOMAIN, List.of());
 
         // Le plafond de deux évince Lag A : c'est exactement ce que l'approbation ferait.
-        assertThat(titles(service.injectable("ops", "lag", candidate, LIMITS)))
+        assertThat(titles(service.injectable("ops", "lag", List.of(candidate), LIMITS)))
                 .containsExactly("Candidate", "Lag B");
     }
 

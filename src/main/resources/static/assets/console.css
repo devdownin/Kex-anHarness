@@ -562,6 +562,7 @@ input[type="radio"], input[type="checkbox"] { width: auto; }
 .row-end button { margin: 0; }
 .card-actions, .context-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .blind-pair { border-top: 1px solid var(--line); padding-top: 8px; }
+.together-pick { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; }
 .blind-verdict, .blind-tally { font-weight: 600; }
 .card-actions { margin-top: auto; }
 .context-actions { margin-bottom: 4px; }

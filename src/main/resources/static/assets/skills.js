@@ -129,10 +129,81 @@ async function reviewQueue() {
   }
 }
 
+const MAX_TOGETHER = 5;
+
 function reviewQueueList(rows) {
   const list = el('div', 'stack');
-  rows.forEach((row) => list.append(reviewQueueCard(row)));
+  // Un rejeu groupé ne se propose que là où il a un sens : deux candidates au moins d'un même
+  // propriétaire, le contexte durable étant celui d'une seule bibliothèque.
+  const owners = new Map();
+  rows.forEach((row) => owners.set(row.owner, (owners.get(row.owner) || 0) + 1));
+  const groupable = [...owners.values()].some((count) => count > 1);
+  const selected = new Set();
+  let bar = null;
+  if (groupable) {
+    bar = el('div', 'card-actions together-bar');
+    const button = el('button', 'ghost', 'Rejouer la sélection ensemble');
+    button.type = 'button';
+    button.disabled = true;
+    const hint = el('span', 'muted', 'Cochez de 2 à 5 compétences d’un même propriétaire.');
+    button.addEventListener('click', () => busy(button, () => probeTogether(rows.filter((row) => selected.has(row.id)))));
+    bar.append(button, hint);
+    bar.refresh = () => {
+      const chosen = rows.filter((row) => selected.has(row.id));
+      const sameOwner = new Set(chosen.map((row) => row.owner)).size <= 1;
+      button.disabled = chosen.length < 2 || chosen.length > MAX_TOGETHER || !sameOwner;
+      hint.textContent = !sameOwner ? 'Les compétences d’un rejeu groupé doivent avoir le même propriétaire.'
+        : `${chosen.length} sélectionnée(s) — de 2 à ${MAX_TOGETHER}.`;
+    };
+    list.append(bar);
+  }
+  rows.forEach((row) => {
+    const card = reviewQueueCard(row);
+    if (groupable && owners.get(row.owner) > 1) {
+      const label = el('label', 'together-pick');
+      const box = el('input');
+      box.type = 'checkbox';
+      box.dataset.together = row.id;
+      box.addEventListener('change', () => {
+        if (box.checked) selected.add(row.id); else selected.delete(row.id);
+        bar.refresh();
+      });
+      label.append(box, document.createTextNode(' Inclure dans un rejeu groupé'));
+      card.querySelector('.card-actions').prepend(label);
+    }
+    list.append(card);
+  });
   return list;
+}
+
+async function probeTogether(chosen) {
+  const triggers = [...new Set(chosen.flatMap((row) => (row.scope === 'INVARIANT' ? [] : row.triggers || [])))];
+  const { confirmed, reason } = await confirmAction({
+    title: 'Rejouer une demande sans ces compétences, puis avec toutes à la fois',
+    accept: `Rejouer ensemble : ${chosen.length} compétences`,
+    lines: [
+      ['Compétences', chosen.map((row) => row.title).join(', ')],
+      ['Exécution', `${PROBE_REPETITIONS} passes de chaque côté, soit ${PROBE_REPETITIONS * 2} appels au modèle, quel que soit leur nombre.`],
+      // Le rejeu groupé montre ce que les procédures font ensemble et ce que les plafonds évincent ;
+      // il n'attribue l'écart à aucune — d'où le rejeu seul, qui garde son rôle.
+      ['Lecture', 'L’écart revient à l’ensemble : il est joint à chacune, qualifié « confondu ».'],
+      triggers.length ? ['Déclencheurs', `La demande doit en citer pour que les compétences de domaine soient indexées : ${triggers.join(', ')}`] : null,
+      ['Coût', 'Imputé au budget du locataire propriétaire.'],
+    ],
+    reasonLabel: 'Demande à rejouer (une question où ces compétences devraient agir)',
+    reasonRequired: true,
+  });
+  if (!confirmed) return;
+  try {
+    await api(`${SKILLS_BASE}/probe-together`, {
+      method: 'POST', body: { ids: chosen.map((row) => row.id), request: reason, repetitions: PROBE_REPETITIONS },
+    });
+    toast('Rejeu groupé terminé : l’écart est joint à chaque compétence.');
+    await reviewQueue();
+  }
+  catch (error) {
+    report(error);
+  }
 }
 
 function reviewQueueCard(row) {
@@ -195,7 +266,7 @@ function probeSummary(probe, skillId) {
   const wrap = el('div', 'stack');
   const passes = probe.candidates.length;
   wrap.append(el('h4', 'drawer-sub',
-    `Dernier rejeu · ${passes} passe(s) de chaque côté · ${ago(probe.observedAt)} · ${probe.actor}`));
+    `Dernier rejeu${(probe.companions || []).length ? ' groupé' : ''} · ${passes} passe(s) de chaque côté · ${ago(probe.observedAt)} · ${probe.actor}`));
   wrap.append(definition('Demande', el('span', null, probe.request)));
   const blind = blindComparison(probe);
   if (blind) wrap.append(blind);
@@ -206,6 +277,16 @@ function probeSummary(probe, skillId) {
     reading.append(stateTag(state, label));
     probe.reading.reasons.forEach((reason) => reading.append(el('span', 'muted', reason)));
     wrap.append(definition('Lecture de l’écart', reading));
+  }
+  // Le contexte du prompt, connu avant toute exécution : ce que le modèle avait sous les yeux.
+  if ((probe.companions || []).length) {
+    wrap.append(definition('Rejouée avec', el('span', null, probe.companions.join(', '))));
+  }
+  if ((probe.evicted || []).length) {
+    wrap.append(definition('Candidates évincées par un plafond', el('span', null, probe.evicted.join(', '))));
+  }
+  if ((probe.displaced || []).length) {
+    wrap.append(definition('Approuvées écartées du prompt', el('span', null, probe.displaced.join(', '))));
   }
   const read = probe.candidates.filter((run) => (run.skillsRead || []).includes(skillId)).length;
   // Une candidate jamais lue n'a pas pu produire l'écart : le dire avant de le montrer.

@@ -13,6 +13,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
@@ -109,6 +110,16 @@ class SkillsController {
         return entry;
     }
 
+    /** Même niveau que le rejeu seul : il dépense du budget de modèle et appelle des outils réels. */
+    @PostMapping("/probe-together")
+    List<LearningEntry> probeTogether(@Valid @RequestBody TogetherRequest request, Principal principal) {
+        String actor = actor(principal);
+        List<LearningEntry> entries = probes.probeTogether(request.ids(), request.request(),
+                request.repetitions() == null ? 1 : request.repetitions(), actor);
+        supervision.auditAction(actor, "Compétences rejouées ensemble", String.join(", ", request.ids()));
+        return entries;
+    }
+
     @PostMapping("/{id}/approve")
     LearningEntry approve(@PathVariable String id, @Valid @RequestBody Review review, Principal principal) {
         return decide(id, true, review, principal);
@@ -159,6 +170,9 @@ class SkillsController {
                     @Size(max = 10) List<@Size(max = 60) String> triggers) { }
     record ProbeRequest(@NotBlank @Size(max = 4000) String request,
                         @Min(1) @Max(SkillProbeService.MAX_REPETITIONS) Integer repetitions) { }
+    record TogetherRequest(@NotNull @Size(min = 2, max = SkillProbeService.MAX_TOGETHER) List<@NotBlank String> ids,
+                           @NotBlank @Size(max = 4000) String request,
+                           @Min(1) @Max(SkillProbeService.MAX_REPETITIONS) Integer repetitions) { }
     record Review(@Size(max = 2000) String reason) { }
     /** Motif obligatoire, contrairement à une revue : un retrait sans raison est irrelisable. */
     record Retirement(@NotBlank @Size(max = 2000) String reason) { }

@@ -30,6 +30,11 @@ import com.fasterxml.jackson.annotation.JsonFormat;
  * @param tools        pour chaque outil vu, dans combien d'exécutions de chaque côté il apparaît
  * @param reading      {@code null} pour un rejeu écrit avant la qualification : rien ne permet plus
  *                     de savoir si la candidate devait être lue
+ * @param companions   titres des autres compétences en attente rejouées en même temps, vide pour un
+ *                     rejeu seul : leur présence fait de l'écart celui de l'ensemble
+ * @param evicted      titres des candidates qu'un plafond a laissées hors du prompt pour cette demande
+ * @param displaced    titres des compétences approuvées que les candidates ont écartées du prompt :
+ *                     ce que leur approbation retirerait, et que l'écart mesure aussi
  */
 public record SkillProbe(Instant observedAt, String actor, String request,
                          @JsonAlias("reference") @JsonFormat(with = JsonFormat.Feature.ACCEPT_SINGLE_VALUE_AS_ARRAY)
@@ -37,7 +42,7 @@ public record SkillProbe(Instant observedAt, String actor, String request,
                          @JsonAlias("candidate") @JsonFormat(with = JsonFormat.Feature.ACCEPT_SINGLE_VALUE_AS_ARRAY)
                          List<Run> candidates,
                          List<String> toolsAdded, List<String> toolsDropped, List<ToolFrequency> tools,
-                         Reading reading) {
+                         Reading reading, List<String> companions, List<String> evicted, List<String> displaced) {
 
     public SkillProbe {
         references = references == null ? List.of() : List.copyOf(references);
@@ -45,6 +50,9 @@ public record SkillProbe(Instant observedAt, String actor, String request,
         toolsAdded = toolsAdded == null ? List.of() : List.copyOf(toolsAdded);
         toolsDropped = toolsDropped == null ? List.of() : List.copyOf(toolsDropped);
         tools = tools == null ? List.of() : List.copyOf(tools);
+        companions = companions == null ? List.of() : List.copyOf(companions);
+        evicted = evicted == null ? List.of() : List.copyOf(evicted);
+        displaced = displaced == null ? List.of() : List.copyOf(displaced);
     }
 
     /**
@@ -54,6 +62,27 @@ public record SkillProbe(Instant observedAt, String actor, String request,
      */
     public static SkillProbe of(Instant observedAt, String actor, String request, List<Run> references,
                                 List<Run> candidates, String skillId, boolean readRequired) {
+        return of(observedAt, actor, request, references, candidates, skillId, readRequired,
+                new Setting(List.of(), List.of(), List.of(), false));
+    }
+
+    /**
+     * Ce que le prompt contenait de part et d'autre, connu avant toute exécution : il dépend des
+     * plafonds et des déclencheurs, pas du modèle.
+     *
+     * @param selfEvicted la compétence qualifiée elle-même n'a pas été injectée
+     */
+    public record Setting(List<String> companions, List<String> evicted, List<String> displaced,
+                          boolean selfEvicted) {
+        public Setting {
+            companions = List.copyOf(companions);
+            evicted = List.copyOf(evicted);
+            displaced = List.copyOf(displaced);
+        }
+    }
+
+    public static SkillProbe of(Instant observedAt, String actor, String request, List<Run> references,
+                                List<Run> candidates, String skillId, boolean readRequired, Setting setting) {
         Set<String> seen = new LinkedHashSet<>();
         references.forEach(run -> seen.addAll(run.tools()));
         candidates.forEach(run -> seen.addAll(run.tools()));
@@ -64,7 +93,8 @@ public record SkillProbe(Instant observedAt, String actor, String request,
         List<String> dropped = stable(tools,
                 frequency -> frequency.inReferences() == references.size() && frequency.inCandidates() == 0);
         return new SkillProbe(observedAt, actor, request, references, candidates, added, dropped, tools,
-                Reading.of(references, candidates, added, dropped, skillId, readRequired));
+                Reading.of(references, candidates, added, dropped, skillId, readRequired, setting),
+                setting.companions(), setting.evicted(), setting.displaced());
     }
 
     private static int count(List<Run> runs, String tool) {
@@ -101,12 +131,21 @@ public record SkillProbe(Instant observedAt, String actor, String request,
         }
 
         static Reading of(List<Run> references, List<Run> candidates, List<String> added, List<String> dropped,
-                          String skillId, boolean readRequired) {
+                          String skillId, boolean readRequired, Setting setting) {
             List<String> confounders = new ArrayList<>();
+            // Avant tout le reste : une compétence absente du prompt n'a rien pu changer, et un écart
+            // mesuré à plusieurs ne s'attribue à aucune en particulier.
+            if (setting.selfEvicted()) {
+                confounders.add("Évincée par un plafond pour cette demande : elle n'était pas dans le prompt.");
+            }
+            if (!setting.companions().isEmpty()) {
+                confounders.add("Rejouée avec " + setting.companions().size()
+                        + " autre(s) compétence(s) : l'écart revient à l'ensemble, pas à celle-ci.");
+            }
             if (references.size() < 2 || candidates.size() < 2) {
                 confounders.add("Une seule passe d'un côté : un écart peut tenir au hasard d'un essai.");
             }
-            if (readRequired) {
+            if (readRequired && !setting.selfEvicted()) {
                 long read = candidates.stream().filter(run -> run.skillsRead().contains(skillId)).count();
                 if (read < candidates.size()) {
                     confounders.add("Compétence lue dans " + read + " passe(s) sur " + candidates.size()
