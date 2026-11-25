@@ -15,21 +15,27 @@
    data-theme sur <html> et doit gagner dans les deux sens, d'où la garde :not([data-theme]). */
 :root {
   color-scheme: light;
-  --bg: #f5f7f6;
+  /* Neutres légèrement froids : un blanc pur ou un gris plat ne laisse rien voir à travers le
+     verre. Les halos du fond (body) donnent aux matériaux translucides de quoi se distinguer. */
+  --bg: #f2f4f8;
+  --bg-deep: #e9edf3;
+  --halo-1: rgb(150 182 255 / 16%);
+  --halo-2: rgb(206 182 255 / 11%);
+  --halo-3: rgb(22 125 115 / 7%);
   --surface: #ffffff;
-  --surface-2: #eef3f2;
-  --line: #d9e0e7;
-  --line-soft: #e8edf2;
-  --ink: #162033;
-  --ink-2: #526071;
-  --ink-3: #7a8797;
+  --surface-2: #eef1f6;
+  --line: #dbe1ea;
+  --line-soft: #e8ecf2;
+  --ink: #131a29;
+  --ink-2: #4c586b;
+  --ink-3: #5f6b7e;
   --accent: #167d73;
   --accent-ink: #ffffff;
-  --accent-soft: #d9f3ef;
+  --accent-soft: #dcf2ee;
   --agent: var(--accent);
   --agent-soft: var(--accent-soft);
-  --rail-bg: var(--surface-2);
-  --rail-surface: var(--surface);
+  --rail-bg: var(--glass-regular-bg);
+  --rail-surface: rgb(255 255 255 / 46%);
   --rail-ink: var(--ink);
   --rail-muted: var(--ink-2);
   --ok: #15803d;
@@ -40,35 +46,101 @@
   --danger-soft: #fbe4e2;
   --pending: #6d28d9;
   --pending-soft: #ece4fb;
-  --radius: 16px;
-  --radius-sm: 10px;
+
+  /* ── Matériaux ──
+     Quatre niveaux, un rôle chacun. Plus une surface est proche, plus elle est opaque, floue et
+     ombrée : le flou n'est jamais le même partout, il dit à quelle distance se trouve le plan. */
+  --material-base: rgb(251 252 254 / 94%);
+  --glass-thin-bg: rgb(255 255 255 / 48%);
+  --glass-regular-bg: rgb(255 255 255 / 58%);
+  --glass-thick-bg: rgb(255 255 255 / 76%);
+  /* Un menu ouvert depuis une surface déjà floutée ne voit que cette surface : un backdrop-filter
+     imbriqué ne floute pas la page. Les menus portent donc leur lisibilité par l'opacité seule. */
+  --glass-popover-bg: rgb(252 253 255 / 94%);
+  --glass-border: rgb(255 255 255 / 55%);
+  --glass-border-strong: rgb(255 255 255 / 70%);
+  /* Un liseré blanc disparaît sur un fond presque blanc : le trait sombre très léger délimite,
+     le liseré blanc éclaire. Les deux ensemble font le bord d'une surface physique. */
+  --hairline: rgb(20 30 50 / 8%);
+  --highlight: inset 0 1px 0 rgb(255 255 255 / 70%);
+  --sheen: linear-gradient(180deg, rgb(255 255 255 / 38%), transparent 42%);
+  --blur-thin: 14px;
+  --blur-regular: 22px;
+  --blur-thick: 34px;
+  --saturate-thin: 150%;
+  --saturate-regular: 160%;
+  --saturate-thick: 175%;
+  --control-bg: rgb(20 30 50 / 4.5%);
+  --control-bg-hover: rgb(20 30 50 / 7.5%);
+  --field-bg: rgb(20 30 50 / 3.5%);
+  --nav-active-bg: rgb(255 255 255 / 82%);
+  --scrim: rgb(20 25 35 / 16%);
+
+  /* ── Profondeur ── */
+  --depth-0: none;
+  --depth-1: 0 1px 2px rgb(20 30 50 / 4%), 0 6px 20px rgb(20 30 50 / 5%);
+  --depth-2: 0 2px 6px rgb(20 30 50 / 4%), 0 12px 40px rgb(20 30 50 / 8%);
+  --depth-3: 0 4px 12px rgb(20 30 50 / 6%), 0 28px 80px rgb(20 30 50 / 16%);
+  --shadow: var(--depth-1);
+  --shadow-hover: var(--depth-2);
+
+  /* ── Formes ── */
+  --radius-control: 12px;
+  --radius-card: 18px;
+  --radius-panel: 22px;
+  --radius-popover: 16px;
+  --radius-modal: 28px;
+  --radius: var(--radius-panel);
+  --radius-sm: var(--radius-control);
+
+  /* ── Mouvement : courbe physique, jamais de rebond ── */
+  --ease-spatial: cubic-bezier(.2, .8, .2, 1);
+  --dur-press: 100ms;
+  --dur-hover: 180ms;
+  --dur-panel: 240ms;
+
+  /* ── Espacement : grille de 4 ── */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px;
+  --space-6: 24px; --space-7: 32px; --space-8: 40px; --space-9: 48px;
+  --float-gap: 12px;
+
+  /* ── Typographie : six rôles, pas davantage ── */
+  --text-display: clamp(26px, 2.6vw, 34px);
+  --text-title: 19px;
+  --text-headline: 15px;
+  --text-body: 14px;
+  --text-caption: 12px;
+  --text-meta: 11px;
+
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   --sans: "Outfit", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --rail: 232px;
-  --shadow: 0 1px 2px rgb(15 23 42 / 4%), 0 10px 30px rgb(15 23 42 / 5%);
-  --shadow-hover: 0 10px 26px rgb(15 23 42 / 10%);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg: #0c0e12;
-    --surface: #14171d;
-    --surface-2: #1b1f27;
-    --line: #2a2f3a;
-    --line-soft: #21252e;
-    --ink: #e8eaef;
-    --ink-2: #a8afbd;
-    --ink-3: #757d8c;
+    --bg: #0b0f16;
+    --bg-deep: #080b10;
+    --halo-1: rgb(70 100 180 / 14%);
+    --halo-2: rgb(120 90 190 / 9%);
+    --halo-3: rgb(112 201 188 / 6%);
+    --surface: #131823;
+    --surface-2: #19202c;
+    --line: #273042;
+    --line-soft: #1e2532;
+    --ink: #e8ebf1;
+    --ink-2: #a9b1c0;
+    --ink-3: #8089a0;
     --accent: #70c9bc;
     --accent-ink: #06231f;
     --accent-soft: #11312d;
     --agent: var(--accent);
     --agent-soft: var(--accent-soft);
-    --rail-bg: #090d16;
-    --rail-surface: #171e2b;
+    --rail-bg: var(--glass-regular-bg);
+    --rail-surface: rgb(255 255 255 / 6%);
     --rail-ink: var(--ink);
-    --rail-muted: #8894a7;
+    --rail-muted: #93a0b4;
     --ok: #4ade80;
     --ok-soft: #10281a;
     --warn: #fbbf24;
@@ -77,30 +149,55 @@
     --danger-soft: #2e1616;
     --pending: #c4b5fd;
     --pending-soft: #211a34;
-    --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 30%);
-    --shadow-hover: 0 8px 22px rgb(0 0 0 / 38%);
+    --material-base: rgb(19 24 35 / 92%);
+    --glass-thin-bg: rgb(28 33 43 / 46%);
+    --glass-regular-bg: rgb(24 28 37 / 60%);
+    --glass-thick-bg: rgb(26 31 41 / 80%);
+    --glass-popover-bg: rgb(26 31 41 / 95%);
+    --glass-border: rgb(255 255 255 / 8%);
+    --glass-border-strong: rgb(255 255 255 / 12%);
+    --hairline: rgb(255 255 255 / 7%);
+    --highlight: inset 0 1px 0 rgb(255 255 255 / 6%);
+    --sheen: linear-gradient(180deg, rgb(255 255 255 / 4%), transparent 40%);
+    --saturate-thin: 140%;
+    --saturate-regular: 145%;
+    --saturate-thick: 150%;
+    --control-bg: rgb(255 255 255 / 6%);
+    --control-bg-hover: rgb(255 255 255 / 10%);
+    --field-bg: rgb(0 0 0 / 22%);
+    --nav-active-bg: rgb(255 255 255 / 9%);
+    --scrim: rgb(0 0 0 / 38%);
+    --depth-1: 0 1px 2px rgb(0 0 0 / 30%), 0 8px 24px rgb(0 0 0 / 22%);
+    --depth-2: 0 2px 6px rgb(0 0 0 / 30%), 0 16px 44px rgb(0 0 0 / 30%);
+    --depth-3: 0 6px 16px rgb(0 0 0 / 34%), 0 28px 80px rgb(0 0 0 / 46%);
+    --shadow: var(--depth-1);
+    --shadow-hover: var(--depth-2);
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0c0e12;
-  --surface: #14171d;
-  --surface-2: #1b1f27;
-  --line: #2a2f3a;
-  --line-soft: #21252e;
-  --ink: #e8eaef;
-  --ink-2: #a8afbd;
-  --ink-3: #757d8c;
+  --bg: #0b0f16;
+  --bg-deep: #080b10;
+  --halo-1: rgb(70 100 180 / 14%);
+  --halo-2: rgb(120 90 190 / 9%);
+  --halo-3: rgb(112 201 188 / 6%);
+  --surface: #131823;
+  --surface-2: #19202c;
+  --line: #273042;
+  --line-soft: #1e2532;
+  --ink: #e8ebf1;
+  --ink-2: #a9b1c0;
+  --ink-3: #8089a0;
   --accent: #70c9bc;
   --accent-ink: #06231f;
   --accent-soft: #11312d;
   --agent: var(--accent);
   --agent-soft: var(--accent-soft);
-  --rail-bg: #090d16;
-  --rail-surface: #171e2b;
+  --rail-bg: var(--glass-regular-bg);
+  --rail-surface: rgb(255 255 255 / 6%);
   --rail-ink: var(--ink);
-  --rail-muted: #8894a7;
+  --rail-muted: #93a0b4;
   --ok: #4ade80;
   --ok-soft: #10281a;
   --warn: #fbbf24;
@@ -109,8 +206,29 @@
   --danger-soft: #2e1616;
   --pending: #c4b5fd;
   --pending-soft: #211a34;
-  --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 30%);
-  --shadow-hover: 0 8px 22px rgb(0 0 0 / 38%);
+  --material-base: rgb(19 24 35 / 92%);
+  --glass-thin-bg: rgb(28 33 43 / 46%);
+  --glass-regular-bg: rgb(24 28 37 / 60%);
+  --glass-thick-bg: rgb(26 31 41 / 80%);
+  --glass-popover-bg: rgb(26 31 41 / 95%);
+  --glass-border: rgb(255 255 255 / 8%);
+  --glass-border-strong: rgb(255 255 255 / 12%);
+  --hairline: rgb(255 255 255 / 7%);
+  --highlight: inset 0 1px 0 rgb(255 255 255 / 6%);
+  --sheen: linear-gradient(180deg, rgb(255 255 255 / 4%), transparent 40%);
+  --saturate-thin: 140%;
+  --saturate-regular: 145%;
+  --saturate-thick: 150%;
+  --control-bg: rgb(255 255 255 / 6%);
+  --control-bg-hover: rgb(255 255 255 / 10%);
+  --field-bg: rgb(0 0 0 / 22%);
+  --nav-active-bg: rgb(255 255 255 / 9%);
+  --scrim: rgb(0 0 0 / 38%);
+  --depth-1: 0 1px 2px rgb(0 0 0 / 30%), 0 8px 24px rgb(0 0 0 / 22%);
+  --depth-2: 0 2px 6px rgb(0 0 0 / 30%), 0 16px 44px rgb(0 0 0 / 30%);
+  --depth-3: 0 6px 16px rgb(0 0 0 / 34%), 0 28px 80px rgb(0 0 0 / 46%);
+  --shadow: var(--depth-1);
+  --shadow-hover: var(--depth-2);
 }
 
 * { box-sizing: border-box; }
@@ -118,10 +236,15 @@ html, body { height: 100%; }
 
 body {
   margin: 0;
+  /* L'environnement lumineux sur lequel flottent les surfaces : trois halos très faibles et un
+     dégradé vertical. Fixé au viewport, il ne défile pas avec le contenu — c'est le décor, pas
+     une surface. */
   background:
-    radial-gradient(circle at 84% 0, color-mix(in srgb, var(--agent) 7%, transparent), transparent 28rem),
-    radial-gradient(circle at 10% 90%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 28rem),
-    var(--bg);
+    radial-gradient(circle at 18% 8%, var(--halo-1), transparent 36%),
+    radial-gradient(circle at 82% 18%, var(--halo-2), transparent 42%),
+    radial-gradient(circle at 60% 100%, var(--halo-3), transparent 45%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%) fixed;
+  background-attachment: fixed;
   color: var(--ink);
   font: 14px/1.55 var(--sans);
   font-variant-numeric: tabular-nums;
@@ -164,18 +287,59 @@ body {
   grid-template-rows: auto minmax(0, 1fr);
   grid-template-areas: "rail topbar" "rail main";
   height: 100dvh;
+  /* Le rail et la barre du haut sont des plans posés au-dessus du fond, pas des bandes collées
+     aux bords : la marge de la grille est ce qui les détache. */
+  gap: 0 var(--float-gap);
+  padding: var(--float-gap);
+  padding-bottom: 0;
+}
+
+/* ── Primitives de matériau ──────────────────────────────────────────
+   Une seule déclaration par niveau ; les composants s'y rattachent plutôt que de répéter un flou.
+   Le flou crée un contexte de composition par surface : on le réserve aux plans parents (rail,
+   barre, tiroir, dialogue, menus), jamais à une ligne de liste ou à un bouton. */
+.glass-thin, .glass-regular, .glass-thick { position: relative; isolation: isolate; }
+.glass-thin {
+  background: var(--glass-thin-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(var(--blur-thin)) saturate(var(--saturate-thin));
+  -webkit-backdrop-filter: blur(var(--blur-thin)) saturate(var(--saturate-thin));
+}
+.glass-regular {
+  background: var(--glass-regular-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(var(--blur-regular)) saturate(var(--saturate-regular));
+  -webkit-backdrop-filter: blur(var(--blur-regular)) saturate(var(--saturate-regular));
+  box-shadow: var(--highlight), 0 0 0 1px var(--hairline), var(--depth-2);
+}
+.glass-thick {
+  background: var(--glass-thick-bg);
+  border: 1px solid var(--glass-border-strong);
+  backdrop-filter: blur(var(--blur-thick)) saturate(var(--saturate-thick));
+  -webkit-backdrop-filter: blur(var(--blur-thick)) saturate(var(--saturate-thick));
+  box-shadow: var(--highlight), 0 0 0 1px var(--hairline), var(--depth-3);
+}
+/* La lumière vient d'en haut : un reflet presque imperceptible, peint sous le contenu. */
+.glass-thin::before, .glass-regular::before, .glass-thick::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--sheen);
+  pointer-events: none;
 }
 
 .rail {
   grid-area: rail;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  padding: calc(18px + env(safe-area-inset-top, 0px)) 14px calc(14px + env(safe-area-inset-bottom, 0px));
-  background: var(--rail-bg);
-  border-right: 1px solid var(--line-soft);
+  gap: 12px;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px));
+  margin-bottom: var(--float-gap);
+  min-height: 0;
+  border-radius: 24px;
   color: var(--rail-ink);
-  box-shadow: 8px 0 28px rgb(15 23 42 / 8%);
 }
 
 .brand { display: flex; align-items: center; gap: 10px; }
@@ -183,16 +347,16 @@ body {
 .brand-mark {
   display: block;
   width: 32px; height: 32px;
-  border-radius: 8px;
+  border-radius: 10px;
   object-fit: cover;
-  box-shadow: 0 6px 18px rgb(13 148 136 / 28%);
+  box-shadow: 0 0 0 1px var(--hairline), 0 6px 16px rgb(13 148 136 / 22%);
 }
 
 .brand-text { display: flex; flex-direction: column; line-height: 1.2; }
 .brand-text small { color: var(--rail-muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
 
-.rail nav { display: flex; flex-direction: column; gap: 2px; }
-.rail nav hr { border: 0; border-top: 1px solid var(--line); margin: 12px 6px; }
+.rail nav { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: none; margin-inline: -4px; padding-inline: 4px; }
+.rail nav hr { border: 0; border-top: 1px solid var(--hairline); margin: 7px 10px; }
 
 /* Un court libellé au-dessus de chaque groupe (déjà séparé par un <hr>) : la nav se scanne par
    intention — vue d'ensemble, agent, système — plutôt qu'en une seule liste plate de huit liens. */
@@ -210,14 +374,23 @@ body {
   align-items: center;
   gap: 10px;
   padding: 9px 12px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   color: var(--rail-muted);
   text-decoration: none;
   font-weight: 600;
-  transition: background-color .12s ease;
+  transition: background-color var(--dur-hover) ease, color var(--dur-hover) ease,
+    box-shadow var(--dur-hover) ease, transform var(--dur-press) var(--ease-spatial);
 }
 .nav-item:hover { background: var(--rail-surface); color: var(--rail-ink); }
-.nav-item[aria-current="page"] { background: var(--accent-soft); color: var(--accent); box-shadow: inset 3px 0 var(--accent); }
+.nav-item:active { transform: scale(.985); }
+/* L'élément courant est une petite surface plus lumineuse, pas un aplat de couleur : la teinte
+   d'accent ne reste que sur l'icône, pour que l'état actif se lise sans crier. */
+.nav-item[aria-current="page"] {
+  background: var(--nav-active-bg);
+  color: var(--ink);
+  box-shadow: var(--highlight), 0 0 0 1px var(--hairline), 0 3px 10px rgb(20 30 50 / 6%);
+}
+.nav-item[aria-current="page"] .nav-ico { color: var(--accent); }
 .nav-item[aria-current="page"] .nav-ico { opacity: 1; }
 .nav-ico { flex: none; width: 18px; height: 18px; opacity: .85; }
 
@@ -232,7 +405,7 @@ body {
   text-align: center;
 }
 
-.rail-foot { margin-top: auto; display: flex; gap: 8px; min-width: 0; }
+.rail-foot { margin-top: auto; display: flex; gap: 8px; min-width: 0; flex: none; padding-top: 8px; border-top: 1px solid var(--hairline); }
 .rail-foot > * { text-decoration: none; }
 /* Deux moitiés égales ne tenaient pas : « Espace utilisateur » passait sur deux lignes et
    « Replier » débordait du rail sur le contenu. Le lien prend la place, la bascule reste une icône —
@@ -240,7 +413,7 @@ body {
 .rail-foot > .nav-item { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rail-foot > .rail-toggle { flex: 0 0 42px; padding-left: 0; padding-right: 0; }
 .rail-foot .rail-toggle-label { display: none; }
-.rail-foot .ghost { color: var(--rail-ink); background: var(--rail-surface); border-color: var(--line); }
+.rail-foot .ghost { color: var(--rail-ink); background: var(--rail-surface); border-color: var(--hairline); }
 
 .topbar {
   grid-area: topbar;
@@ -251,11 +424,19 @@ body {
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
-  padding: 12px 20px;
-  padding-top: calc(12px + env(safe-area-inset-top, 0px));
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
-  backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--line);
+  padding: 10px 12px 10px 20px;
+  margin-top: env(safe-area-inset-top, 0px);
+  border-radius: 20px;
+  box-shadow: var(--highlight), 0 0 0 1px var(--hairline);
+  transition: background-color var(--dur-panel) ease, box-shadow var(--dur-panel) ease,
+    backdrop-filter var(--dur-panel) ease;
+}
+/* Dès que le contenu défile sous elle, la barre se rapproche : plus opaque, plus floue, ombrée. */
+:root[data-scrolled="true"] .topbar {
+  background: var(--glass-regular-bg);
+  backdrop-filter: blur(var(--blur-regular)) saturate(var(--saturate-regular));
+  -webkit-backdrop-filter: blur(var(--blur-regular)) saturate(var(--saturate-regular));
+  box-shadow: var(--highlight), 0 0 0 1px var(--hairline), var(--depth-1);
 }
 
 .topbar-id { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -286,12 +467,20 @@ body {
 
 .topbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .topbar-ico { display: none; width: 18px; height: 18px; flex: none; }
+/* La recherche est une capsule : loupe, invite discrète, raccourci. Elle ouvre la palette. */
+.command-trigger {
+  border-radius: 999px;
+  color: var(--ink-2);
+  font-weight: 500;
+  padding-left: 12px;
+}
+.command-trigger .topbar-ico { display: block; width: 16px; height: 16px; color: var(--ink-3); }
 
 .action-menu { position: relative; }
 .action-menu > summary { list-style: none; user-select: none; }
 .action-menu > summary::-webkit-details-marker { display: none; }
 .action-menu > summary::after { content: "⌄"; margin-left: 7px; color: var(--ink-3); }
-.action-menu[open] > summary { border-color: var(--accent); }
+.action-menu[open] > summary { background: var(--control-bg-hover); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent); }
 .action-menu-popover {
   position: absolute;
   z-index: 25;
@@ -303,33 +492,37 @@ body {
   max-height: min(70vh, 420px);
   overflow-y: auto;
   padding: 6px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  box-shadow: 0 18px 45px rgb(15 23 42 / 18%);
+  border: 1px solid var(--glass-border-strong);
+  border-radius: var(--radius-popover);
+  background: var(--glass-popover-bg);
+  backdrop-filter: blur(var(--blur-thick)) saturate(var(--saturate-thick));
+  -webkit-backdrop-filter: blur(var(--blur-thick)) saturate(var(--saturate-thick));
+  /* Plus proche qu'un panneau, moins qu'un dialogue : l'ombre est entre les deux. */
+  box-shadow: var(--highlight), 0 0 0 1px var(--hairline), var(--depth-2);
+  animation: popover-in var(--dur-hover) var(--ease-spatial) both;
 }
 .menu-action {
   display: block;
   width: 100%;
   padding: 9px 11px;
   border: 0;
-  border-radius: 7px;
+  border-radius: 10px;
   background: transparent;
   color: var(--ink);
   text-align: left;
   text-decoration: none;
   font-weight: 600;
 }
-.menu-action:hover { background: var(--surface-2); }
+.menu-action:hover { background: var(--control-bg-hover); transform: none; }
 
 .status {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   padding: 7px 14px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--line);
-  background: var(--surface-2);
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  background: var(--control-bg);
   font: 700 11px/1 var(--sans);
   letter-spacing: .04em;
   color: var(--ink-2);
@@ -351,16 +544,25 @@ main {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 24px;
+  padding: 20px 12px;
   padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
 }
 main:focus { outline: none; }
 .view { display: flex; flex-direction: column; gap: 20px; width: 100%; max-width: 1440px; margin-inline: auto; }
-.view:not([hidden]) > * { animation: view-enter .22s ease-out both; }
+.view:not([hidden]) > * { animation: view-enter var(--dur-panel) var(--ease-spatial) both; }
 .view:not([hidden]) > *:nth-child(2) { animation-delay: 35ms; }
 .view:not([hidden]) > *:nth-child(3) { animation-delay: 70ms; }
 @keyframes view-enter {
-  from { opacity: 0; transform: translateY(5px); }
+  from { opacity: 0; transform: translateY(6px); }
+}
+/* Une surface qui s'approche : fondu, léger agrandissement, petite remontée. Jamais de rebond. */
+@keyframes surface-in {
+  from { opacity: 0; transform: translateY(6px) scale(.97); }
+}
+/* Un menu ne change pas d'échelle : ses cibles gardent leur taille dès la première image, ce qui
+   compte pour qui clique vite comme pour une mesure de cible tactile. */
+@keyframes popover-in {
+  from { opacity: 0; transform: translateY(-4px); }
 }
 
 /* Une entrée plus éditoriale donne le contexte avant les chiffres sans transformer la console
@@ -375,13 +577,14 @@ main:focus { outline: none; }
   gap: 24px;
   min-height: 148px;
   padding: 28px 30px;
-  border-radius: calc(var(--radius) + 4px);
+  border-radius: 26px;
   color: var(--ink);
   background:
-    radial-gradient(ellipse at 92% 0, var(--accent-soft), transparent 65%),
-    var(--surface);
-  border: 1px solid var(--line-soft);
-  box-shadow: var(--shadow);
+    radial-gradient(ellipse at 92% 0, color-mix(in srgb, var(--accent-soft) 80%, transparent), transparent 65%),
+    var(--sheen),
+    var(--material-base);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--highlight), 0 0 0 1px var(--hairline), var(--depth-2);
 }
 .overview-hero::after {
   content: "";
@@ -407,7 +610,7 @@ main:focus { outline: none; }
 }
 .hero-copy { max-width: 65ch; }
 .hero-eyebrow { color: var(--accent); font-size: 11px; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; }
-.overview-hero h1 { margin: 8px 0 5px; font-size: clamp(24px, 2.7vw, 36px); line-height: 1.1; letter-spacing: -.035em; text-wrap: balance; }
+.overview-hero h1 { margin: 8px 0 5px; font-size: var(--text-display); line-height: 1.1; letter-spacing: -.035em; text-wrap: balance; }
 .overview-hero p { margin: 0; color: var(--ink-2); font-size: 14px; text-wrap: pretty; }
 .hero-cycle { display: flex; align-items: center; gap: 8px; margin-top: 15px; color: var(--ink-2); font-size: 12px; font-variant-numeric: tabular-nums; }
 .hero-cycle-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
@@ -420,18 +623,21 @@ main:focus { outline: none; }
 
 /* ── Primitives ─────────────────────────────────────────────────────── */
 
+/* Matériau de base : on y lit des tableaux, des journaux, des formulaires. Presque opaque, sans
+   flou — la lisibilité passe avant l'effet, et des dizaines de panneaux floutés coûteraient cher
+   au GPU. La profondeur vient de la lumière (liseré, reflet) et d'une ombre courte. */
 .panel {
-  background: var(--surface);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 20px;
+  background: var(--sheen), var(--material-base);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--highlight), 0 0 0 1px var(--hairline), var(--depth-1);
+  padding: 20px 22px;
   min-width: 0;
 }
 /* Même accent que les KPI et les cartes, posé sur le panneau lui-même quand il porte une
    attente réelle : sans lui, « Demande une décision » a le même aspect plat qu'un panneau
    qui n'a rien à signaler, alors que l'un demande une action et l'autre non. */
-.panel[data-state="PENDING"] { border-left: 3px solid var(--pending); }
+.panel[data-state="PENDING"] { box-shadow: inset 3px 0 0 var(--pending), var(--highlight), 0 0 0 1px var(--hairline), var(--depth-1); }
 
 .panel-head {
   display: flex;
@@ -444,8 +650,8 @@ main:focus { outline: none; }
 .panel-head h1, .panel-head h2 { margin: 0; }
 /* Un seul poids partout mettait la fiche d'un processus et le titre de l'écran qui la contient
    sur le même plan. `h1` porte l'écran, `h2` un sous-panneau : la hiérarchie se lit avant de lire. */
-.panel-head h1 { font-size: 19px; font-weight: 700; letter-spacing: -.01em; }
-.panel-head h2 { font-size: 15px; font-weight: 700; }
+.panel-head h1 { font-size: var(--text-title); font-weight: 700; letter-spacing: -.015em; }
+.panel-head h2 { font-size: var(--text-headline); font-weight: 700; letter-spacing: -.005em; }
 .panel-kicker {
   display: block;
   margin-bottom: 3px;
@@ -465,11 +671,12 @@ main:focus { outline: none; }
   gap: 4px;
   align-self: flex-start;
   padding: 4px;
-  border: 1px solid var(--line-soft);
+  border: 1px solid var(--glass-border);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(12px);
+  background: var(--glass-thin-bg);
+  box-shadow: var(--highlight), 0 0 0 1px var(--hairline), var(--depth-1);
+  backdrop-filter: blur(var(--blur-thin)) saturate(var(--saturate-thin));
+  -webkit-backdrop-filter: blur(var(--blur-thin)) saturate(var(--saturate-thin));
 }
 .local-nav button {
   padding: 6px 13px;
@@ -479,24 +686,35 @@ main:focus { outline: none; }
   font-size: 12px;
 }
 .local-nav button:hover { border-color: transparent; color: var(--ink); }
-.local-nav button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+.local-nav button[aria-pressed="true"] { background: var(--nav-active-bg); color: var(--ink); box-shadow: var(--highlight), 0 0 0 1px var(--hairline), 0 2px 8px rgb(20 30 50 / 6%); }
 
 .split { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; align-items: start; }
 
 /* Un rayon plus serré distingue les commandes des panneaux. */
+/* Contrôle secondaire : une pastille teintée, pas un rectangle bordé. Pas de flou ici — un bouton
+   n'est pas un plan, il vit sur la surface qui le porte et en hérite la profondeur. */
 button, .ghost {
   font: inherit;
   font-weight: 600;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--line);
-  background: var(--surface-2);
+  border-radius: var(--radius-control);
+  border: 1px solid var(--hairline);
+  background: var(--control-bg);
   color: var(--ink);
   padding: 8px 16px;
   cursor: pointer;
-  transition: background-color .2s ease, border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+  transition: background-color var(--dur-hover) ease, border-color var(--dur-hover) ease,
+    box-shadow var(--dur-hover) ease, transform var(--dur-hover) var(--ease-spatial);
 }
-button:hover:not(:disabled), a.ghost:hover { border-color: var(--ink-3); }
-button:active:not(:disabled), a.ghost:active { transform: translateY(1px); }
+button:hover:not(:disabled), a.ghost:hover {
+  background: var(--control-bg-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--highlight), 0 3px 10px rgb(20 30 50 / 6%);
+}
+button:active:not(:disabled), a.ghost:active {
+  transform: scale(.985);
+  transition-duration: var(--dur-press);
+  box-shadow: none;
+}
 button:disabled { opacity: .5; cursor: not-allowed; }
 
 /* L'action qui compte le plus sur l'écran — lancer un cycle, enregistrer une politique — se
@@ -504,17 +722,21 @@ button:disabled { opacity: .5; cursor: not-allowed; }
    habillage. Une ombre et un léger relief au survol la distinguent sans changer la palette. */
 .primary {
   background: var(--accent);
-  border-color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 80%, black);
   color: var(--accent-ink);
   font-weight: 700;
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 18%, transparent);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 22%), 0 4px 12px color-mix(in srgb, var(--accent) 20%, transparent);
 }
-.primary:hover:not(:disabled) { filter: brightness(1.06); box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 24%, transparent); }
+.primary:hover:not(:disabled) {
+  background: var(--accent);
+  filter: brightness(1.06);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 22%), 0 8px 20px color-mix(in srgb, var(--accent) 26%, transparent);
+}
 /* Désactivée, l'action principale ne garde pas l'accent : un vert délavé restait l'élément le plus
    voyant de l'en-tête alors qu'il ne pouvait rien faire. Le motif reste dans son infobulle. */
 .primary:disabled {
-  background: var(--surface-2);
-  border-color: var(--line);
+  background: var(--control-bg);
+  border-color: var(--hairline);
   color: var(--ink-3);
   box-shadow: none;
   opacity: 1;
@@ -525,16 +747,28 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+/* Un champ a son propre anneau, plus doux ; l'anneau reste visible au clavier comme à la souris. */
+:where(input:not([type="checkbox"], [type="radio"], [type="range"]), textarea, select):focus-visible {
+  outline: none;
+}
 
 input, textarea, select {
   font: inherit;
   accent-color: var(--accent);
   width: 100%;
   color: var(--ink);
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  background: var(--field-bg);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
   padding: 9px 12px;
+  /* Une surface légèrement encastrée : l'ombre est dedans, pas dessous. */
+  box-shadow: inset 0 1px 2px rgb(20 30 50 / 5%);
+  transition: border-color var(--dur-hover) ease, box-shadow var(--dur-hover) ease, background-color var(--dur-hover) ease;
+}
+:where(input:not([type="checkbox"], [type="radio"], [type="range"]), textarea, select):focus {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  box-shadow: inset 0 1px 2px rgb(20 30 50 / 4%), 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 textarea { resize: vertical; }
 input[type="range"] { padding: 0; }
@@ -573,12 +807,12 @@ input[type="radio"], input[type="checkbox"] { width: auto; }
 .command-trigger { display: inline-flex; align-items: center; gap: 10px; }
 kbd {
   padding: 2px 6px;
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  background: var(--control-bg);
   color: var(--ink-3);
   font: 10px var(--mono);
-  box-shadow: 0 1px 0 var(--line);
+  box-shadow: inset 0 -1px 0 var(--hairline);
 }
 .command-palette { width: min(660px, calc(100vw - 32px)); padding: 0; overflow: hidden; }
 .command-search { display: flex; align-items: center; gap: 10px; padding: 14px; border-bottom: 1px solid var(--line); }
@@ -592,12 +826,17 @@ kbd {
   gap: 12px;
   padding: 11px 12px;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   background: transparent;
   color: var(--ink);
   text-align: left;
 }
-.command-result:hover, .command-result.selected { background: var(--accent-soft); }
+.command-result:hover, .command-result.selected {
+  background: var(--nav-active-bg);
+  box-shadow: var(--highlight), 0 0 0 1px var(--hairline);
+  transform: none;
+}
+.command-result.selected { color: var(--ink); }
 .command-result small { color: var(--ink-3); }
 .command-hint { margin: 0; padding: 9px 14px; border-top: 1px solid var(--line); color: var(--ink-3); font-size: 11px; }
 
@@ -798,15 +1037,17 @@ legend { font-size: 12px; color: var(--ink-3); text-transform: uppercase; letter
   column-gap: 14px;
   row-gap: 3px;
   padding: 18px;
-  background: var(--surface);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  background: var(--sheen), var(--material-base);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--highlight), 0 0 0 1px var(--hairline), var(--depth-1);
   text-decoration: none;
   color: inherit;
-  transition: box-shadow .12s ease, transform .12s ease, border-color .12s ease;
+  transition: box-shadow var(--dur-hover) ease, transform var(--dur-hover) var(--ease-spatial);
 }
-.kpi:hover { border-color: var(--ink-3); box-shadow: var(--shadow-hover); transform: translateY(-1px); }
+/* Au survol, la carte vient d'un cran vers l'utilisateur — pas d'inclinaison 3D. */
+.kpi:hover { box-shadow: var(--highlight), 0 0 0 1px var(--hairline), var(--depth-2); transform: translateY(-2px); }
+.kpi:active { transform: scale(.985); transition-duration: var(--dur-press); }
 /* Le liseré annonçait déjà l'état ; le fond du bloc le reprend maintenant en douceur — jamais
    la seule couleur pleine, qui friserait l'alerte pour un simple avertissement. Un KPI sans état
    déclaré (`OK`, ou rien à signaler) garde le fond neutre : lui inventer une teinte affirmerait
@@ -929,11 +1170,11 @@ table.grid tr.clickable:hover td:last-child { border-top-right-radius: var(--rad
   flex-direction: column;
   gap: 8px;
   padding: 16px;
-  background: var(--bg);
-  border: 1px solid var(--line-soft);
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  border: 1px solid var(--hairline);
   border-left: 3px solid var(--line);
-  border-radius: var(--radius-sm);
-  transition: box-shadow .12s ease;
+  border-radius: 14px;
+  transition: box-shadow var(--dur-hover) ease, transform var(--dur-hover) var(--ease-spatial);
 }
 .card[data-state="WARNING"] { border-left-color: var(--warn); background: var(--warn-soft); }
 .card[data-state="ERROR"] { border-left-color: var(--danger); background: var(--danger-soft); }
@@ -1016,11 +1257,11 @@ table.grid tr.clickable:hover td:last-child { border-top-right-radius: var(--rad
 .attention-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
 .attention-group {
   min-width: 0;
-  padding: 16px;
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow);
+  padding: 16px 18px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-panel);
+  background: var(--sheen), var(--material-base);
+  box-shadow: var(--highlight), 0 0 0 1px var(--hairline), var(--depth-1);
 }
 .attention-group > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
 .attention-group h2 { margin: 0; font-size: 14px; }
@@ -1135,18 +1376,28 @@ table.grid tr.just-changed td, .compact-card.just-changed { animation: change-ar
 
 /* ── Panneau latéral ─────────────────────────────────────────────────── */
 
+/* Le tiroir flotte au-dessus de l'écran, détaché des bords comme le rail : c'est un plan proche,
+   pas une colonne de plus. */
 .drawer {
   position: fixed;
-  top: 0; right: 0; bottom: 0;
-  width: min(460px, 100vw);
+  top: var(--float-gap); right: var(--float-gap); bottom: var(--float-gap);
+  width: min(460px, calc(100vw - 2 * var(--float-gap)));
   z-index: 30;
   display: flex;
   flex-direction: column;
-  background: var(--surface);
-  border-left: 1px solid var(--line);
-  box-shadow: -8px 0 32px rgb(0 0 0 / 14%);
+  border: 1px solid var(--glass-border-strong);
+  border-radius: 26px;
+  background: var(--sheen), var(--glass-thick-bg);
+  backdrop-filter: blur(var(--blur-thick)) saturate(var(--saturate-thick));
+  -webkit-backdrop-filter: blur(var(--blur-thick)) saturate(var(--saturate-thick));
+  box-shadow: var(--highlight), 0 0 0 1px var(--hairline), var(--depth-3);
+  overflow: hidden;
+  animation: drawer-in var(--dur-panel) var(--ease-spatial) both;
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@keyframes drawer-in {
+  from { opacity: 0; transform: translateX(10px) scale(.985); }
 }
 .drawer-head {
   display: flex;
@@ -1154,7 +1405,7 @@ table.grid tr.just-changed td, .compact-card.just-changed { animation: change-ar
   justify-content: space-between;
   gap: 12px;
   padding: 16px 18px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--hairline);
 }
 .drawer-head h2 { margin: 0; font-size: 16px; font-weight: 700; }
 .drawer-body { flex: 1; overflow: auto; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
@@ -1198,10 +1449,10 @@ table.grid tr.just-changed td, .compact-card.just-changed { animation: change-ar
 
 .incident-cockpit { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 16px; align-items: start; }
 .incident-queue, .incident-detail {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-panel);
+  background: var(--sheen), var(--material-base);
+  box-shadow: var(--highlight), 0 0 0 1px var(--hairline), var(--depth-1);
 }
 .incident-queue { position: sticky; top: 84px; padding: 12px; display: flex; flex-direction: column; gap: 7px; }
 .incident-queue h2 { margin: 2px 4px 8px; font-size: 13px; }
@@ -1257,14 +1508,19 @@ table.grid tr.just-changed td, .compact-card.just-changed { animation: change-ar
 /* Le panneau contextuel est volontairement non modal : l'incident et ses preuves restent lisibles. */
 .context-chat {
   position: fixed;
-  inset: 0 0 0 auto;
+  inset: var(--float-gap) var(--float-gap) var(--float-gap) auto;
   z-index: 35;
-  width: min(430px, 100vw);
+  width: min(430px, calc(100vw - 2 * var(--float-gap)));
   display: flex;
   flex-direction: column;
-  background: var(--surface);
-  border-left: 1px solid var(--line);
-  box-shadow: -12px 0 36px rgb(0 0 0 / 16%);
+  border: 1px solid var(--glass-border-strong);
+  border-radius: 26px;
+  background: var(--sheen), var(--glass-thick-bg);
+  backdrop-filter: blur(var(--blur-thick)) saturate(var(--saturate-thick));
+  -webkit-backdrop-filter: blur(var(--blur-thick)) saturate(var(--saturate-thick));
+  box-shadow: var(--highlight), 0 0 0 1px var(--hairline), var(--depth-3);
+  overflow: hidden;
+  animation: drawer-in var(--dur-panel) var(--ease-spatial) both;
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -1278,7 +1534,7 @@ table.grid tr.just-changed td, .compact-card.just-changed { animation: change-ar
 .context-composer { border-top: 1px solid var(--line); border-radius: 0; box-shadow: none; }
 .context-composer > .ghost { align-self: center; }
 @media (min-width: 1281px) {
-  :root[data-context-chat="open"] main { margin-right: 430px; }
+  :root[data-context-chat="open"] main { margin-right: calc(430px + var(--float-gap)); }
 }
 
 /* ── MCP ─────────────────────────────────────────────────────────────── */
@@ -1287,7 +1543,7 @@ table.grid tr.just-changed td, .compact-card.just-changed { animation: change-ar
    les colonnes vides à leur largeur minimale et laisserait la carte étroite à côté d'un vide,
    plutôt que de la laisser s'étirer sur la largeur du panneau. */
 .servers-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
-.server { border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; background: var(--bg); min-width: 0; }
+.server { border: 1px solid var(--hairline); border-radius: var(--radius-card); padding: 18px; background: color-mix(in srgb, var(--surface-2) 55%, transparent); min-width: 0; }
 .server header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; }
 .server h3 { margin: 0; font: 600 14px var(--mono); }
 .server.disabled { border-style: dashed; opacity: .82; }
@@ -1488,7 +1744,10 @@ table.grid tr.just-changed td, .compact-card.just-changed { animation: change-ar
   z-index: 2;
   margin-bottom: -20px;
   padding-bottom: 20px;
-  background: var(--surface);
+  /* Les amorces défilent sous la saisie : ici le verre a un vrai rôle, il les estompe. */
+  background: var(--glass-thick-bg);
+  backdrop-filter: blur(var(--blur-thin)) saturate(var(--saturate-thin));
+  -webkit-backdrop-filter: blur(var(--blur-thin)) saturate(var(--saturate-thin));
 }
 .composer-side { display: flex; align-items: center; gap: 8px; }
 .switch { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); white-space: nowrap; }
@@ -1505,16 +1764,25 @@ table.grid tr.just-changed td, .compact-card.just-changed { animation: change-ar
 
 /* ── Dialogues et notifications ──────────────────────────────────────── */
 
+/* Un dialogue est le plan le plus proche : matériau épais, grand rayon, ombre profonde et
+   diffuse. Le voile derrière lui reste léger — l'écran ne disparaît pas, il recule. */
 dialog {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
+  border: 1px solid var(--glass-border-strong);
+  border-radius: var(--radius-modal);
+  background: var(--sheen), var(--glass-thick-bg);
+  backdrop-filter: blur(var(--blur-thick)) saturate(var(--saturate-thick));
+  -webkit-backdrop-filter: blur(var(--blur-thick)) saturate(var(--saturate-thick));
   color: var(--ink);
-  padding: 20px;
+  padding: 24px;
   width: min(480px, calc(100vw - 32px));
-  box-shadow: var(--shadow);
+  box-shadow: var(--highlight), 0 0 0 1px var(--hairline), var(--depth-3);
 }
-dialog::backdrop { background: rgb(0 0 0 / 45%); }
+dialog[open] { animation: surface-in var(--dur-panel) var(--ease-spatial) both; }
+dialog::backdrop {
+  background: var(--scrim);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
 dialog h2 { margin: 0 0 6px; font-size: 15px; }
 
 .confirm-row { display: flex; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line-soft); font-size: 13px; }
@@ -1604,15 +1872,16 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
 :root[data-presentation="true"] .overview-hero h1 { font-size: 34px; }
 :root[data-presentation="true"] .kpi-value { font-size: 34px; }
 .toast {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--accent);
-  border-radius: var(--radius-sm);
-  padding: 10px 12px;
-  box-shadow: 0 4px 16px rgb(0 0 0 / 14%);
+  background: var(--sheen), var(--glass-thick-bg);
+  backdrop-filter: blur(var(--blur-regular)) saturate(var(--saturate-regular));
+  -webkit-backdrop-filter: blur(var(--blur-regular)) saturate(var(--saturate-regular));
+  border: 1px solid var(--glass-border-strong);
+  border-radius: var(--radius-popover);
+  padding: 11px 14px;
+  box-shadow: inset 3px 0 0 var(--accent), var(--highlight), 0 0 0 1px var(--hairline), var(--depth-2);
   font-size: 13px;
   overflow-wrap: anywhere;
-  animation: toast-in .18s ease-out;
+  animation: surface-in var(--dur-hover) var(--ease-spatial) both;
 }
 @keyframes toast-in { from { opacity: 0; transform: translateY(6px); } }
 @media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
@@ -1625,7 +1894,7 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
   button, a.ghost { transition: none; }
   button:active:not(:disabled), a.ghost:active { transform: none; }
 }
-.toast.error { border-left-color: var(--danger); background: var(--danger-soft); }
+.toast.error { box-shadow: inset 3px 0 0 var(--danger), var(--highlight), 0 0 0 1px var(--hairline), var(--depth-2); background: var(--sheen), color-mix(in srgb, var(--danger-soft) 88%, transparent); }
 /* Même règle que `.state.error` : le rouge seul ne distinguait pas un échec d'une simple
    confirmation dans la pile de notifications. */
 .toast.error::before { content: "✕ "; font-family: var(--mono); font-weight: 600; color: var(--danger); }
@@ -1678,16 +1947,21 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
 /* ── Mobile : priorité aux actions et aux alertes, pas au tableau ────── */
 
 @media (max-width: 860px) {
-  .shell { grid-template-columns: minmax(0, 1fr); grid-template-areas: "topbar" "main" "rail"; }
+  /* Moins de flou sur mobile : le GPU d'un téléphone paie chaque contexte de composition, et les
+     petites surfaces n'ont pas besoin d'autant de diffusion pour se lire comme du verre. */
+  :root { --blur-thin: 10px; --blur-regular: 16px; --blur-thick: 24px; --float-gap: 8px; }
+  .shell { grid-template-columns: minmax(0, 1fr); grid-template-areas: "topbar" "main" "rail"; gap: 0; padding: var(--float-gap) var(--float-gap) 0; }
   .rail {
     position: sticky;
     bottom: 0;
     z-index: 20;
-    border-right: 0;
-    border-top: 1px solid var(--line);
     gap: 10px;
+    margin-bottom: calc(var(--float-gap) + env(safe-area-inset-bottom, 0px));
+    padding: 8px;
+    border-radius: 22px;
+    overflow: visible;
   }
-  .rail nav { flex-direction: row; overflow-x: auto; scrollbar-width: none; }
+  .rail nav { flex-direction: row; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; margin-inline: 0; padding-inline: 0; }
   .rail nav hr, .nav-section { display: none; }
   .nav-item { white-space: nowrap; }
   .brand, .rail-foot { display: none; }
@@ -1700,9 +1974,8 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
      devient une feuille fixe, comme sur mobile étroit, et reste entièrement cliquable. */
   .action-menu-popover { position: fixed; top: auto; right: 14px; left: 14px; }
   .overview-hero { align-items: flex-start; flex-direction: column; padding: 24px; }
-  main { padding: 14px; }
-  .drawer { width: 100vw; border-left: 0; }
-  .context-chat { width: 100vw; border-left: 0; }
+  main { padding: 14px 4px; }
+  .drawer, .context-chat { inset: 0; width: 100vw; border-radius: 0; border: 0; }
   .incident-cockpit { grid-template-columns: minmax(0, 1fr); }
   .incident-queue { position: static; }
   .incident-detail-head { flex-direction: column; }
@@ -1830,10 +2103,10 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
   justify-content: space-between;
   gap: 16px;
   padding: 15px 17px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-panel);
+  background: var(--sheen), var(--material-base);
+  box-shadow: var(--highlight), 0 0 0 1px var(--hairline), var(--depth-1);
 }
 .attention-summary-copy { display: flex; flex-direction: column; gap: 2px; }
 .attention-summary-copy strong { font-size: 16px; }
@@ -2063,9 +2336,12 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
   gap: 10px;
   margin-bottom: 14px;
   padding: 9px 12px;
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-card);
+  background: var(--glass-thin-bg);
+  backdrop-filter: blur(var(--blur-thin)) saturate(var(--saturate-thin));
+  -webkit-backdrop-filter: blur(var(--blur-thin)) saturate(var(--saturate-thin));
+  box-shadow: var(--highlight), 0 0 0 1px var(--hairline);
 }
 .operator-context .context-scope {
   align-self: center;
@@ -2101,10 +2377,13 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
   top: calc(100% + 6px);
   width: min(360px, 86vw);
   padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  box-shadow: 0 16px 34px rgb(15 23 42 / 16%);
+  border: 1px solid var(--glass-border-strong);
+  border-radius: var(--radius-popover);
+  background: var(--glass-popover-bg);
+  backdrop-filter: blur(var(--blur-thick)) saturate(var(--saturate-thick));
+  -webkit-backdrop-filter: blur(var(--blur-thick)) saturate(var(--saturate-thick));
+  box-shadow: var(--highlight), 0 0 0 1px var(--hairline), var(--depth-2);
+  animation: popover-in var(--dur-hover) var(--ease-spatial) both;
 }
 .dashboard-customizer-row {
   display: flex;
@@ -2269,7 +2548,7 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
     text-align: center;
     scroll-snap-align: start;
   }
-  .rail nav .nav-item[aria-current="page"] { box-shadow: inset 0 -3px var(--accent); }
+  .rail nav .nav-item[aria-current="page"] { box-shadow: var(--highlight), 0 0 0 1px var(--hairline), 0 3px 10px rgb(20 30 50 / 6%); }
   .rail nav .nav-item .badge { position: absolute; transform: translate(14px, -6px); }
   .rail nav .nav-item { position: relative; }
 }
@@ -2336,3 +2615,38 @@ table.grid th button.sort { min-height: 32px; display: inline-flex; align-items:
 .process-links { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0; }
 .process-links:empty { display: none; }
 .process-links a { min-height: 32px; display: inline-flex; align-items: center; }
+
+/* ── Repli sans verre ────────────────────────────────────────────────
+   Sans backdrop-filter, un fond translucide laisserait voir le contenu net sous le texte : les
+   matériaux redeviennent opaques, la profondeur reste portée par les ombres et les liserés. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root, :root[data-theme] {
+    --glass-thin-bg: var(--surface);
+    --glass-regular-bg: var(--surface);
+    --glass-thick-bg: var(--surface);
+    --glass-popover-bg: var(--surface);
+  }
+}
+
+/* Contraste renforcé demandé par le système : plus de transparence, des bords francs. */
+@media (prefers-contrast: more) {
+  :root, :root[data-theme] {
+    --glass-thin-bg: var(--surface);
+    --glass-regular-bg: var(--surface);
+    --glass-thick-bg: var(--surface);
+    --material-base: var(--surface);
+    --hairline: var(--line);
+  }
+}
+
+/* ── Mouvement réduit ────────────────────────────────────────────────
+   Les règles ponctuelles plus haut coupent chaque animation nommée ; celle-ci couvre aussi les
+   transitions de survol et d'appui ajoutées par le système de surfaces. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+  button:hover:not(:disabled), a.ghost:hover, .kpi:hover, .kpi:active, .nav-item:active { transform: none; }
+}

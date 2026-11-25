@@ -1183,6 +1183,12 @@ $('#forget-key').addEventListener('click', () => {
 
 mcpServer.bind();
 addEventListener('hashchange', route);
+// La barre du haut se rapproche dès que le contenu défile sous elle. Un attribut plutôt qu'un
+// style posé ici : le rendu reste dans la feuille de style, et l'écoute est passive.
+$('#main').addEventListener('scroll', (event) => {
+  const scrolled = String(event.currentTarget.scrollTop > 4);
+  if (document.documentElement.dataset.scrolled !== scrolled) document.documentElement.dataset.scrolled = scrolled;
+}, { passive: true });
 
 syncThemeButton();
 syncDensityButton();
