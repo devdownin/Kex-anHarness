@@ -294,10 +294,15 @@ function card(server) {
     actions.append(remove);
   }
   node.append(actions);
-  node.append(kafkaExplorerSkills(server, managed));
+  if (isKafkaExplorer(server)) node.append(kafkaExplorerSkills(server, managed));
   return node;
 }
 
+
+function isKafkaExplorer(server) {
+  const identity = `${server.connection || ''} ${server.serverName || ''}`.toLowerCase();
+  return identity.includes('kafka') || (server.tools || []).some((tool) => tool.name?.startsWith('kex_'));
+}
 
 function kafkaExplorerSkills(server, managed) {
   const section = el('section', 'mcp-kafka-skills stack');
