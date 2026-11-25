@@ -13,6 +13,7 @@
 
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
+import { throttle, throttleFactor } from './throttle.mjs';
 
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? 'playwright');
 
@@ -22,6 +23,10 @@ const GATEWAY_PORT = Number(process.env.KEX_GATEWAY_PORT ?? 8098);
 
 // Une passerelle réduite à /models : le tri numérique et l'état « non annoncé » ont besoin d'un
 // catalogue, et la CI n'appelle aucun tiers.
+// Validé avant tout le reste : une valeur invalide arrête le script au lieu de le laisser tourner à
+// vitesse normale en se disant ralenti.
+throttleFactor();
+
 const gateway = createServer((request, response) => {
   response.writeHead(200, { 'Content-Type': 'application/json' });
   response.end(JSON.stringify({ data: [
@@ -49,6 +54,8 @@ const context = await browser.newContext({ viewport: { width: 1280, height: 1000
 const page = await context.newPage();
 page.setDefaultTimeout(10000);
 page.setDefaultNavigationTimeout(10000);
+const slowdown = await throttle(context, page);
+if (slowdown > 1) console.log(`Processeur ralenti ×${slowdown} (KEX_CPU_THROTTLE).`);
 
 /**
  * Ouvre une vue en forçant son chargement. `route()` ne recharge une vue que si elle diffère de la
