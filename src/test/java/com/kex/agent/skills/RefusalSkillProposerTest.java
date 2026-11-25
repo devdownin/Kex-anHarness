@@ -56,19 +56,35 @@ class RefusalSkillProposerTest {
                 .propose(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
-    /** Une règle déjà rejetée décrivait l'état d'alors : de nouveaux refus méritent un nouvel avis. */
+    /**
+     * Une règle déjà rejetée décrivait l'état d'alors : de nouveaux refus changent son texte — il
+     * liste les décisions — et méritent un nouvel avis. Le garde du proposeur ne l'en empêche pas ;
+     * seul un texte identique est refusé, par {@code SkillsService.propose}.
+     */
     @Test
-    void repropose_une_regle_precedemment_rejetee() {
-        RepeatedRefusals refusals = refusals("Trop risqué en heures ouvrées");
-        proposer.onRepeatedRefusals(refusals);
+    void repropose_apres_un_rejet_quand_de_nouveaux_refus_changent_la_regle() {
+        proposer.onRepeatedRefusals(refusals("Trop risqué en heures ouvrées"));
         String proposed = capturedMarkdown();
         given(skills.list("opérateur")).willReturn(List.of(
                 new LearningEntry("id", "opérateur", "SKILL", "Refus répétés sur RESTART_CONSUMER", proposed,
                         "preuve", null, Instant.EPOCH, "REJECTED", "admin", Instant.EPOCH, "non")));
 
-        proposer.onRepeatedRefusals(refusals);
+        proposer.onRepeatedRefusals(refusals("Trop risqué en heures ouvrées", "Le consumer rattrape seul"));
 
         verify(skills, org.mockito.Mockito.times(2)).propose(any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    /** Un événement n'a personne à qui répondre : un texte déjà écarté est abandonné sans erreur. */
+    @Test
+    void abandonne_sans_erreur_une_regle_identique_a_un_rejet() {
+        LearningEntry rejected = new LearningEntry("id", "opérateur", "SKILL", "Refus répétés sur RESTART_CONSUMER",
+                "texte", "preuve", null, Instant.EPOCH, "REJECTED", "admin", Instant.EPOCH, "non");
+        given(skills.list("opérateur")).willReturn(List.of(rejected));
+        given(skills.propose(any(), any(), any(), any(), any(), any(), any(), any()))
+                .willThrow(new SkillAlreadyJudgedException(rejected));
+
+        org.assertj.core.api.Assertions.assertThatCode(
+                () -> proposer.onRepeatedRefusals(refusals("Trop risqué en heures ouvrées"))).doesNotThrowAnyException();
     }
 
     @Test

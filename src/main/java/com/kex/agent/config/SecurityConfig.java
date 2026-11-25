@@ -118,7 +118,7 @@ class SecurityConfig {
                         // au même niveau d'accès que trancher elle-même, pas celui d'une lecture
                         // ordinaire de compétences.
                         .requestMatchers(HttpMethod.GET, "/api/agent/skills/review-queue",
-                                "/api/agent/skills/*/probe-suggestion").hasRole("ADMIN")
+                                "/api/agent/skills/*/probe-suggestion", "/api/agent/skills/*/precedents").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/agent/memory/*",
                                 "/api/agent/memory/summaries/*", "/api/agent/knowledge")
                                 .hasRole("ADMIN")

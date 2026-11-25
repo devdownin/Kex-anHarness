@@ -35,13 +35,24 @@ public final class RefusalSkillProposer {
         String title = TITLE_PREFIX + refusals.capability();
         String markdown = procedure(refusals);
         // Déjà en revue ou déjà approuvée : la règle est connue, seul un nouveau texte mérite un
-        // nouvel arbitrage. Une proposition rejetée peut revenir : l'humain a tranché sur l'état
-        // d'alors, et de nouveaux refus décrivent une autre situation.
+        // nouvel arbitrage. De nouveaux refus produisent un nouveau texte — il liste les décisions —
+        // et reviennent donc en revue ; un texte identique à un rejet ou un retrait, lui, ne porte
+        // rien que l'humain n'ait déjà tranché, et propose() le refuse.
         boolean known = skills.list(refusals.actor()).stream()
-                .anyMatch(entry -> entry.markdown().equals(markdown) && !entry.status().equals("REJECTED"));
+                .anyMatch(entry -> entry.markdown().equals(markdown)
+                        && ("PENDING".equals(entry.status()) || "APPROVED".equals(entry.status())));
         if (known) {
             return;
         }
+        try {
+            proposeRule(refusals, title, markdown);
+        }
+        catch (SkillAlreadyJudgedException ex) {
+            // Silencieux : un événement n'a personne à qui répondre, et la décision est dans l'audit.
+        }
+    }
+
+    private void proposeRule(RepeatedRefusals refusals, String title, String markdown) {
         skills.propose(refusals.actor(), title, markdown, evidence(refusals), null, null, SkillScope.DOMAIN,
                 triggers(refusals));
     }
