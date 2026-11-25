@@ -133,7 +133,10 @@ try {
       await page.locator('#kpis .kpi').first().waitFor();
       await page.locator('#dashboard-customizer summary').click();
       await settled(page);
+      // Chaque bouton est d'abord amené à l'écran, comme le ferait l'opérateur : hors de vue n'est pas
+      // recouvert, et sous WebKit le panneau ouvert sous « Premiers pas » dépassait le bas de l'écran.
       const covered = await page.$$eval('#dashboard-customizer-panel button', (buttons) => buttons.filter((button) => {
+        button.scrollIntoView({ block: 'nearest' });
         const box = button.getBoundingClientRect();
         return !button.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
       }).map((button) => button.getAttribute('aria-label')));
