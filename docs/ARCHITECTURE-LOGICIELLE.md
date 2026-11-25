@@ -3,7 +3,8 @@
 Document de référence : ce que le code **est** aujourd'hui, composant par composant. Les raisons
 de chaque choix — et l'historique des défauts qui les ont imposés — vivent dans le journal de
 décisions [`ARCHITECTURE.md`](ARCHITECTURE.md) ; les propriétés, dans
-[`CONFIGURATION.md`](CONFIGURATION.md). Chaque nom de classe, de route, de table et d'état cité
+[`CONFIGURATION.md`](CONFIGURATION.md). Pour une présentation pédagogique, sans prérequis, voir le
+[guide Word](guide/README.md). Chaque nom de classe, de route, de table et d'état cité
 ici existe dans le code ; un nom qui disparaît du code doit disparaître d'ici.
 
 ## Sommaire
