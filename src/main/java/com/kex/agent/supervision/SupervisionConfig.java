@@ -102,4 +102,24 @@ class SupervisionConfig {
                     properties.schedule().lockAtMostFor(), properties.schedule().adaptive());
         }
     }
+
+    /**
+     * Le même départ autonome, sur une instance que l'exploitant déclare unique
+     * ({@code schedule.single-instance}) : verrou local, sans base. Hors {@code shared-memory}
+     * seulement — sous ce profil, le verrou en base reste le seul qui tienne entre répliques.
+     */
+    @Configuration(proxyBeanMethods = false)
+    @Profile("!shared-memory")
+    @ConditionalOnProperty(prefix = "kex.agent.supervision.schedule", name = {"enabled", "single-instance"},
+            havingValue = "true")
+    @EnableScheduling
+    static class SingleInstanceScheduleConfig {
+
+        @Bean
+        SupervisionScheduler supervisionScheduler(SupervisionService supervision, Clock clock,
+                                                  SupervisionProperties properties) {
+            return new SupervisionScheduler(supervision, new LocalCycleLock(), clock,
+                    properties.schedule().adaptive());
+        }
+    }
 }

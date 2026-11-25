@@ -114,7 +114,23 @@ public record SupervisionProperties(
     public record Schedule(@DefaultValue("false") boolean enabled,
                            @DefaultValue("5m") @DurationMin(millis = 1) java.time.Duration interval,
                            @DefaultValue("10m") @DurationMin(millis = 1) java.time.Duration lockAtMostFor,
-                           @DefaultValue @Valid Adaptive adaptive) {
+                           @DefaultValue @Valid Adaptive adaptive,
+                           /**
+                            * L'exploitant garantit qu'une seule instance de l'agent tourne : le verrou
+                            * devient local et le départ autonome n'exige plus {@code shared-memory}.
+                            * Une déclaration, pas une détection — deux répliques qui la portent toutes
+                            * deux lanceraient chacune leur cycle.
+                            */
+                           @DefaultValue("false") boolean singleInstance) {
+
+        @org.springframework.boot.context.properties.bind.ConstructorBinding
+        public Schedule {
+        }
+
+        public Schedule(boolean enabled, java.time.Duration interval, java.time.Duration lockAtMostFor,
+                        Adaptive adaptive) {
+            this(enabled, interval, lockAtMostFor, adaptive, false);
+        }
     }
 
     /**
