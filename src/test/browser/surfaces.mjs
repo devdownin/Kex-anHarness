@@ -44,6 +44,13 @@ async function check(name, run) {
   }
 }
 
+// Une vue entre en remontant de 6 px : mesurée pendant ce mouvement, la synthèse et les indicateurs
+// semblaient décalés de 3 px. On attend les animations finies ; une pulsation infinie (cycle en
+// cours) ne se termine jamais, elle n'est donc pas attendue.
+const settled = (page) => page.evaluate(() => Promise.all(document.getAnimations()
+  .filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity)
+  .map((animation) => animation.finished.catch(() => {}))));
+
 const style = (locator, property) => locator.evaluate((node, key) => getComputedStyle(node)[key], property);
 const alpha = (color) => {
   const match = color.match(/rgba?\(([^)]+)\)/);
@@ -95,6 +102,7 @@ try {
   await check('grand écran : la synthèse et les indicateurs se font face, sur la même rangée', async () => {
     const { context, page } = await open(wide, 'overview');
     await page.locator('#kpis .kpi').first().waitFor();
+    await settled(page);
     const [hero, kpis] = await Promise.all([page.locator('.overview-hero').boundingBox(), page.locator('#kpis').boundingBox()]);
     assert.ok(Math.abs(hero.y - kpis.y) < 2, `synthèse à ${hero.y}, indicateurs à ${kpis.y}`);
     assert.ok(hero.x + hero.width <= kpis.x, 'synthèse et indicateurs se chevauchent');
@@ -107,6 +115,7 @@ try {
   await check('écran moyen : les blocs gardent une pleine ligne', async () => {
     const { context, page } = await open({ width: 1280, height: 900 }, 'overview');
     await page.locator('#kpis .kpi').first().waitFor();
+    await settled(page);
     const [hero, kpis] = await Promise.all([page.locator('.overview-hero').boundingBox(), page.locator('#kpis').boundingBox()]);
     assert.ok(kpis.y >= hero.y + hero.height, 'grille à colonnes sur un écran trop étroit pour elle');
     await context.close();
