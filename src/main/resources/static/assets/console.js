@@ -477,6 +477,8 @@ function badge(selector, count) {
 /* ── Contexte opérateur et tableau de bord ───────────────────────────── */
 
 const DASHBOARD_DEFAULT = ['onboarding', 'hero', 'kpis', 'forecasts', 'visit', 'incidents', 'verification', 'comparison', 'brief', 'operations', 'timeline'];
+// Les blocs qui partagent une rangée dans la grille du grand écran (console.css, 1360 px et plus).
+const DASHBOARD_SHARED = new Set(['hero', 'kpis', 'brief', 'operations', 'timeline']);
 const DASHBOARD_LABELS = {
   hero: 'Synthèse globale', kpis: 'Indicateurs clés', onboarding: 'Configuration restante',
   forecasts: 'Risques à venir',
@@ -508,6 +510,7 @@ function applyDashboardLayout() {
     if (!node) return;
     node.style.order = String(2 * index + 2);
     node.classList.toggle('dashboard-user-hidden', !item.visible);
+    node.classList.toggle('dashboard-wide', Boolean(item.wide));
   });
   const toolbar = $('#view-overview .overview-customizer');
   if (toolbar) toolbar.style.order = layout[0]?.id === 'onboarding' ? '3' : '1';
@@ -540,7 +543,20 @@ function renderDashboardCustomizer() {
       [layout[index + 1], layout[index]] = [layout[index], layout[index + 1]];
       saveDashboardLayout(layout);
     });
-    actions.append(up, down); row.append(label, actions); return row;
+    actions.append(up, down);
+    // Seuls les blocs qui partagent une rangée sur grand écran ont une largeur à choisir.
+    if (DASHBOARD_SHARED.has(item.id)) {
+      const wide = el('button', 'ghost compact', '⇔'); wide.type = 'button';
+      wide.setAttribute('aria-pressed', String(Boolean(item.wide)));
+      wide.setAttribute('aria-label', `Pleine largeur pour ${DASHBOARD_LABELS[item.id]}`);
+      wide.title = 'Pleine largeur sur grand écran';
+      wide.addEventListener('click', () => {
+        layout[index].wide = !layout[index].wide;
+        saveDashboardLayout(layout);
+      });
+      actions.prepend(wide);
+    }
+    row.append(label, actions); return row;
   }));
 }
 

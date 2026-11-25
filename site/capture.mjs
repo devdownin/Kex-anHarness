@@ -21,6 +21,11 @@ try {
     await page.goto(`${base}/#/${view}`);
     await page.locator('#credentials').evaluate((dialog) => dialog.open && dialog.close());
     await page.waitForTimeout(2500);
+    // Une capture d'écran en erreur n'a rien à faire sur la page de présentation : la CI en a déjà
+    // proposé une pleine de « Jeton refusé », l'agent ayant démarré avec une autre clé que la
+    // sienne. Mieux vaut échouer ici que publier une console en panne.
+    const errors = await page.locator('.state.error:visible').allInnerTexts();
+    if (errors.length) throw new Error(`${view} : ${errors.length} bloc(s) en erreur — ${errors[0].split('\n')[0]}`);
     await page.screenshot({ path: `${out}/${view}.png` });
     console.log(`${out}/${view}.png`);
   }

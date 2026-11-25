@@ -542,10 +542,29 @@ JDK 21 au minimum (la CI et l'image tournent en 21). La CI construit aussi l'ima
   cible de 32 px échouait sur un bouton conforme. Les menus entrent en fondu et en translation
   (`popover-in`) ; l'agrandissement reste aux dialogues et aux tiroirs.
 
-- **Un script navigateur rejoué contre un agent déjà parcouru par `console.mjs` n'est plus le même
-  test.** `console.mjs` laisse des cycles et des serveurs dans l'agent ; ensuite, le cas
-  « Lancer une analyse » de `first-run.mjs` attend un « Joindre un serveur MCP » qui ne vient plus,
-  et échoue avec ou sans le changement en cours. La CI les lance dans l'ordre inverse. Pour juger
-  d'un rouge local, redémarrer l'agent avant de conclure.
+- **Un test qui a besoin d'un état vide le simule, il ne le suppose pas.** Le cas « Lancer une
+  analyse » de `first-run.mjs` lisait l'état réel de l'agent : jamais analysé, sans serveur MCP. Après
+  `console.mjs`, qui y laisse cycles et serveurs, il échouait — avec ou sans le changement en cours, et
+  aussi sous processeur ralenti, où on l'avait pris pour une course. `blankInstallation(page)` simule
+  désormais l'installation vierge par `page.route`.
+
+- **Le cache Maven de setup-java appartient au premier job qui finit, pas au plus complet.** Tous les
+  workflows partageaient la clé `cache: maven` ; CodeQL ou `mcp-browser`, qui compilent sans tester,
+  l'écrivaient parfois d'abord, sans les modules que Surefire ne résout qu'au lancement des tests. Chaque
+  job de test retéléchargeait alors `surefire-junit-platform`, jusqu'au `429` de Maven Central. Un seul
+  écrivain désormais, le job `build` de `ci.yml` (`actions/cache`), les autres en lecture seule
+  (`actions/cache/restore`) ; `.mvn/maven.config` porte six réessais sur `429` et `503`.
+
+- **Une animation d'entrée en `fill-mode: both` laisse un contexte d'empilement derrière elle.** Le
+  `transform` final reste posé sur chaque bloc de la vue ; le `z-index` d'un panneau ouvert dedans y
+  reste enfermé, et les blocs peints après lui le recouvrent. Sur la vue d'ensemble, 19 boutons de
+  « Personnaliser » sur 20 recevaient en fait le clic d'un indicateur. C'est le conteneur du panneau
+  (`.overview-customizer`) qu'il faut relever.
+
+- **Une variable d'environnement de job l'emporte sur le défaut d'un script.** `explorer-contract`
+  déclare `KEX_AGENT_API_KEY: contract-secret` pour tout le job, mais démarrait l'agent avec
+  `ci-secret` écrit en dur : `site/capture.mjs`, qui lit la variable, a produit des captures de la page
+  de présentation pleines de « Jeton refusé ». L'agent prend maintenant la clé du job, et la capture
+  refuse un écran qui montre un bloc en erreur.
 
 Le détail et les raisons sont dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
