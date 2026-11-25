@@ -10,14 +10,14 @@ services:
   # L'image apache/kafka tourne en `appuser` mais Docker crée le volume nommé en root :
   # un chown unique avant le démarrage du broker.
   kafka-data-init:
-    image: apache/kafka:4.3.1
+    image: apache/kafka:4.4.0
     user: root
     volumes:
       - kafka_data:/var/lib/kafka/data
     entrypoint: ["sh", "-c", "chown -R appuser:appuser /var/lib/kafka/data"]
 
   kafka:
-    image: apache/kafka:4.3.1
+    image: apache/kafka:4.4.0
     ports:
       - "${BIND_ADDR:-127.0.0.1}:${KAFKA_PORT:-9092}:9092"
     # Un nœud KRaft qui s'arrête vide ses logs et ferme proprement ses coordinateurs ;
