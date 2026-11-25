@@ -124,7 +124,7 @@ flowchart TB
 
 | Classe | Rôle |
 |---|---|
-| `AgentService` | Point d'entrée de toute conversation : `ask`, `askStructured`, `stream`, variantes `ReadOnly` / `ForTask`, rejeux `probe` / `probeTogether`, `clear`. Assemble outils, contexte durable, compétences, connaissance et les deux blocs système. |
+| `AgentService` | Point d'entrée de toute conversation : `ask`, `askStructured`, `stream`, variantes `askReadOnly`, `askForTask`, `streamReadOnly`, `streamForTask`, rejeux `probe` / `probeTogether`, `clear`. Assemble outils, contexte durable, compétences, connaissance et les deux blocs système. |
 | `AgentAnswer`, `AgentStructuredAnswer`, `AgentStream`, `AgentEvent`, `AgentUsage`, `AgentProbe` | Contrats de sortie (texte, JSON validé, flux SSE typé, consommation, rejeu). |
 | `JsonSchemaOutputConverter` | Sortie structurée validée contre un JSON Schema fourni par l'appelant. |
 | `TokenBudgetService`, `BudgetRepository` (`File…`/`Jdbc…`), `BudgetController` | Budget de jetons journalier, réservé avant l'appel, partagé en base sous `shared-memory`. |
@@ -582,7 +582,7 @@ haut, menus, dialogues et tiroirs. Les matériaux redeviennent opaques sans `bac
 contraste renforcé. `user-workspace.css` recopie les mêmes valeurs pour l'espace utilisateur.
 Sur grand écran (1360 px et plus), la vue d'ensemble devient une grille de douze colonnes dont
 chaque bloc occupe une largeur selon son poids, sans changer l'ordre choisi dans
-« Personnaliser ».
+« Personnaliser », où chaque bloc qui partage une rangée peut aussi passer en pleine largeur.
 
 ## 12. Déploiement
 
@@ -628,6 +628,7 @@ Détail : [`OBSERVABILITE.md`](OBSERVABILITE.md).
 | Fonctions pures de la console | `src/test/frontend/*.mjs` sous Node |
 | Navigateur | `src/test/browser/*.mjs` sous Playwright, contre un agent réel ; `KEX_CPU_THROTTLE` ralentit le processeur |
 | Surfaces | `src/test/frontend/contrast.mjs` (contraste AA des jetons, clair et sombre) ; `src/test/browser/surfaces.mjs` (verre, opacité des menus, téléphone, mouvement réduit, contraste renforcé, grille), captures en artefact CI `console-surfaces` |
+| Documentation | `scripts/check-architecture-doc.py` (chaque nom cité ici existe dans le code) ; `scripts/check-guide-values.py` (les valeurs du guide pédagogique sont celles de `application.yml`) |
 | Évaluations d'agent | `agent-evals.yml`, corpus avec garde anti-fuite ([`AGENT-EVALUATIONS.md`](AGENT-EVALUATIONS.md)) |
 
 Workflows CI : `ci.yml` (jobs `build`, `mcp-interop`, `browser`, `docker`, `explorer-contract`,

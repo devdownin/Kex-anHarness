@@ -302,8 +302,25 @@ await check('les jetons consommés : un zéro mesuré s’écrit zéro, une mesu
   await context.close();
 });
 
+// Une installation vierge, simulée plutôt que supposée : jamais analysée, sans serveur MCP, sans
+// décision ni geste d'opérateur. Ce cas lisait l'état réel de l'agent, et échouait dès qu'une suite
+// passée avant lui (console.mjs) y avait laissé des cycles et des serveurs.
+async function blankInstallation(page) {
+  await page.route('**/api/agent/supervision/overview', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    await route.fulfill({ response, json: { ...body, agent: { ...body.agent, lastCycleAt: null }, alerts: [], pending: [] } });
+  });
+  for (const path of ['decisions', 'audit']) {
+    await page.route(`**/api/agent/supervision/${path}`, (route) => route.fulfill({ json: [] }));
+  }
+  await page.route('**/api/agent/mcp/servers', (route) => route.fulfill({ json: [] }));
+}
+
 await check('« Lancer une analyse » d’une page vide mène à ce qui bloque le cycle, puis le lance vraiment', async () => {
   const { context, page } = await open(desktop, 'decisions');
+  await blankInstallation(page);
+  await page.reload({ waitUntil: 'domcontentloaded' });
   // Sans serveur MCP joignable, le bouton nomme le blocage et mène à sa levée — plus de lien
   // « Lancer une analyse » vers la Vue d'ensemble, qui ne lançait rien.
   for (const view of ['decisions', 'incidents', 'activity']) {
@@ -314,6 +331,7 @@ await check('« Lancer une analyse » d’une page vide mène à ce qui bloque l
     assert.equal(await page.locator(`#view-${view} a[href="#/overview"]`, { hasText: 'Lancer une analyse' }).count(), 0, view);
   }
   // Blocage levé : le même bouton lance le cycle sur place.
+  await page.unroute('**/api/agent/mcp/servers');
   await page.route('**/api/agent/mcp/servers', (route) => route.fulfill({ json: [{ connection: 'kafka-explorer', initialized: true, tools: [] }] }));
   let launched = 0;
   await page.route('**/api/agent/supervision/cycles', (route) => {

@@ -7,9 +7,11 @@ la mémoire et les compétences. Il détaille aussi treize algorithmes, chacun a
 son principe et, le plus souvent, un exemple chiffré, puis les gains et les contraintes.
 
 C'est un support de formation. La référence technique reste
-[`ARCHITECTURE-LOGICIELLE.md`](../ARCHITECTURE-LOGICIELLE.md). Les valeurs citées sont celles de
-`application.yml` au 25 novembre 2026 : un seuil modifié depuis doit être corrigé dans
-`source/build.cjs`, puis le document régénéré.
+[`ARCHITECTURE-LOGICIELLE.md`](../ARCHITECTURE-LOGICIELLE.md).
+
+Les seuils et délais cités viennent de [`source/values.json`](source/values.json), où chacun est
+rattaché à sa propriété. `scripts/check-guide-values.py`, lancé en CI, échoue dès qu'une valeur
+de `application.yml` change sans que `values.json` et le document suivent.
 
 ## Régénérer
 

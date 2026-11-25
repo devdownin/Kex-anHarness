@@ -7,10 +7,14 @@
 // lisible — et les captures partent en artefact pour l'œil, pas pour une assertion.
 //
 //   PLAYWRIGHT_MODULE=… KEX_SCREENSHOT_DIR=/tmp/captures node src/test/browser/surfaces.mjs
+//   KEX_BROWSER=webkit …   le même parcours sous WebKit, le moteur de Safari : -webkit-backdrop-filter
+//                          et les replis n'y passent pas par le même code que sous Chromium.
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 
-const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? 'playwright');
+const playwright = await import(process.env.PLAYWRIGHT_MODULE ?? 'playwright');
+const ENGINE = process.env.KEX_BROWSER ?? 'chromium';
+if (!['chromium', 'webkit', 'firefox'].includes(ENGINE)) throw new Error(`KEX_BROWSER inconnu : ${ENGINE}`);
 const BASE = process.env.KEX_AGENT_URL ?? 'http://localhost:8081';
 const TOKEN = process.env.KEX_AGENT_API_KEY ?? 'ci-secret';
 const SHOTS = process.env.KEX_SCREENSHOT_DIR;
@@ -20,7 +24,8 @@ const desktop = { width: 1440, height: 900 };
 const wide = { width: 1600, height: 1000 };
 const phone = { width: 390, height: 844 };
 
-const browser = await chromium.launch();
+const browser = await playwright[ENGINE].launch();
+console.log(`Moteur : ${ENGINE}`);
 const failures = [];
 
 async function open(viewport, view, options = {}) {
@@ -36,7 +41,8 @@ async function open(viewport, view, options = {}) {
 
 async function check(name, run) {
   try {
-    await run();
+    // Un contrôle figé échoue au lieu de tenir le job jusqu'à son délai global.
+    await Promise.race([run(), new Promise((_, reject) => setTimeout(() => reject(new Error('délai de 60 s dépassé')), 60000))]);
     console.log(`  ✓ ${name}`);
   } catch (error) {
     failures.push(name);
@@ -47,9 +53,16 @@ async function check(name, run) {
 // Une vue entre en remontant de 6 px : mesurée pendant ce mouvement, la synthèse et les indicateurs
 // semblaient décalés de 3 px. On attend les animations finies ; une pulsation infinie (cycle en
 // cours) ne se termine jamais, elle n'est donc pas attendue.
-const settled = (page) => page.evaluate(() => Promise.all(document.getAnimations()
-  .filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity)
-  .map((animation) => animation.finished.catch(() => {}))));
+// Seules les animations d'éléments affichés comptent : sous WebKit, celle d'un élément masqué
+// (`display: none`, une vue cachée) reste en attente et sa promesse ne se résout jamais — le passage
+// WebKit s'est figé là. Un plafond de 3 s borne de toute façon l'attente.
+const settled = (page) => page.evaluate(() => Promise.race([
+  Promise.all(document.getAnimations()
+    .filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity)
+    .filter((animation) => animation.effect?.target?.checkVisibility?.() ?? true)
+    .map((animation) => animation.finished.catch(() => {}))),
+  new Promise((resolve) => setTimeout(resolve, 3000)),
+]));
 
 const style = (locator, property) => locator.evaluate((node, key) => getComputedStyle(node)[key], property);
 const alpha = (color) => {
@@ -70,7 +83,7 @@ try {
       const blurred = await page.$$eval('.panel', (nodes) => nodes.filter((node) =>
         getComputedStyle(node).backdropFilter.includes('blur')).length);
       assert.equal(blurred, 0, `${blurred} panneau(x) de lecture flouté(s)`);
-      if (SHOTS) await page.screenshot({ path: `${SHOTS}/${colorScheme}-desktop-overview.png` });
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/${ENGINE}-${colorScheme}-desktop-overview.png` });
       await context.close();
     });
 
@@ -83,7 +96,7 @@ try {
       await popover.waitFor();
       const opacity = alpha(await style(popover, 'backgroundColor'));
       assert.ok(opacity >= 0.9, `menu à ${opacity} d'opacité`);
-      if (SHOTS) await page.screenshot({ path: `${SHOTS}/${colorScheme}-desktop-menu.png` });
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/${ENGINE}-${colorScheme}-desktop-menu.png` });
       await context.close();
     });
 
@@ -94,7 +107,7 @@ try {
       const rail = await page.locator('.rail').boundingBox();
       assert.ok(rail.x > 0 && rail.x + rail.width < phone.width, 'la navigation touche les bords de l’écran');
       assert.ok(parseFloat(await style(page.locator('.rail'), 'borderTopLeftRadius')) >= 16, 'navigation sans arrondi');
-      if (SHOTS) await page.screenshot({ path: `${SHOTS}/${colorScheme}-phone-overview.png` });
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/${ENGINE}-${colorScheme}-phone-overview.png` });
       await context.close();
     });
   }
@@ -108,7 +121,43 @@ try {
     assert.ok(hero.x + hero.width <= kpis.x, 'synthèse et indicateurs se chevauchent');
     // L'ordre choisi dans « Personnaliser » reste celui de lecture : la synthèse précède toujours ses indicateurs.
     assert.ok(hero.x < kpis.x, 'les indicateurs passent devant la synthèse');
-    if (SHOTS) await page.screenshot({ path: `${SHOTS}/light-wide-overview.png` });
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/${ENGINE}-light-wide-overview.png` });
+    await context.close();
+  });
+
+  await check('« Personnaliser » passe au-dessus des blocs : aucun de ses boutons n’est recouvert', async () => {
+    // L'animation d'entrée laisse un transform, donc un contexte d'empilement, sur chaque bloc : les
+    // indicateurs recouvraient le panneau, et un clic sur ses flèches tombait sur un indicateur.
+    for (const viewport of [desktop, wide]) {
+      const { context, page } = await open(viewport, 'overview');
+      await page.locator('#kpis .kpi').first().waitFor();
+      await page.locator('#dashboard-customizer summary').click();
+      await settled(page);
+      // Chaque bouton est d'abord amené à l'écran, comme le ferait l'opérateur : hors de vue n'est pas
+      // recouvert, et sous WebKit le panneau ouvert sous « Premiers pas » dépassait le bas de l'écran.
+      const covered = await page.$$eval('#dashboard-customizer-panel button', (buttons) => buttons.filter((button) => {
+        button.scrollIntoView({ block: 'nearest' });
+        const box = button.getBoundingClientRect();
+        return !button.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+      }).map((button) => button.getAttribute('aria-label')));
+      assert.deepEqual(covered, [], `${viewport.width} px : ${covered.length} bouton(s) recouvert(s), dont ${covered[0]}`);
+      await context.close();
+    }
+  });
+
+  await check('grand écran : « Pleine largeur » rend toute la rangée à la synthèse, et le choix tient au rechargement', async () => {
+    const { context, page } = await open(wide, 'overview');
+    await page.locator('#kpis .kpi').first().waitFor();
+    await page.locator('#dashboard-customizer summary').click();
+    const toggle = page.getByRole('button', { name: 'Pleine largeur pour Synthèse globale' });
+    await toggle.click();
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#view-overview:not([hidden])');
+    await page.locator('#kpis .kpi').first().waitFor();
+    await settled(page);
+    const [hero, kpis] = await Promise.all([page.locator('.overview-hero').boundingBox(), page.locator('#kpis').boundingBox()]);
+    assert.ok(kpis.y >= hero.y + hero.height, 'les indicateurs restent à côté de la synthèse');
+    assert.ok(hero.width > kpis.width * 0.95, `synthèse de ${hero.width} px, rangée de ${kpis.width} px`);
     await context.close();
   });
 
@@ -147,7 +196,7 @@ try {
     const scrim = await dialog.evaluate((node) => getComputedStyle(node, '::backdrop').backgroundColor);
     assert.ok(alpha(scrim) <= 0.5, `voile à ${alpha(scrim)} d'opacité`);
     await page.waitForTimeout(300);
-    if (SHOTS) await page.screenshot({ path: `${SHOTS}/dark-desktop-dialog.png` });
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/${ENGINE}-dark-desktop-dialog.png` });
     await context.close();
   });
 
@@ -160,7 +209,7 @@ try {
       const header = page.locator('.app-header');
       assert.match(await style(header, 'backdropFilter'), /blur\(/, `${colorScheme} : en-tête sans verre`);
       assert.ok((await header.boundingBox()).x > 0, `${colorScheme} : en-tête collé au bord`);
-      if (SHOTS) await page.screenshot({ path: `${SHOTS}/${colorScheme}-desktop-app.png` });
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/${ENGINE}-${colorScheme}-desktop-app.png` });
       await context.close();
     }
   });

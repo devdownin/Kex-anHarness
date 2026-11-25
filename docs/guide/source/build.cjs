@@ -19,10 +19,28 @@ const INK = '1B2333';
 const MUTED = '4C586B';
 const CONTENT_W = 9638; // A4 (11906) moins deux marges de 1134
 
+// ── Valeurs de configuration ──────────────────────────────────────────
+// Chaque valeur citée vient de values.json, que scripts/check-guide-values.py confronte à
+// application.yml : un seuil changé dans la configuration ne peut plus laisser le guide faux.
+const VALUES = JSON.parse(fs.readFileSync(path.join(__dirname, 'values.json'), 'utf8')).values;
+const V = Object.fromEntries(Object.entries(VALUES).map(([key, entry]) => [key, entry.text]));
+// Dérivée, pas recopiée : le seuil de compaction en jetons.
+const triggerTokens = Number(VALUES.context_tokens.value) * Number(VALUES.trigger_fraction.value);
+V.trigger_tokens = triggerTokens.toLocaleString('fr-FR').replace(/\u202f/g, ' ');
+// L'exemple chiffré doit rester au-dessus du seuil qu'il illustre.
+if (52000 <= triggerTokens) throw new Error(`L'exemple de compaction (52 000) ne dépasse plus le seuil (${triggerTokens})`);
+function valued(text) {
+  return text.replace(/\{\{(\w+)\}\}/g, (_, key) => {
+    if (!(key in V)) throw new Error(`Valeur inconnue dans le guide : {{${key}}}`);
+    return V[key];
+  });
+}
+
 // ── Aides de mise en forme ────────────────────────────────────────────
 
 // **gras** et `code` dans un texte courant.
 function runs(text, base = {}) {
+  text = valued(text);
   const out = [];
   const re = /(\*\*[^*]+\*\*|`[^`]+`)/g;
   let last = 0; let m;
@@ -191,7 +209,7 @@ const s3 = [
     ['**Capacité**', 'Type d’action que l’agent peut entreprendre : NOTIFY, CREATE_INCIDENT, RESTART_CONSUMER, REPLAY_MESSAGES, MODIFY_CONFIGURATION, DECLARE_ANOMALY, CLEAR_ANOMALY.'],
     ['**Autonomie**', 'Ce que la politique autorise pour une capacité : AUTOMATIC (agir seul), SUPERVISED (demander), FORBIDDEN (recommander seulement).'],
     ['**Décision**', 'Proposition d’action née d’une anomalie, avec son statut (en attente, exécutée, vérifiée, rejetée…).'],
-    ['**Plancher de confiance**', 'Niveau de confiance minimal (0,85 par défaut) en dessous duquel une action, même autorisée, repasse par un humain.'],
+    ['**Plancher de confiance**', 'Niveau de confiance minimal ({{confidence}} par défaut) en dessous duquel une action, même autorisée, repasse par un humain.'],
     ['**Compétence**', 'Règle ou procédure apprise, écrite en texte, injectée dans le contexte du modèle une fois approuvée par un administrateur.'],
     ['**Tâche durable**', 'Plan en plusieurs étapes, approuvé avant d’être exécuté, qui survit à un redémarrage.'],
     ['**Audit**', 'Journal horodaté de ce que l’agent a vu, décidé et fait, et de qui l’a validé.'],
@@ -237,7 +255,7 @@ const s5 = [
   H2('5.1 Entrée et contrôle d’accès'),
   ...steps([
     'La console envoie la question à `POST /api/agent/chat/stream`, accompagnée de la clé API de l’utilisateur.',
-    'Le **filtre de débit** vérifie que cette clé n’a pas dépassé son quota (60 requêtes par minute, avec une réserve de 20 pour les rafales ; voir 10.1).',
+    'Le **filtre de débit** vérifie que cette clé n’a pas dépassé son quota ({{rate}} requêtes par minute, avec une réserve de {{burst}} pour les rafales ; voir 10.1).',
     'La sécurité vérifie le rôle : poser une question exige CHAT, OPERATOR ou ADMIN.',
   ]),
   H2('5.2 Préparation de la demande'),
@@ -247,7 +265,7 @@ const s5 = [
     '**les outils** : il prend la liste des outils autorisés, en retire ceux que la politique interdit, et peut n’en garder qu’un sous-ensemble pertinent (10.3) ;',
     '**le contexte durable** : la charte de l’installation, les compétences invariantes en entier, et un index des compétences de domaine que le modèle peut lire à la demande ;',
     '**la connaissance** : si la base documentaire est active, les passages les plus proches de la question ;',
-    '**l’historique** : les derniers messages de la conversation (40 au plus, compactés au besoin ; 10.4).',
+    '**l’historique** : les derniers messages de la conversation ({{history}} au plus, compactés au besoin ; 10.4).',
   ]),
   P('Le message système part en **deux blocs** : d’abord ce qui ne change jamais pour l’installation, puis ce qui dépend de la demande. Les fournisseurs mettent en cache le début d’un prompt identique d’une requête à l’autre ; garder la partie stable en tête rend ce cache efficace, ce qui réduit le coût et la latence.'),
   H2('5.3 La boucle du modèle'),
@@ -256,7 +274,7 @@ const s5 = [
     'L’agent exécute l’outil sur le serveur MCP Explorer, à travers un **disjoncteur** (10.5).',
     'Le résultat est enveloppé dans une balise `<tool_result trust="untrusted">` avant de revenir au modèle. Cette balise lui rappelle que ce texte est une **donnée** venue de l’extérieur, jamais une instruction à suivre.',
     'Le modèle lit le résultat et décide : rédiger la réponse, ou appeler un autre outil. La boucle continue autant de tours que nécessaire.',
-    'Un **plafond de durée** borne l’échange entier (120 secondes par défaut), pas seulement le silence entre deux morceaux de réponse (10.6).',
+    'Un **plafond de durée** borne l’échange entier ({{request_timeout}} par défaut), pas seulement le silence entre deux morceaux de réponse (10.6).',
   ]),
   H2('5.4 Restitution'),
   P('La réponse arrive mot à mot dans la console par un flux SSE. À la fin, l’agent enregistre la consommation réelle de jetons, libère la part de budget non utilisée et dépose en mémoire long terme un **résumé non vérifié** de l’échange. Ce résumé ne devient « vérifié » qu’après confirmation.'),
@@ -266,7 +284,7 @@ const s5 = [
 
 const s6 = [
   H1('6. Le cycle de supervision'),
-  P('Le cycle est le cœur du superviseur. Il se déclenche à la main (bouton « Exécuter maintenant », rôle OPERATOR) ou automatiquement par le planificateur, toutes les 5 minutes par défaut si la planification est activée.'),
+  P('Le cycle est le cœur du superviseur. Il se déclenche à la main (bouton « Exécuter maintenant », rôle OPERATOR) ou automatiquement par le planificateur, toutes les {{schedule_interval}} par défaut si la planification est activée.'),
   ...figure('f2', 'Les six étapes d’un cycle de supervision'),
   H2('6.1 Étape 1 — Les garde-fous'),
   ...bullets([
@@ -291,7 +309,7 @@ const s6 = [
   H2('6.5 Étapes 5 et 6 — Décider et tracer'),
   P('Chaque anomalie retenue donne lieu à une **décision** (chapitre 7). Tout est inscrit dans l’**audit** : qui a déclenché le cycle, ce qui a été vu, ce qui a été décidé. Si une décision attend un humain, une notification part vers les canaux configurés (Slack, Teams, e-mail, webhook).'),
   H2('6.6 La planification'),
-  P('Le planificateur bat à intervalle **fixe**. À chaque battement, il se demande d’abord s’il y a lieu d’analyser, puis seulement prend le verrou. En mode **adaptatif** (désactivé par défaut), il analyse toutes les 5 minutes quand le dernier cycle a vu un problème, et toutes les 30 minutes quand tout allait bien : on réagit vite à un incident sans dépenser de jetons inutilement le reste du temps.'),
+  P('Le planificateur bat à intervalle **fixe**. À chaque battement, il se demande d’abord s’il y a lieu d’analyser, puis seulement prend le verrou. En mode **adaptatif** (désactivé par défaut), il analyse toutes les {{adaptive_degraded}} quand le dernier cycle a vu un problème, et toutes les {{adaptive_healthy}} quand tout allait bien : on réagit vite à un incident sans dépenser de jetons inutilement le reste du temps.'),
   ...attention('La planification automatique exige soit le profil `shared-memory` (verrou en base), soit la déclaration explicite d’une instance unique (`schedule.single-instance`). Au démarrage, l’agent avertit si la propriété est activée sans ce qui la rend sûre.'),
 ];
 
@@ -313,13 +331,13 @@ const s7 = [
   P('Quatre règles structurent cet arbre :'),
   ...steps([
     '**La politique fixe l’autonomie** de chaque capacité. Le mode d’exécution global (AUTOMATIC, SUPERVISED, MANUAL) ne peut que la **restreindre**, jamais l’élargir.',
-    '**Le plancher de confiance** (0,85 par défaut) s’applique aux actions automatiques. Un plancher propre à une capacité ne peut que **relever** le plancher global.',
+    '**Le plancher de confiance** ({{confidence}} par défaut) s’applique aux actions automatiques. Un plancher propre à une capacité ne peut que **relever** le plancher global.',
     '**Ce que le modèle a écrit n’atteint jamais un outil sans qu’un humain l’ait lu.** Si la décision porte des arguments rédigés par le modèle, l’autonomie AUTOMATIC est rabaissée à SUPERVISED.',
     '**La politique est relue au moment d’agir.** Si elle a changé entre la décision et l’exécution, ou si l’agent est en pause, ou si une maintenance a commencé, l’exécution est bloquée.',
   ]),
   H2('7.3 La validation humaine'),
-  P('Une décision PENDING_APPROVAL apparaît dans la console et peut être notifiée sur Slack, avec des boutons Approuver / Rejeter. Elle expire au bout de 30 minutes par défaut (statut EXPIRED). Approuver exige le rôle OPERATOR ou ADMIN. Un verrou par décision empêche un double clic d’exécuter deux fois la même action.'),
-  P('Un rejet s’accompagne d’un motif. Au-delà de **3 refus concordants** sur une même capacité, l’agent propose une nouvelle compétence qui tire la leçon de ces refus (voir 9.3).'),
+  P('Une décision PENDING_APPROVAL apparaît dans la console et peut être notifiée sur Slack, avec des boutons Approuver / Rejeter. Elle expire au bout de {{approval_timeout}} par défaut (statut EXPIRED). Approuver exige le rôle OPERATOR ou ADMIN. Un verrou par décision empêche un double clic d’exécuter deux fois la même action.'),
+  P('Un rejet s’accompagne d’un motif. Au-delà de **{{min_refusals}} refus concordants** sur une même capacité, l’agent propose une nouvelle compétence qui tire la leçon de ces refus (voir 9.3).'),
   H2('7.4 Exécution et vérification'),
   P('Une action approuvée passe par `callGoverned`, la seule voie qui atteint les outils marqués « gouvernés ». Ces outils sont **cachés au modèle** : il ne peut pas les appeler de lui-même pendant une conversation.'),
   P('Après l’action, l’agent **vérifie** que l’objectif est atteint en relisant l’état par un outil indépendant (10.8). Les statuts possibles :'),
@@ -360,9 +378,9 @@ const s9 = [
   H1('9. Mémoire et apprentissage'),
   P('L’agent apprend, mais sous contrôle. Il distingue soigneusement ce qu’il **retient** (mémoire), ce qu’il **sait faire** (compétences) et ce qu’on lui **impose** (charte).'),
   H2('9.1 La mémoire de conversation'),
-  P('Chaque conversation garde ses 40 derniers messages. Quand cet historique devient trop long, il peut être **compacté** : les messages anciens sont remplacés par un résumé (10.4). Si une requête échoue sans identifiant de conversation fourni, son entrée est purgée : personne ne connaîtrait l’identifiant pour la retrouver.'),
+  P('Chaque conversation garde ses {{history}} derniers messages. Quand cet historique devient trop long, il peut être **compacté** : les messages anciens sont remplacés par un résumé (10.4). Si une requête échoue sans identifiant de conversation fourni, son entrée est purgée : personne ne connaîtrait l’identifiant pour la retrouver.'),
   H2('9.2 La mémoire long terme'),
-  P('Le modèle dispose d’outils pour **retenir** un fait et le **rappeler** plus tard (200 faits au plus, conservés 30 jours par défaut). Après chaque échange, un résumé est déposé avec le statut UNVERIFIED. Un administrateur peut le marquer comme contredit (CONTRADICTED).'),
+  P('Le modèle dispose d’outils pour **retenir** un fait et le **rappeler** plus tard ({{memory_capacity}} faits au plus, conservés {{memory_retention}} par défaut). Après chaque échange, un résumé est déposé avec le statut UNVERIFIED. Un administrateur peut le marquer comme contredit (CONTRADICTED).'),
   H2('9.3 Les compétences'),
   P('Une compétence est une procédure ou une règle écrite en texte, injectée dans le contexte du modèle. Elle suit un circuit de revue strict :'),
   ...table(['Statut', 'Signification'], [
@@ -373,8 +391,8 @@ const s9 = [
   ], [22, 78]),
   P('Deux portées existent :'),
   ...bullets([
-    '**INVARIANT** : une règle valable partout, recopiée en entier dans chaque conversation (3 au plus) ;',
-    '**DOMAIN** : une procédure liée à un sujet, déclenchée par des mots de la demande, ou lue à la demande via l’outil `read_skill` (5 au plus par demande).',
+    '**INVARIANT** : une règle valable partout, recopiée en entier dans chaque conversation ({{skills_invariant}} au plus) ;',
+    '**DOMAIN** : une procédure liée à un sujet, déclenchée par des mots de la demande, ou lue à la demande via l’outil `read_skill` ({{skills_domain}} au plus par demande).',
   ]),
   P('Pour juger une compétence avant de l’approuver, l’administrateur dispose de trois outils :'),
   ...bullets([
@@ -403,7 +421,7 @@ const s10 = [
 
   ...algo('10.1 Le seau à jetons (limite de débit)',
     'Empêcher qu’une clé API sature l’agent, tout en tolérant de courtes rafales.',
-    'Chaque clé possède un seau qui contient au plus 20 jetons et se remplit en continu au rythme de 60 jetons par minute. Chaque requête consomme un jeton ; seau vide, la requête est refusée (HTTP 429).',
+    'Chaque clé possède un seau qui contient au plus {{burst}} jetons et se remplit en continu au rythme de {{rate}} jetons par minute. Chaque requête consomme un jeton ; seau vide, la requête est refusée (HTTP 429).',
     ['le remplissage est calculé à la demande, à partir du temps écoulé depuis le dernier calcul : pas de minuterie ;',
       'les compteurs sont des entiers atomiques multipliés par un million : pas d’arrondi qui ferait perdre des fractions de jeton ;',
       'sous `shared-memory`, le seau vit dans une ligne de la base et vaut pour toutes les instances ; sinon chaque instance a le sien.'],
@@ -419,7 +437,7 @@ const s10 = [
 
   ...algo('10.3 La sélection d’outils par score lexical',
     'Quand un agent dispose de dizaines d’outils, n’en présenter au modèle que les plus pertinents : moins de jetons, moins de confusion.',
-    'La demande et le nom de chaque outil sont découpés en mots, normalisés, puis comparés. Le score d’un outil est le nombre de mots qu’il partage avec la demande. Les 12 meilleurs sont gardés.',
+    'La demande et le nom de chaque outil sont découpés en mots, normalisés, puis comparés. Le score d’un outil est le nombre de mots qu’il partage avec la demande. Les {{tools_selected}} meilleurs sont gardés.',
     ['normalisation : minuscules, accents retirés (décomposition Unicode NFD), mots d’une lettre ignorés ;',
       'quelques synonymes français-anglais sont ajoutés : « retard » → lag, « consommateur » → consumer, « sujet » → topic, « prévision » → forecast… ;',
       'les **descriptions** des outils ne comptent pas : elles viennent du serveur MCP, donc d’une source non fiable qui pourrait les rédiger pour se faire choisir ;',
@@ -429,24 +447,24 @@ const s10 = [
 
   ...algo('10.4 La compaction du contexte',
     'Permettre des conversations longues sans dépasser la fenêtre du modèle ni faire exploser le coût.',
-    'Quand l’historique estimé dépasse 75 % du contexte disponible (64 000 jetons par défaut), les messages anciens sont résumés par le modèle en 1 024 jetons au plus ; les 6 messages les plus récents sont gardés intacts.',
+    'Quand l’historique estimé dépasse {{trigger_fraction}} du contexte disponible ({{context_tokens}} jetons par défaut), les messages anciens sont résumés par le modèle en {{summary_tokens}} jetons au plus ; les {{keep_recent}} messages les plus récents sont gardés intacts.',
     ['l’estimation est volontairement pessimiste (octets UTF-8 plutôt que mots, marge par message) ;',
       'le résumé est marqué `trust="untrusted"` et `status="UNVERIFIED"` : il peut avoir perdu une nuance, le modèle le sait ;',
       'un verrou par conversation empêche deux requêtes de compacter la même conversation en même temps ;',
       'désactivée par défaut (`kex.agent.harness.compaction.enabled`).'],
-    'Une conversation de 52 000 jetons dépasse 48 000 (75 % de 64 000) : les messages anciens deviennent un résumé d’environ 1 000 jetons, les 6 derniers restent tels quels. La requête suivante repart d’une dizaine de milliers de jetons.'),
+    'Une conversation de 52 000 jetons dépasse {{trigger_tokens}} ({{trigger_fraction}} de {{context_tokens}}) : les messages anciens deviennent un résumé d’environ 1 000 jetons, les {{keep_recent}} derniers restent tels quels. La requête suivante repart d’une dizaine de milliers de jetons.'),
 
   ...algo('10.5 Le disjoncteur et le réessai',
     'Éviter qu’un service en panne (fournisseur de modèle ou serveur MCP) ne bloque l’agent ou ne soit martelé de requêtes.',
-    'Le disjoncteur observe les 10 derniers appels. Dès que 5 appels au moins ont eu lieu et que la moitié a échoué, il **s’ouvre** : les appels suivants échouent immédiatement, sans attendre. Après 30 secondes, il laisse passer 3 appels d’essai ; s’ils réussissent, il se referme.',
+    'Le disjoncteur observe les {{cb_window}} derniers appels. Dès que {{cb_minimum}} appels au moins ont eu lieu et que {{cb_failure_rate}} ont échoué, il **s’ouvre** : les appels suivants échouent immédiatement, sans attendre. Après {{cb_open_wait}}, il laisse passer {{cb_half_open}} appels d’essai ; s’ils réussissent, il se referme.',
     ['un disjoncteur par serveur MCP pour les appels directs : une panne n’ouvre pas celui des autres ;',
       'un disjoncteur `agent-model` devant le fournisseur, sur l’appel bloquant comme sur le flux en direct ;',
-      'réessai : jusqu’à 3 tentatives espacées de 500 ms pour les erreurs passagères.'],
+      'réessai : jusqu’à {{retry_attempts}} tentatives espacées de {{retry_wait}} pour les erreurs passagères.'],
     null),
 
   ...algo('10.6 Le plafond de durée d’un flux',
     'Garantir qu’aucune réponse en direct ne tienne une connexion indéfiniment.',
-    'Le flux de réponse est coupé au bout d’une durée totale fixe (120 secondes), quelle que soit l’activité. Un simple délai « entre deux morceaux » ne suffit pas : vingt tours d’outils entrecoupés de texte ne se taisent jamais assez longtemps pour le déclencher.',
+    'Le flux de réponse est coupé au bout d’une durée totale fixe ({{request_timeout}}), quelle que soit l’activité. Un simple délai « entre deux morceaux » ne suffit pas : vingt tours d’outils entrecoupés de texte ne se taisent jamais assez longtemps pour le déclencher.',
     null, null),
 
   ...algo('10.7 Le filtrage des anomalies sans preuve',
@@ -464,7 +482,7 @@ const s10 = [
   ...algo('10.9 Les verrous',
     'Garantir qu’une même chose ne soit faite qu’une fois, même avec plusieurs instances ou des clics répétés.',
     'L’agent utilise quatre verrous, chacun adapté à son objet :',
-    ['**verrou de cycle** : en base, une ligne avec une date d’expiration (`UPDATE … WHERE locked_until < maintenant`), prise pour 10 minutes au plus ; si l’instance qui la tient tombe, le verrou expire seul ;',
+    ['**verrou de cycle** : en base, une ligne avec une date d’expiration (`UPDATE … WHERE locked_until < maintenant`), prise pour {{lock_at_most}} au plus ; si l’instance qui la tient tombe, le verrou expire seul ;',
       '**verrou de décision** : un verrou en mémoire par identifiant, pris sans attendre (`tryLock`) ; le second clic reçoit une réponse « déjà en cours » au lieu d’exécuter deux fois ;',
       '**bail de tâche** : une date de fin de bail enregistrée avec la tâche ; une autre instance ne peut la reprendre qu’après expiration ;',
       '**verrou de conversation** : empêche deux compactions simultanées d’une même conversation.'],
@@ -479,7 +497,7 @@ const s10 = [
 
   ...algo('10.11 La règle tirée des refus répétés',
     'Transformer des refus humains concordants en règle explicite, pour que l’agent cesse de proposer ce qu’on lui refuse.',
-    'Au troisième refus sur une même capacité, l’agent rédige une proposition de compétence à partir des motifs de refus, **sans appel au modèle**. Le texte est déterministe : une même série de refus donne toujours la même proposition, que la déduplication reconnaît.',
+    'Au {{min_refusals}}e refus sur une même capacité, l’agent rédige une proposition de compétence à partir des motifs de refus, **sans appel au modèle**. Le texte est déterministe : une même série de refus donne toujours la même proposition, que la déduplication reconnaît.',
     ['les déclencheurs de la règle sont les noms des processus visés, car c’est ce que le prompt du cycle mentionne ;',
       'la proposition reste PENDING jusqu’à ce qu’un administrateur la juge.'],
     null),
@@ -548,7 +566,7 @@ const s12 = [
     'La sélection d’outils est **lexicale** : elle ne comprend pas les synonymes au-delà d’une courte liste.',
     'Les **cartes interactives Teams** ne peuvent pas déclencher d’action sans un Bot Framework enregistré : l’approbation depuis Teams n’est pas disponible, contrairement à Slack.',
     'Les **prévisions** sont des estimations : elles annoncent un risque, elles ne confirment pas un incident.',
-    'Les **compétences** sont plafonnées (5 de domaine, 3 invariantes) : celles au-delà ne s’appliquent pas, et la curation le signale.',
+    'Les **compétences** sont plafonnées ({{skills_domain}} de domaine, {{skills_invariant}} invariantes) : celles au-delà ne s’appliquent pas, et la curation le signale.',
   ]),
   ...attention('Une fonctionnalité désactivée n’est pas une panne. Une route conditionnée par une propriété répond 404 quand la propriété est fausse ; la console le sait par `whoami` et n’affiche pas d’erreur.'),
 ];
@@ -566,12 +584,12 @@ const s13 = [
   H2('13.2 Les réglages qui comptent le plus'),
   ...table(['Propriété', 'Défaut', 'Effet'], [
     ['`spring.ai.model.chat`', '—', 'Choix du fournisseur de modèle (anthropic, openai…).'],
-    ['`kex.agent.supervision.confidence-threshold`', '0,85', 'Plancher de confiance des actions automatiques.'],
-    ['`kex.agent.supervision.approval-timeout`', '30 min', 'Délai avant expiration d’une décision en attente.'],
+    ['`kex.agent.supervision.confidence-threshold`', '{{confidence}}', 'Plancher de confiance des actions automatiques.'],
+    ['`kex.agent.supervision.approval-timeout`', '{{approval_timeout_short}}', 'Délai avant expiration d’une décision en attente.'],
     ['`kex.agent.supervision.schedule.enabled`', 'false', 'Cycle planifié (avec `shared-memory` ou instance unique déclarée).'],
-    ['`kex.agent.supervision.schedule.interval`', '5 min', 'Battement du planificateur.'],
-    ['`kex.agent.token-budget.daily-limit`', '0', 'Plafond journalier de jetons (0 = aucun).'],
-    ['`kex.agent.rate-limit.requests-per-minute`', '60', 'Débit par clé API (réserve de 20).'],
+    ['`kex.agent.supervision.schedule.interval`', '{{schedule_interval_short}}', 'Battement du planificateur.'],
+    ['`kex.agent.token-budget.daily-limit`', '{{daily_limit}}', 'Plafond journalier de jetons (0 = aucun).'],
+    ['`kex.agent.rate-limit.requests-per-minute`', '{{rate}}', 'Débit par clé API (réserve de {{burst}}).'],
     ['`kex.agent.tasks.enabled`', 'false', 'Tâches durables.'],
     ['`kex.agent.knowledge.enabled`', 'false', 'Base de connaissance.'],
     ['`kex.agent.harness.compaction.enabled`', 'false', 'Compaction du contexte.'],

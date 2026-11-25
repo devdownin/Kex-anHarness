@@ -32,7 +32,16 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-          cache: maven
+      # Seul écrivain du cache Maven : ce job lance toute la suite, donc télécharge aussi
+      # les modules que Surefire ne résout qu'au moment des tests. Un job qui ne fait que
+      # compiler, sauvegardé le premier sous la même clé, en privait tous les autres — et
+      # chaque test retéléchargeait surefire-junit-platform, jusqu'au 429 de Maven Central.
+      - name: Cache Maven repository
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}
+          restore-keys: maven-${{ runner.os }}-
 
       # Aucun secret : le profil `test` fournit une clé Anthropic factice et désactive le
       # client MCP, donc la suite ne sort jamais sur le réseau. Un fork construit à l'identique.
@@ -73,7 +82,13 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-          cache: maven
+      # Lecture seule : le cache est écrit par le job `build` de ci.yml (voir là-bas).
+      - name: Restore Maven repository
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}
+          restore-keys: maven-${{ runner.os }}-
       - name: Run MCP interoperability contract
         run: ./mvnw -B --no-transfer-progress -Dtest=KexMcpServerInteropContractTest,KexMcpServerComplianceTest test
 
@@ -131,7 +146,13 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-          cache: maven
+      # Lecture seule : le cache est écrit par le job `build` de ci.yml (voir là-bas).
+      - name: Restore Maven repository
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}
+          restore-keys: maven-${{ runner.os }}-
 
       # Pas de setup-node : les exécuteurs GitHub embarquent Node et npm, et le script n'utilise
       # que des API stables depuis Node 18. Une action de plus, c'est une empreinte de plus à
@@ -224,6 +245,20 @@ jobs:
           KEX_AGENT_API_KEY: ci-secret
           KEX_SCREENSHOT_DIR: ${{ runner.temp }}/surfaces
         run: node src/test/browser/surfaces.mjs
+
+      # Le même parcours sous WebKit, le moteur de Safari : le verre y passe par
+      # -webkit-backdrop-filter, et ses replis ne se vérifient pas sous Chromium.
+      - name: Check the surface system under WebKit
+        env:
+          PLAYWRIGHT_MODULE: ${{ runner.temp }}/pw/node_modules/playwright/index.mjs
+          KEX_AGENT_URL: http://localhost:8081
+          KEX_AGENT_API_KEY: ci-secret
+          KEX_SCREENSHOT_DIR: ${{ runner.temp }}/surfaces
+          KEX_BROWSER: webkit
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps webkit
+          node src/test/browser/surfaces.mjs
 
       - name: Upload the surface screenshots
         if: always()
@@ -372,7 +407,13 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-          cache: maven
+      # Lecture seule : le cache est écrit par le job `build` de ci.yml (voir là-bas).
+      - name: Restore Maven repository
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}
+          restore-keys: maven-${{ runner.os }}-
 
       - name: Bring Kafka and the pinned Explorer up
         run: |
@@ -422,9 +463,11 @@ jobs:
           set -euo pipefail
           ./mvnw -B --no-transfer-progress -DskipTests package
           KAFKA_EXPLORER_URL=http://localhost:8080 EXPLORER_MCP_AUTH_TOKEN=contract-token \
+          # La clé du job, pas une clé écrite ici : capture.mjs lit KEX_AGENT_API_KEY, et un agent
+          # démarré avec une autre clé a produit des captures pleines de « Jeton refusé ».
           nohup java -jar target/kex-agent-ai-*.jar \
             --server.port=8081 \
-            --kex.agent.api-key=ci-secret \
+            --kex.agent.api-key="$KEX_AGENT_API_KEY" \
             --kex.agent.supervision.processes[0].id=order-integration \
             --kex.agent.supervision.processes[0].name='Order Integration' \
             --spring.ai.model.chat=openai \
