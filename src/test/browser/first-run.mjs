@@ -591,7 +591,9 @@ await check('aucune commande sous 32 px ni texte sous 12 px sur la vue d’ensem
       .filter((node) => parseFloat(getComputedStyle(node).fontSize) < 12).map((node) => `texte ${node.textContent.trim().slice(0, 30)}`);
     return [...small, ...tiny];
   });
-  assert.deepEqual(offenders, []);
+  // check() ne garde que la première ligne du message : sans la liste dans cette ligne, un échec
+  // en CI disait qu'un élément dépassait, jamais lequel — et ne se reproduisait pas en local.
+  assert.deepEqual(offenders, [], `éléments en cause : ${offenders.join(' | ')}`);
   await context.close();
 });
 
