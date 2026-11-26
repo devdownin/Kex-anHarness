@@ -129,6 +129,7 @@ flowchart TB
 | `JsonSchemaOutputConverter` | Sortie structurée validée contre un JSON Schema fourni par l'appelant. |
 | `TokenBudgetService`, `BudgetRepository` (`File…`/`Jdbc…`), `BudgetController` | Budget de jetons journalier, réservé avant l'appel, partagé en base sous `shared-memory`. |
 | `ToolCallRecorder`, `ToolResultEvidence` | Trace des appels d'outils d'un échange, preuves citables par la supervision. |
+| `AnswerEvidence` | Contrôle déterministe des chiffres d'une réponse de chat : se retrouvent-ils dans les résultats d'outils reçus ? Alerte (`evidence` dans la réponse et dans le flux SSE), jamais un refus. |
 | `SkillReaderTool` | Outil `read_skill` : lecture à la demande des compétences de domaine indexées. |
 | `TaskToolPolicy` | Allowlist d'outils d'une étape de tâche durable. |
 | `KafkaOperationalPlaybooks`, `AutoroutesOperationalPlaybook` | Procédures injectées selon la demande. |

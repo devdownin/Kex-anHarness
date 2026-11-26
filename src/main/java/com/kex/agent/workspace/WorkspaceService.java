@@ -114,6 +114,7 @@ public class WorkspaceService {
                                 case AgentEvent.Token token -> { if (text.length() + token.text().length() > 64000) throw new IllegalStateException("Réponse trop longue"); text.append(token.text()); yield event("token", token.text()); }
                                 case AgentEvent.ToolCall tool -> { if (tools.size() >= 200) throw new IllegalStateException("Trop d’appels dans cette demande"); tools.add(tool); yield event("tool", json(tool)); }
                                 case AgentEvent.Sources evidence -> { sources.clear(); sources.addAll(evidence.sources()); yield event("sources", json(sources)); }
+                                case AgentEvent.Evidence verdict -> event("evidence", json(verdict.evidence()));
                             }; }
                         }), Flux.defer(() -> {
                             synchronized (text) {

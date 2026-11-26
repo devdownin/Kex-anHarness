@@ -514,6 +514,21 @@ function renderFinishReason(turn, finishReason) {
   turn.append(note);
 }
 
+/**
+ * Les chiffres de la réponse ne se retrouvent pas tous dans ce que les outils ont rendu. Une note, pas
+ * un blocage : une somme calculée par le modèle n'est pas retrouvée telle quelle. Le texte vient du
+ * serveur, qui sait distinguer « aucun outil appelé » de « un résultat illisible ».
+ */
+function renderEvidence(turn, evidence) {
+  if (!evidence?.message) return;
+  if (evidence.status !== 'UNSUPPORTED' && evidence.status !== 'UNVERIFIABLE') return;
+  turn.querySelector('.evidence-note')?.remove();
+  const note = el('div', 'chips evidence-note');
+  note.append(el('span', evidence.status === 'UNSUPPORTED' ? 'chip failed' : 'chip', `⚠ ${evidence.message}`));
+  note.title = 'Contrôle automatique : une mesure citée sans outil derrière n\u2019est qu\u2019une affirmation.';
+  turn.append(note);
+}
+
 function renderToolLog(calls) {
   $('#tool-log').replaceChildren(...calls.map((call) => {
     const line = el('li');
@@ -562,6 +577,8 @@ async function sendStreaming(message) {
         if (stick) transcript.scrollTop = transcript.scrollHeight;
       } else if (event.name === 'sources') {
         renderSources(turn, JSON.parse(event.data));
+      } else if (event.name === 'evidence') {
+        renderEvidence(turn, JSON.parse(event.data));
       } else if (event.name === 'tool') {
         calls.push(JSON.parse(event.data));
         renderToolChips(turn, calls);
@@ -595,6 +612,7 @@ async function sendBlocking(message) {
   renderToolChips(turn, answer.tools || []);
   renderSources(turn, answer.sources);
   renderFinishReason(turn, answer.finishReason);
+  renderEvidence(turn, answer.evidence);
   renderToolLog(answer.tools || []);
   appendTranscript(answer.conversationId,
     { role: 'agent', text: answer.content, tools: answer.tools, finishReason: answer.finishReason });

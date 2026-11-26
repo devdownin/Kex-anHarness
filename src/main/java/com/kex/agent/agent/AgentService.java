@@ -170,7 +170,9 @@ public class AgentService {
         if (longTermMemory != null && conversation.remembered()) {
             longTermMemory.recordSuccessfulTask(conversation.owner(), conversation.id(), message, text(response), recorder.calls());
         }
-        return new AgentAnswer(conversation.id(), text(response), recorder.calls(), usage, finishReason(response), conversation.sources());
+        String content = text(response);
+        return new AgentAnswer(conversation.id(), content, recorder.calls(), usage, finishReason(response),
+                conversation.sources(), AnswerEvidence.check(content, message, recorder.calls()));
     }
 
     public AgentStructuredAnswer askStructured(String conversationId, String message,
@@ -271,8 +273,14 @@ public class AgentService {
                     tools.tryEmitComplete();
                 });
 
+        // Le constat sur les chiffres ne peut venir qu'après le dernier jeton, et seulement d'un flux
+        // allé à son terme : une erreur ou un timeout saute cette étape comme la mémoire long terme.
+        Flux<AgentEvent> evidence = Flux.defer(() -> {
+            AnswerEvidence.Evidence verdict = AnswerEvidence.check(answer.toString(), message, recorder.calls());
+            return verdict.worthSaying() ? Flux.just(new AgentEvent.Evidence(verdict)) : Flux.empty();
+        });
         return new AgentStream(id, Flux.concat(Flux.defer(() -> conversation.sources().isEmpty() ? Flux.empty()
-                : Flux.just(new AgentEvent.Sources(conversation.sources()))), Flux.merge(tools.asFlux(), tokens)));
+                : Flux.just(new AgentEvent.Sources(conversation.sources()))), Flux.merge(tools.asFlux(), tokens), evidence));
     }
 
     public void clear(String conversationId) {

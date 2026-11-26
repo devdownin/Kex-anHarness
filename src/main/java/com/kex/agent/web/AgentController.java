@@ -13,6 +13,7 @@ import com.kex.agent.agent.AgentService;
 import com.kex.agent.agent.AgentStream;
 import com.kex.agent.agent.AgentStructuredAnswer;
 import com.kex.agent.agent.AgentTimeoutException;
+import com.kex.agent.agent.AnswerEvidence;
 import com.kex.agent.agent.InvalidJsonSchemaException;
 import com.kex.agent.agent.StructuredOutputException;
 import com.kex.agent.config.ActorIdentity;
@@ -99,7 +100,8 @@ class AgentController {
      * Événements nommés plutôt qu'un flux de texte nu : {@code conversation} porte l'identifiant
      * (sans quoi un client qui n'en fournit pas ne peut ni enchaîner ni purger), {@code token} le
      * contenu, {@code tool} l'outil qui vient de s'exécuter — sans quoi le flux reste muet pendant
-     * son exécution — et {@code error} un échec, une connexion coupée en silence étant
+     * son exécution —, {@code evidence} le constat sur les chiffres de la réponse (seulement s'il en a
+     * un, après le dernier jeton) et {@code error} un échec, une connexion coupée en silence étant
      * indiscernable d'une réponse complète.
      */
     @PostMapping(path = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -120,7 +122,13 @@ class AgentController {
             case AgentEvent.Sources sources -> event("sources", sourcesJson(sources.sources()));
             case AgentEvent.Token token -> event("token", token.text());
             case AgentEvent.ToolCall call -> event("tool", toolJson(call));
+            case AgentEvent.Evidence evidence -> event("evidence", evidenceJson(evidence.evidence()));
         };
+    }
+
+    private static String evidenceJson(AnswerEvidence.Evidence evidence) {
+        try { return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(evidence); }
+        catch (com.fasterxml.jackson.core.JsonProcessingException ex) { throw new IllegalStateException("Constat non sérialisable", ex); }
     }
 
     private static String toolJson(AgentEvent.ToolCall call) {

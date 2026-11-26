@@ -273,6 +273,52 @@ class AgentServiceTest {
     }
 
     @Test
+    void le_flux_signale_apres_le_dernier_jeton_un_chiffre_qu_aucun_outil_ne_fonde() {
+        streamingCall();
+        given(streamSpec.content()).willReturn(Flux.just("Le retard est de ", "120 000 messages."));
+
+        StepVerifier.create(service(Duration.ofSeconds(10)).stream("conv-1", "Quel retard ?").events())
+                .expectNext(new AgentEvent.Token("Le retard est de "), new AgentEvent.Token("120 000 messages."))
+                .assertNext(event -> assertThat(event).isInstanceOfSatisfying(AgentEvent.Evidence.class, evidence -> {
+                    assertThat(evidence.evidence().status()).isEqualTo(AnswerEvidence.Status.UNSUPPORTED);
+                    assertThat(evidence.evidence().unsupported()).containsExactly("120 000");
+                }))
+                .verifyComplete();
+    }
+
+    @Test
+    void le_flux_ne_dit_rien_d_une_reponse_sans_chiffre() {
+        streamingCall();
+        given(streamSpec.content()).willReturn(Flux.just("Rien à signaler."));
+
+        StepVerifier.create(service(Duration.ofSeconds(10)).stream("conv-1", "Statut ?").events())
+                .expectNext(new AgentEvent.Token("Rien à signaler."))
+                .verifyComplete();
+    }
+
+    @Test
+    void le_flux_interrompu_ne_porte_aucun_constat_sur_une_reponse_tronquee() {
+        streamingCall();
+        given(streamSpec.content()).willReturn(Flux.concat(Flux.just("Le retard est de 120 000"),
+                Flux.error(new IllegalStateException("coupé"))));
+
+        StepVerifier.create(service(Duration.ofSeconds(10)).stream("conv-1", "Quel retard ?").events())
+                .expectNext(new AgentEvent.Token("Le retard est de 120 000"))
+                .expectError(IllegalStateException.class).verify();
+    }
+
+    @Test
+    void l_appel_bloquant_porte_le_meme_constat() {
+        blockingCall();
+        given(callSpec.chatResponse()).willReturn(response("Le retard est de 120 000 messages."));
+
+        AgentAnswer answer = service(Duration.ofSeconds(10)).ask("conv-1", "Quel retard ?");
+
+        assertThat(answer.evidence().status()).isEqualTo(AnswerEvidence.Status.UNSUPPORTED);
+        assertThat(answer.evidence().message()).contains("120 000");
+    }
+
+    @Test
     void coupe_un_flux_muet_qui_depasse_le_plafond() {
         streamingCall();
         given(streamSpec.content()).willReturn(Flux.never());
