@@ -1684,6 +1684,10 @@ table.grid tr.just-changed td, .compact-card.just-changed { animation: change-ar
 .markdown-body h3.chat-header { font-size: 16px; }
 .markdown-body h4.chat-header { font-size: 15px; }
 .markdown-body h5.chat-header { font-size: 14px; }
+.chat-table-wrap { max-width: 100%; overflow-x: auto; }
+.chat-table { border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.chat-table th, .chat-table td { padding: 4px 10px; border: 1px solid var(--line); text-align: left; }
+.chat-table thead th { font-weight: 700; color: var(--ink); background: var(--surface-2); }
 
 .inline-code {
   font-family: var(--mono);

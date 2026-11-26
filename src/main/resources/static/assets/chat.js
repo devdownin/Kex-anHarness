@@ -14,6 +14,7 @@ import { wireProcessWizard } from './process-creation.js';
 // découpeur SSE pour toute la console : une seconde copie gardait l'espace qui suit `data:`,
 // que la norme retire et que Spring Framework 7.1 émet désormais.
 import { events as serverSentEvents } from './user-stream.js';
+import { parseTable } from './markdown-table.js';
 
 const CONVERSATION_STORAGE = 'kex.agent.conversation';
 
@@ -290,6 +291,17 @@ function parseBlocks(text, parent) {
     if (!trimmed) continue;
 
     const lines = trimmed.split('\n');
+    // Un tableau peut suivre une phrase d'introduction sans ligne vide : il se repère à son en-tête
+    // suivi d'une ligne de séparation, et le texte qui l'entoure reste un bloc à part.
+    const start = lines.findIndex((line, i) => i + 1 < lines.length && parseTable([line, lines[i + 1]]));
+    if (start !== -1) {
+      let end = start + 2;
+      while (end < lines.length && lines[end].includes('|')) end += 1;
+      if (start > 0) parseBlocks(lines.slice(0, start).join('\n'), parent);
+      parent.append(renderTable(parseTable(lines.slice(start, end))));
+      if (end < lines.length) parseBlocks(lines.slice(end).join('\n'), parent);
+      continue;
+    }
     const isList = lines.length > 0 && lines.every((l) => /^\s*[-*•]\s+/.test(l));
 
     if (isList) {
@@ -321,6 +333,34 @@ function parseBlocks(text, parent) {
       }
     }
   }
+}
+
+function renderTable({ headers, align, rows }) {
+  // Enveloppé pour défiler seul : un tableau large ne doit pas élargir la bulle ni la page.
+  const wrap = document.createElement('div');
+  wrap.className = 'chat-table-wrap';
+  const table = document.createElement('table');
+  table.className = 'chat-table';
+  const cell = (tag, text, i) => {
+    const node = document.createElement(tag);
+    if (tag === 'th') node.scope = 'col';
+    if (align[i]) node.style.textAlign = align[i];
+    parseInline(text, node);
+    return node;
+  };
+  const head = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  headers.forEach((text, i) => headRow.append(cell('th', text, i)));
+  head.append(headRow);
+  const body = document.createElement('tbody');
+  for (const row of rows) {
+    const tr = document.createElement('tr');
+    row.forEach((text, i) => tr.append(cell('td', text, i)));
+    body.append(tr);
+  }
+  table.append(head, body);
+  wrap.append(table);
+  return wrap;
 }
 
 function parseInline(text, parent) {

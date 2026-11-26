@@ -1637,6 +1637,31 @@ await check('le cockpit MCP synthétise les connexions et leurs métriques', asy
   await page.unroute('**/api/agent/mcp/storage');
 });
 
+await check('un tableau Markdown reçu en jetons se rend en tableau, espaces des jetons compris', async () => {
+  // Jetons découpés comme les envoie le fournisseur : l'espace en tête de jeton est du contenu, et
+  // `data:  de` en garde une après le séparateur.
+  const tokens = ['Classement', ' :', '\n\n| Rang | Topic |', '\n|---|---:|', '\n| 1 | demo.app.topic |', '\n\nFin', ' du', ' classement.'];
+  const body = 'event: conversation\ndata: conv-table\n\n'
+    + tokens.map((t) => `event: token\n${t.split('\n').map((l) => `data: ${l}`).join('\n')}\n\n`).join('')
+    + 'event: done\ndata: ok\n\n';
+  await page.route('**/api/agent/chat/stream', (route) => route.fulfill({ status: 200,
+    headers: { 'Content-Type': 'text/event-stream' }, body }));
+  await page.goto(`${BASE}/#/chat`);
+  await page.locator('#stream-mode').check();
+  await page.locator('#prompt').fill('Classe les topics');
+  await page.locator('#send').click();
+  const table = page.locator('#transcript .chat-table').last();
+  await table.waitFor();
+  assert.deepEqual(await table.locator('th').allInnerTexts(), ['Rang', 'Topic']);
+  assert.deepEqual(await table.locator('tbody td').allInnerTexts(), ['1', 'demo.app.topic']);
+  assert.equal(await table.locator('tbody td').nth(1).evaluate((n) => n.style.textAlign), 'right');
+  const text = await page.locator('#transcript .markdown-body').last().innerText();
+  assert.match(text, /Classement :/);
+  assert.match(text, /Fin du classement\./);
+  assert.doesNotMatch(text, /\|/, 'aucune barre de tableau ne doit rester en texte brut');
+  await page.unroute('**/api/agent/chat/stream');
+});
+
 await check('des chiffres qu’aucun outil ne fonde sont signalés sous la réponse, en flux comme en bloc', async () => {
   const evidence = { status: 'UNSUPPORTED', toolCalls: 0, unsupported: ['120 000'],
     message: 'Chiffres cités sans qu’aucun outil n’ait été appelé : 120 000' };

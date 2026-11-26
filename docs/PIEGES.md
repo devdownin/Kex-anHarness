@@ -17,7 +17,7 @@ gras, puis pourquoi, puis ce qui le corrige et le test qui l'aurait attrapé.
 - [Supervision, décisions et mesures](#supervision-décisions-et-mesures) — 17
 - [Compétences et mémoire long terme](#compétences-et-mémoire-long-terme) — 10
 - [Persistance et migrations](#persistance-et-migrations) — 3
-- [Console et espace utilisateur](#console-et-espace-utilisateur) — 21
+- [Console et espace utilisateur](#console-et-espace-utilisateur) — 22
 - [Tests](#tests) — 10
 - [CI, image et publication](#ci-image-et-publication) — 6
 
@@ -528,6 +528,15 @@ Rendu, interactions, accessibilité, surfaces et thèmes de l'interface sans bui
   refonte bien plus large que ce que la dérive justifie. En l'écrivant, il a aussi montré que l'accent
   clair (`#167d73`) ne faisait que 4,24:1 sur le bas du dégradé de fond, là où un lien tombe hors d'un
   panneau : `contrast.mjs` ne le mesurait que sur `--surface`. L'accent clair vaut `#14776d`.
+
+- **Un tableau Markdown s'affichait en barres brutes dans le chat.** `renderMarkdown` ne
+  connaissait que listes, titres et paragraphes ; le modèle restitue pourtant volontiers un
+  classement en tableau, et la réponse arrivait en `|Rang|Topic|` illisible. `markdown-table.js`
+  lit le tableau (GFM : en-tête, séparateur d'au moins trois tirets, alignements, barre échappée),
+  testé sous Node ; `chat.js` le rend dans un conteneur qui défile seul. Si en plus les mots
+  arrivent collés, ce n'est pas le rendu : c'est un découpeur SSE qui retire l'espace de tête des
+  jetons — voir l'entrée sur `data:` dans [Modèle et conversation](#modèle-et-conversation), et
+  vérifier que le serveur et la console viennent du même build.
 
 ## Tests
 
