@@ -19,7 +19,7 @@ x-timesfm: &timesfm
 
 services:
   forecast-demo-seed:
-    image: apache/kafka:4.3.1
+    image: apache/kafka:4.4.0
     profiles: [forecast-demo]
     restart: "no"
     depends_on:
