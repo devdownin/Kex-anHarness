@@ -3,7 +3,7 @@
 [`Kex-Agent-Guide-pedagogique.docx`](Kex-Agent-Guide-pedagogique.docx) explique le fonctionnement
 de l'agent à un lecteur sans connaissance préalable de l'IA : ses trois rôles, le trajet d'une
 question, le cycle de supervision, les décisions sous autonomie gouvernée, les tâches durables,
-la mémoire et les compétences. Il détaille aussi treize algorithmes, chacun avec son objectif,
+la mémoire et les compétences (dont celles que publie Kafka SQL Explorer). Il détaille aussi seize algorithmes, chacun avec son objectif,
 son principe et, le plus souvent, un exemple chiffré, puis les gains et les contraintes.
 
 C'est un support de formation. La référence technique reste

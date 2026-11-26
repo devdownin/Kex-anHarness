@@ -72,7 +72,7 @@ function callout(title, text, color = ACCENT, fill = 'EEF8F6') {
   const children = [new Paragraph({
     children: [new TextRun({ text: title, bold: true, color })],
     border: { left: border }, shading: { type: ShadingType.CLEAR, fill, color: 'auto' },
-    spacing: { before: 120, after: 0 }, indent: { left: 200, right: 200 },
+    spacing: { before: 120, after: 0 }, indent: { left: 200, right: 200 }, keepNext: true,
   })];
   for (const line of [].concat(text)) {
     children.push(new Paragraph({
@@ -143,7 +143,7 @@ const cover = [
     ['7', 'Décisions et autonomie gouvernée', 'capacités, arbre de décision, vérification'],
     ['8', 'Les tâches durables', 'cycle de vie, reprise prudente'],
     ['9', 'Mémoire et apprentissage', 'mémoire, compétences, charte, connaissance'],
-    ['10', 'Les algorithmes, un par un', 'treize mécanismes détaillés'],
+    ['10', 'Les algorithmes, un par un', 'seize mécanismes détaillés'],
     ['11', 'Les gains apportés', 'ce que l’agent change'],
     ['12', 'Les contraintes et les limites', 'ce qu’il ne fait pas'],
     ['13', 'Mettre en route', 'démarrage et réglages clés'],
@@ -200,7 +200,7 @@ const s3 = [
   ...table(['Terme', 'Définition'], [
     ['**Modèle de langage (LLM)**', 'Programme qui, à partir d’un texte, produit la suite la plus plausible. Ici, il comprend les demandes, choisit les outils à appeler et rédige les réponses. Fournisseurs possibles : Anthropic, OpenAI, ou un modèle local (Ollama, vLLM).'],
     ['**Jeton (token)**', 'Unité de texte que le modèle lit et écrit, environ trois quarts de mot. Les fournisseurs facturent au jeton : c’est l’unité de coût.'],
-    ['**MCP**', 'Model Context Protocol. Protocole standard qui permet à un agent de découvrir et d’appeler les outils d’un serveur. L’agent est client MCP (il appelle Explorer) et serveur MCP (d’autres l’appellent).'],
+    ['**MCP**', 'Model Context Protocol. Protocole standard qui permet à un agent de découvrir et d’appeler les outils d’un serveur. L’agent est client MCP (il appelle Explorer) et serveur MCP (d’autres l’appellent). Un serveur peut publier trois choses : des **outils** (qui agissent ou mesurent), des **ressources** (du contenu à lire) et des **prompts** (des consignes toutes prêtes).'],
     ['**Outil**', 'Fonction qu’un serveur MCP met à disposition, par exemple « lister les topics » ou « lire le retard d’un consumer ». Le modèle décide de l’appeler ; l’agent l’exécute.'],
     ['**Connexion**', 'Clé qui désigne un serveur MCP dans la configuration (par exemple `kafka-explorer`). C’est toujours par elle que l’agent s’adresse à un serveur.'],
     ['**Processus surveillé**', 'Chaîne métier déclarée par l’exploitant (par exemple « Intégration des commandes »). C’est l’unité que le superviseur analyse.'],
@@ -278,8 +278,11 @@ const s5 = [
   ]),
   H2('5.4 Restitution'),
   P('La réponse arrive mot à mot dans la console par un flux SSE. À la fin, l’agent enregistre la consommation réelle de jetons, libère la part de budget non utilisée et dépose en mémoire long terme un **résumé non vérifié** de l’échange. Ce résumé ne devient « vérifié » qu’après confirmation.'),
-  ...retenir('Le modèle **choisit** les outils, l’agent les **exécute** et **contrôle** tout le reste : droits, budget, durée, robustesse, et traitement des résultats comme données non fiables.'),
   ...attention('Si l’appel échoue (fournisseur injoignable, clé refusée, délai dépassé), l’agent rend une erreur **502** ou **504** qui le dit. Il ne recopie jamais le 401 du fournisseur : on confondrait sinon « votre clé Kex est refusée » et « la clé du fournisseur est fausse ».'),
+  H2('5.5 Les chiffres de la réponse sont contrôlés'),
+  P('Un modèle peut écrire « 120 000 messages de retard » sans qu’aucun outil ait rien mesuré de tel, et la phrase se lit comme une mesure. Une fois la réponse terminée, l’agent compare donc les **chiffres qu’elle cite** à ceux que les outils ont réellement rendus (algorithme 10.14). Si certains ne s’y retrouvent pas, la console affiche une **note** sous la réponse : « Chiffres non retrouvés tels quels dans les résultats des outils ».'),
+  ...attention('C’est une **alerte**, jamais un refus : la réponse reste affichée. Une somme ou un ratio calculé par le modèle à partir de mesures légitimes n’est pas retrouvé tel quel et sera signalé à tort. La note dit « tels quels » pour cette raison.'),
+  ...retenir('Le modèle **choisit** les outils, l’agent les **exécute** et **contrôle** tout le reste : droits, budget, durée, robustesse, traitement des résultats comme données non fiables, et cohérence des chiffres annoncés.'),
 ];
 
 const s6 = [
@@ -307,7 +310,7 @@ const s6 = [
   ]),
   P('Une **fenêtre de maintenance** déclarée sur un processus fait taire les alertes et les décisions, mais pas l’observation : le relevé reste exact, seule la suite se tait.'),
   H2('6.5 Étapes 5 et 6 — Décider et tracer'),
-  P('Chaque anomalie retenue donne lieu à une **décision** (chapitre 7). Tout est inscrit dans l’**audit** : qui a déclenché le cycle, ce qui a été vu, ce qui a été décidé. Si une décision attend un humain, une notification part vers les canaux configurés (Slack, Teams, e-mail, webhook).'),
+  P('Chaque anomalie retenue donne lieu à une **décision** (chapitre 7). Tout est inscrit dans l’**audit** — chaîné par empreintes sous PostgreSQL, voir 10.15 — : qui a déclenché le cycle, ce qui a été vu, ce qui a été décidé. Si une décision attend un humain, une notification part vers les canaux configurés (Slack, Teams, e-mail, webhook).'),
   H2('6.6 La planification'),
   P('Le planificateur bat à intervalle **fixe**. À chaque battement, il se demande d’abord s’il y a lieu d’analyser, puis seulement prend le verrou. En mode **adaptatif** (désactivé par défaut), il analyse toutes les {{adaptive_degraded}} quand le dernier cycle a vu un problème, et toutes les {{adaptive_healthy}} quand tout allait bien : on réagit vite à un incident sans dépenser de jetons inutilement le reste du temps.'),
   ...attention('La planification automatique exige soit le profil `shared-memory` (verrou en base), soit la déclaration explicite d’une instance unique (`schedule.single-instance`). Au démarrage, l’agent avertit si la propriété est activée sans ce qui la rend sûre.'),
@@ -384,7 +387,7 @@ const s9 = [
   H2('9.3 Les compétences'),
   P('Une compétence est une procédure ou une règle écrite en texte, injectée dans le contexte du modèle. Elle suit un circuit de revue strict :'),
   ...table(['Statut', 'Signification'], [
-    ['PENDING', 'Proposée : par le modèle à la suite d’une tâche réussie, par un humain, ou tirée de refus répétés.'],
+    ['PENDING', 'Proposée : par le modèle à la suite d’une tâche réussie, par un humain, tirée de refus répétés, ou importée d’un serveur MCP.'],
     ['APPROVED', 'Validée par un administrateur : elle agit désormais.'],
     ['REJECTED', 'Refusée : un texte identique ne pourra plus être reproposé.'],
     ['RETIRED', 'Retirée par un administrateur : même interdiction de reproposition.'],
@@ -400,9 +403,17 @@ const s9 = [
     '**la revue à l’aveugle** : les deux réponses sont présentées sans dire laquelle utilise la compétence, pour éviter de favoriser celle qu’on s’attend à préférer ;',
     '**les précédents** : les décisions passées comparables.',
   ]),
-  H2('9.4 La charte'),
+  H2('9.4 Les compétences publiées par Kafka SQL Explorer'),
+  P('Depuis sa version 2.9, Kafka SQL Explorer publie ses propres compétences (« diagnostiquer un incident », « analyser une prévision », « relire une évolution de schéma »…) sous forme de **ressources MCP**, avec pour chacune une empreinte SHA-256. Depuis la fiche du serveur, l’administrateur peut les proposer à Kex une par une, ou toutes d’un coup : c’est l’algorithme 10.16.'),
+  ...bullets([
+    '**Rien n’agit tout de suite** : chaque compétence importée est PENDING, comme n’importe quelle autre. Il faut l’approbation d’un administrateur, avec le même rejeu et les mêmes précédents.',
+    '**Le texte est vérifié par Kex lui-même** : l’empreinte est recalculée sur ce que le serveur a envoyé. Un texte qui ne correspond pas à son catalogue est refusé.',
+    '**Les compétences d’ingénierie sont écartées** : celles qui servent à réparer l’intégration continue de l’Explorer ou à publier ses versions n’ont rien à voir avec un cluster.',
+    '**Les prompts du serveur** (six enchaînements d’outils : incident, file de rebut, onboarding d’un domaine…) peuvent aussi être rendus depuis la fiche du serveur. Rendre un prompt **n’exécute rien** : on obtient un texte, à relire puis à envoyer au chat.',
+  ]),
+  H2('9.5 La charte'),
   P('La charte est un texte de référence rédigé par un administrateur, versionné, injecté dans tous les échanges. Contrairement aux compétences, elle ne passe pas par une revue : son seul auteur est un administrateur. Elle **restreint** ce que l’agent propose ; elle n’élargit jamais une autonomie.'),
-  H2('9.5 La base de connaissance'),
+  H2('9.6 La base de connaissance'),
   P('Facultative (`kex.agent.knowledge.enabled`), elle indexe des documents dans un magasin vectoriel. À chaque question, les passages les plus proches en sens sont ajoutés au contexte du modèle. Elle exige un modèle d’embeddings.'),
   ...retenir('L’agent propose, l’humain dispose : aucune règle apprise n’influence le comportement de l’agent sans l’accord explicite d’un administrateur.'),
 ];
@@ -521,6 +532,36 @@ const s10 = [
       'chaque expéditeur Slack est associé à un acteur d’audit nommé : l’audit dit qui a approuvé, pas « Slack » ;',
       'la fonction est éteinte par défaut, et l’agent refuse de démarrer si elle est activée sans secret.'],
     null),
+
+  ...algo('10.14 Le contrôle des chiffres d’une réponse',
+    'Signaler un chiffre que le modèle cite sans qu’aucun outil ne l’ait mesuré : un retard inventé se lit comme un retard mesuré.',
+    'Une fois la réponse écrite, l’agent en extrait les nombres, ne garde que ceux qui peuvent être des mesures, et cherche chacun parmi les nombres des résultats d’outils réellement obtenus. Ceux qui n’y sont pas sont listés dans une note sous la réponse.',
+    ['ne comptent que les nombres d’**au moins trois chiffres**, hors dates, heures, années (1990 à 2099) et chiffres écrits par l’utilisateur lui-même ;',
+      '« 120 000 », « 120000 » et « 120,000 » sont le même nombre ; « 12 » dans un résultat ne couvre jamais « 120 » dans la réponse ;',
+      'quatre constats : **sans objet** (aucun chiffre à contrôler), **fondé**, **non étayé** (des chiffres manquent, ou aucun outil n’a abouti) et **non vérifiable** (un résultat d’outil n’a pas pu être relu : texte libre ou trop long) ;',
+      'le contrôle est **déterministe** et ne fait pas appel à un second modèle : il hériterait du même optimisme que le premier et coûterait un appel de plus par réponse ;',
+      'c’est une alerte, pas un refus. Le faux positif connu est un calcul du modèle (somme, ratio) à partir de mesures légitimes. Dans le doute il vaut mieux laisser passer qu’accuser à tort : « 1,5 » est ainsi confondu avec « 15 ».'],
+    'Question : « Quel est le retard du groupe orders ? » Réponse : « Le groupe a 120 000 messages de retard sur 3 partitions. » L’outil a rendu un retard de 8 412. Le « 3 » n’a que un chiffre : ignoré. Le « 120 000 » ne figure dans aucun résultat : la console affiche « Chiffres non retrouvés tels quels dans les résultats des outils : 120 000 ». Si aucun outil n’avait été appelé, la note dirait « Chiffres cités sans qu’aucun outil n’ait été appelé ».'),
+
+  ...algo('10.15 La chaîne d’audit',
+    'Rendre détectable une modification de l’audit après coup : retirer une ligne, en changer une, en glisser une.',
+    'Chaque entrée reçoit un **rang** et une **empreinte** : le SHA-256 de l’empreinte de l’entrée précédente et de tous ses champs. Changer un champ, retirer ou intercaler une ligne change une empreinte que la suivante avait figée. L’administrateur demande la vérification : l’agent relit la chaîne, recalcule chaque empreinte et rend le rang du premier maillon qui ne tient pas.',
+    ['chaque champ est encodé avec sa longueur, et l’absence de valeur est distinguée de la chaîne vide : sinon déplacer un caractère d’un champ au suivant (« ab » + « c » contre « a » + « bc ») donnerait la même empreinte ;',
+      'la chaîne n’existe que sous PostgreSQL (profil `shared-memory`). En mémoire, l’audit disparaît au redémarrage et personne ne peut le réécrire en dehors de l’agent : il n’y a rien à vérifier, et la réponse ne dit jamais « intègre » ;',
+      'une chaîne **ne prouve rien d’une troncature de sa fin** : supprimer les dernières lignes laisse le reste cohérent. Le rang et l’empreinte du dernier maillon, relevés ailleurs de temps en temps, rendent cette troncature visible ;',
+      'les entrées écrites avant la chaîne sont comptées à part : lisibles, mais sans empreinte à vérifier ;',
+      'si deux instances écrivent en même temps, l’écriture est réessayée au rang suivant.'],
+    'Un audit de cinq entrées. Quelqu’un modifie en base le motif de la troisième. La vérification recalcule l’empreinte du rang 3 : elle diffère de celle que le rang 4 avait figée. Résultat : « chaîne rompue au rang 3 », avec la raison. Les rangs 1 et 2 sont déclarés intacts.'),
+
+  ...algo('10.16 L’import vérifié d’une compétence publiée',
+    'Reprendre une compétence qu’un serveur MCP publie, sans faire confiance au chemin qu’elle a suivi ni au navigateur qui la relaie.',
+    'L’agent lit le catalogue du serveur (`kex://skills`), puis, pour chaque compétence, son fichier `SKILL.md`. Il **recalcule lui-même** l’empreinte SHA-256 et la taille sur les octets reçus et les compare au catalogue. Seule une compétence conforme entre en revue, en état PENDING.',
+    ['un nom ou une adresse hors de la convention `skill://{nom}/SKILL.md` est refusé, comme tout texte de plus de 12 000 caractères ;',
+      'les compétences d’ingénierie de l’éditeur (`kafkaexplorer-…`) sont écartées : elles parlent de son dépôt, pas d’un cluster ;',
+      'les **déclencheurs** sont les mots du nom d’au moins quatre lettres, sans « kafka » (présent dans presque toute demande, il ferait agir la compétence partout), complétés de leur équivalent français quand la forme change : `forecast` donne aussi `prévision` ;',
+      'un texte déjà en revue ou approuvé n’est pas reproposé ; un texte qu’un humain a déjà écarté ne revient pas ;',
+      'un serveur qui ne publie pas de catalogue répond par une erreur, pas par une liste vide : « pas de catalogue ici » n’est pas « aucune compétence ».'],
+    'La compétence `kafka-forecast-analyst` reçoit les déclencheurs « forecast », « prévision », « analyst » et « analyse ». Une demande « une prévision pour le topic orders » la rend éligible ; « liste mes topics Kafka » non. Et tant qu’un administrateur ne l’a pas approuvée, elle n’agit sur aucune conversation.'),
 ];
 
 const s11 = [
@@ -534,6 +575,9 @@ const s11 = [
     ['**Coût maîtrisé**', 'Budget journalier réservé avant la dépense, cache du fournisseur préservé, compaction et sélection d’outils facultatives, cadence adaptative.'],
     ['**Robustesse**', 'Démarrage même si un serveur MCP est injoignable, disjoncteurs isolant les pannes, tâches reprenables après redémarrage.'],
     ['**Savoir capitalisé sous contrôle**', 'Les leçons tirées des tâches et des refus deviennent des compétences, mais seulement après revue humaine.'],
+    ['**Chiffres qui se vérifient**', 'Un chiffre cité qui ne vient d’aucun résultat d’outil est signalé sous la réponse, au lieu de se lire comme une mesure.'],
+    ['**Audit dont l’altération se voit**', 'Sous PostgreSQL, chaque entrée est liée à la précédente par une empreinte : une modification après coup est détectée et située.'],
+    ['**Savoir de l’Explorer repris sans risque**', 'Ses compétences s’importent en un clic, empreinte recalculée par l’agent, et n’agissent qu’après revue humaine ; ses prompts se rendent sans rien exécuter.'],
     ['**Ouverture**', 'Protocole MCP standard : nouveaux outils sans modifier l’agent ; Kex lui-même exposé à d’autres agents.'],
     ['**Indépendance vis-à-vis du fournisseur**', 'Anthropic, OpenAI ou modèle local (Ollama, vLLM) : un réglage, pas une réécriture.'],
     ['**Passage à l’échelle**', 'Profil `shared-memory` : plusieurs instances partagent état, verrous et budgets.'],
@@ -567,6 +611,9 @@ const s12 = [
     'Les **cartes interactives Teams** ne peuvent pas déclencher d’action sans un Bot Framework enregistré : l’approbation depuis Teams n’est pas disponible, contrairement à Slack.',
     'Les **prévisions** sont des estimations : elles annoncent un risque, elles ne confirment pas un incident.',
     'Les **compétences** sont plafonnées ({{skills_domain}} de domaine, {{skills_invariant}} invariantes) : celles au-delà ne s’appliquent pas, et la curation le signale.',
+    'Le **contrôle des chiffres** ne dit rien d’un nombre de moins de trois chiffres, et signale à tort un calcul du modèle. Son taux de faux positifs sur de vraies conversations n’a pas été mesuré : il vaut d’être observé quelques jours avant d’en faire plus qu’une note.',
+    'La **chaîne d’audit** détecte une modification, pas la suppression des dernières lignes, sauf à relever ailleurs l’empreinte de tête. Elle n’existe que sous PostgreSQL.',
+    'L’**import de compétences** suit la convention de publication de l’Explorer (ressources MCP). Il ne prend pas en charge les extensions « skills » natives du protocole, que l’Explorer ne négocie pas non plus.',
   ]),
   ...attention('Une fonctionnalité désactivée n’est pas une panne. Une route conditionnée par une propriété répond 404 quand la propriété est fausse ; la console le sait par `whoami` et n’affiche pas d’erreur.'),
 ];

@@ -271,7 +271,7 @@ Les refus valent les réussites : ils montrent la gouvernance à l'œuvre.
 ```
 Supprime le topic demo.orders.retry.
 ```
-Le serveur MCP d'Explorer est en lecture seule — quinze outils, aucun mutant. L'agent explique ce
+Le serveur MCP d'Explorer est en lecture seule — aucun outil exposé ne modifie le cluster. L'agent explique ce
 qu'il faudrait faire, il ne le fait pas.
 
 ```
