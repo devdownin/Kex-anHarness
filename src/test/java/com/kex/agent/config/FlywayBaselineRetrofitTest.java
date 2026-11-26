@@ -41,8 +41,10 @@ class FlywayBaselineRetrofitTest {
 
         assertThatCode(() -> FlywayTestSchema.migrate(dataSource)).doesNotThrowAnyException();
 
-        // La table pré-existante n'a pas été recréée en écrasant sa structure...
-        assertThat(columns(dataSource, "KEX_SUPERVISION_AUDIT")).containsExactly("ID", "OCCURRED_AT");
+        // La table pré-existante n'a pas été recréée en écrasant sa structure : ses colonnes restent,
+        // les migrations suivantes n'ajoutent que les leurs (V11 : la chaîne de l'audit)...
+        assertThat(columns(dataSource, "KEX_SUPERVISION_AUDIT"))
+                .containsExactly("ID", "OCCURRED_AT", "SEQ", "PREVIOUS_HASH", "ENTRY_HASH");
         // ...et une table qui n'existait pas encore sur cette base est bien apparue.
         assertThat(tableExists(dataSource, "KEX_RATE_LIMIT")).isTrue();
     }

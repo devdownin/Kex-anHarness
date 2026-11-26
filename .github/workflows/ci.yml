@@ -37,7 +37,7 @@ jobs:
       # compiler, sauvegardé le premier sous la même clé, en privait tous les autres — et
       # chaque test retéléchargeait surefire-junit-platform, jusqu'au 429 de Maven Central.
       - name: Cache Maven repository
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.m2/repository
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}
@@ -84,7 +84,7 @@ jobs:
           distribution: 'temurin'
       # Lecture seule : le cache est écrit par le job `build` de ci.yml (voir là-bas).
       - name: Restore Maven repository
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.m2/repository
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}
@@ -148,7 +148,7 @@ jobs:
           distribution: 'temurin'
       # Lecture seule : le cache est écrit par le job `build` de ci.yml (voir là-bas).
       - name: Restore Maven repository
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.m2/repository
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}
@@ -163,7 +163,7 @@ jobs:
         run: ./mvnw -B --no-transfer-progress -DskipTests package
 
       - name: Cache Playwright browsers
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-1.56.1
@@ -228,6 +228,7 @@ jobs:
           node src/test/frontend/blind-review.mjs
           node src/test/frontend/throttle.mjs
           node src/test/frontend/contrast.mjs
+          node src/test/frontend/user-workspace-tokens.mjs
           node src/test/browser/user-workspace.mjs
           node src/test/browser/user-approvals-favorites.mjs
           node src/test/browser/user-context-history.mjs
@@ -409,7 +410,7 @@ jobs:
           distribution: 'temurin'
       # Lecture seule : le cache est écrit par le job `build` de ci.yml (voir là-bas).
       - name: Restore Maven repository
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.m2/repository
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}
@@ -481,7 +482,7 @@ jobs:
           curl -fsS http://localhost:8081/actuator/health
 
       - name: Cache Playwright browsers
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-1.56.1

@@ -302,6 +302,11 @@ public class SupervisionService {
         return auditRepository.recent(properties.historySize());
     }
 
+    /** Relit la chaîne d'audit et dit si, et où, elle a été rompue. */
+    public AuditIntegrity auditIntegrity() {
+        return auditRepository.integrity();
+    }
+
     public List<Decision> decisions() {
         expireStalePendings();
         return state.decisions();

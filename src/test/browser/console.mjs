@@ -436,7 +436,7 @@ await check('le formulaire d’installation du catalogue n’affiche le champ je
   assert.equal(await page.$eval('#install-catalog-token-field', (node) => node.hidden), false);
   await page.click('#cancel-install-catalog');
   // Défaut possible : un <dialog> fermé devient display:none, donc invisible — waitForSelector sur
-  // sa négation d'attribut ne se résoudrait jamais (voir CLAUDE.md). { state: 'hidden' } le fait.
+  // sa négation d'attribut ne se résoudrait jamais (voir docs/PIEGES.md, section Tests). { state: 'hidden' } le fait.
   await page.waitForSelector('dialog#install-catalog', { state: 'hidden' });
 
   // register() teste toujours une vraie poignée de main, même pour une connexion créée désactivée
@@ -1553,7 +1553,7 @@ await check('un canal actif se distingue d’un canal inactif', async () => {
   }));
 
   // Un aller-retour de vue plutôt qu'un rechargement complet : la même adresse ne redéclenche pas
-  // route(), donc pas channels.status() — voir CLAUDE.md.
+  // route(), donc pas channels.status() — voir docs/PIEGES.md, section Console.
   await page.goto(`${BASE}/#/overview`, { waitUntil: 'domcontentloaded' });
   // Une navigation de fragment ne garantit pas que hashchange a été traité. Sans cette
   // attente, le retour immédiat à agent peut supprimer le changement de vue attendu.

@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kex.agent.mcp.ConnectionTrackingToolNames;
 import com.kex.agent.mcp.McpRuntimeProperties;
 import com.kex.agent.mcp.McpToolCatalog;
 import com.kex.agent.tools.ToolInvocationPolicy;
@@ -58,6 +59,16 @@ class AgentConfig {
     @Bean
     McpSyncHttpClientRequestCustomizer mcpTraceContextCustomizer(Tracer tracer, Propagator propagator) {
         return new McpTraceContextCustomizer(tracer, propagator);
+    }
+
+    /**
+     * Remplace le générateur de noms par défaut de Spring AI (son autoconfiguration s'efface devant
+     * un bean de ce type) par un autre qui nomme à l'identique et retient la connexion de chaque
+     * outil : voir {@link ConnectionTrackingToolNames}.
+     */
+    @Bean
+    ConnectionTrackingToolNames mcpToolNamePrefixGenerator() {
+        return new ConnectionTrackingToolNames();
     }
 
     /** ObjectProvider : le contexte doit démarrer même sans serveur MCP configuré. */

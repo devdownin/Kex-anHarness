@@ -105,12 +105,12 @@ Un disjoncteur ouvert (`resilience4j_circuitbreaker_state{state="open"} == 1`) d
 intégration échoue déjà assez pour que l'agent ait cessé de la solliciter — plus précis et plus
 rapide que d'attendre la remontée des `503`/`502` HTTP.
 
-L'appel direct (`POST /mcp/servers/{connection}/tools/{tool}`) a un disjoncteur par connexion
-(`mcp-tool-<connexion>`) : un serveur MCP en panne n'échoue vite que ses propres appels, pas ceux
-des autres. Le chemin piloté par le modèle reste sur le disjoncteur partagé `mcp-tool` — Spring AI
-construit son propre callback (`SyncMcpToolCallback`) sans exposer la connexion dont il vient, donc
-pas moyen de router vers le bon disjoncteur à cet endroit-là. `McpServerInfo.circuitBreakerState`
-et la pastille de la vue technique ne portent donc que l'état du disjoncteur de l'appel direct.
+Chaque connexion a son disjoncteur (`mcp-tool-<connexion>`), pour l'appel direct
+(`POST /mcp/servers/{connection}/tools/{tool}`) comme pour les outils que le modèle appelle : un
+serveur MCP en panne n'échoue vite que ses propres appels, pas ceux des autres. Le disjoncteur
+commun `mcp-tool` ne sert plus qu'à un outil dont la connexion n'a pas pu être lue. `McpServerInfo.circuitBreakerState`
+et la pastille de la vue technique portent donc l'état réel de la connexion, quel que soit le chemin
+qui l'a mise en défaut.
 
 Même état, sans Prometheus : `GET /api/agent/supervision/status` (`circuitBreakers`) et la fiche
 Agent du Control Center l'affichent directement, une pastille par disjoncteur.
@@ -158,3 +158,22 @@ fausse. `KexAgentApplicationTests` le vérifie.
 
 `spring.ai.chat.observations.log-prompt` et `log-completion` font de même au niveau des observations,
 avec le même avertissement.
+
+## Intégrité de l'audit
+
+Sous le profil `shared-memory`, chaque entrée d'audit porte son rang et l'empreinte (SHA-256) de la
+précédente : une ligne réécrite, retirée ou intercalée en base après coup rompt la chaîne.
+`GET /api/agent/supervision/audit/integrity` la relit et rend :
+
+| Champ | Sens |
+|---|---|
+| `verified` | `true` si chaque maillon est intact, `false` au premier qui ne l'est pas, `null` si rien n'a été vérifié |
+| `brokenAt`, `reason` | Le rang du premier maillon en défaut, et ce qui ne va pas |
+| `entries`, `legacy` | Maillons vérifiés ; entrées écrites avant la chaîne (lisibles, non vérifiables) |
+| `headSeq`, `headHash` | Le dernier maillon |
+
+Une chaîne ne prouve rien d'une **troncature de sa fin** : retirer les dernières lignes laisse une
+chaîne plus courte, mais intacte. Relever `headSeq` et `headHash` ailleurs (un journal externe, un
+ticket, une alerte périodique) rend cette troncature visible : le rang relevé doit toujours exister,
+avec la même empreinte. Sans `shared-memory`, l'audit vit en mémoire et la réponse le dit
+(`durable: false`) plutôt que de le déclarer intègre.

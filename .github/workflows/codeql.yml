@@ -33,7 +33,7 @@ jobs:
           distribution: 'temurin'
       # Lecture seule : le cache est écrit par le job `build` de ci.yml (voir là-bas).
       - name: Restore Maven repository
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.m2/repository
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}

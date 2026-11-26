@@ -54,6 +54,21 @@ class SupervisionControllerTest {
     }
 
     @Test
+    void l_integrite_de_l_audit_dit_le_rang_rompu_sans_rien_corriger() {
+        given(supervision.auditIntegrity()).willReturn(new AuditIntegrity(true, false, 2, 0, 3L,
+                "Le contenu de l'entrée a3 ne correspond plus à son empreinte", 5L, "f".repeat(64)));
+
+        assertThat(mvc.get().uri("/api/agent/supervision/audit/integrity"))
+                .hasStatusOk()
+                .bodyJson()
+                .satisfies(json -> {
+                    assertThat(json).extractingPath("$.verified").isEqualTo(false);
+                    assertThat(json).extractingPath("$.brokenAt").isEqualTo(3);
+                    assertThat(json).extractingPath("$.headSeq").isEqualTo(5);
+                });
+    }
+
+    @Test
     void rend_la_vue_d_ensemble_en_une_requete() {
         given(supervision.overview()).willReturn(new Overview(status(AgentState.OPERATIONAL), 24, 23, 1, 0, 0,
                 3, 2, List.of(), List.of(), List.of(), null, List.of(), List.of()));

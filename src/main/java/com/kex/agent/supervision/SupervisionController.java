@@ -159,6 +159,15 @@ class SupervisionController {
         return supervision.audit();
     }
 
+    /**
+     * L'audit relu maillon par maillon : une entrée modifiée, retirée ou intercalée après coup rompt
+     * la chaîne, et la réponse dit à quel rang. Rien ne s'y corrige : c'est un constat.
+     */
+    @GetMapping("/audit/integrity")
+    AuditIntegrity auditIntegrity() {
+        return supervision.auditIntegrity();
+    }
+
     @GetMapping("/policy")
     SupervisionPolicy policy() {
         return supervision.policy();

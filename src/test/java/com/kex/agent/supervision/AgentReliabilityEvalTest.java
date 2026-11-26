@@ -62,13 +62,14 @@ class AgentReliabilityEvalTest {
 
     private static AgentEvalHarness harness() {
         String path = System.getenv("KEX_EVAL_SKILLS");
-        if (path == null || path.isBlank()) return AgentEvalHarness.BASE;
+        AgentEvalHarness skills;
         try {
-            return AgentEvalHarness.load(Path.of(path));
+            skills = path == null || path.isBlank() ? AgentEvalHarness.BASE : AgentEvalHarness.load(Path.of(path));
         }
         catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
+        return skills.withOptions(System.getenv("KEX_EVAL_OPTIONS"));
     }
 
     private static AgentEvalMcpServer start() {
@@ -109,6 +110,11 @@ class AgentReliabilityEvalTest {
             registry.add("kex.agent.tools.rules.recall_facts.denied", () -> true);
         }
         registry.add("kex.agent.token-budget.daily-limit", () -> 0);
+        HARNESS.properties().forEach((name, value) -> registry.add(name, () -> value));
+        if (HARNESS.options().contains("results")) {
+            String results = temporaryDirectory() + "/tool-results.json";
+            registry.add("kex.agent.harness.results.store-path", () -> results);
+        }
         registry.add("kex.agent.supervision.notify.webhook-url", () -> "");
         registry.add("kex.agent.supervision.learning.enabled", () -> false);
         String url = "http://127.0.0.1:" + SERVER.port();

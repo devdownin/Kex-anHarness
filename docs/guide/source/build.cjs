@@ -457,7 +457,7 @@ const s10 = [
   ...algo('10.5 Le disjoncteur et le réessai',
     'Éviter qu’un service en panne (fournisseur de modèle ou serveur MCP) ne bloque l’agent ou ne soit martelé de requêtes.',
     'Le disjoncteur observe les {{cb_window}} derniers appels. Dès que {{cb_minimum}} appels au moins ont eu lieu et que {{cb_failure_rate}} ont échoué, il **s’ouvre** : les appels suivants échouent immédiatement, sans attendre. Après {{cb_open_wait}}, il laisse passer {{cb_half_open}} appels d’essai ; s’ils réussissent, il se referme.',
-    ['un disjoncteur par serveur MCP pour les appels directs : une panne n’ouvre pas celui des autres ;',
+    ['un disjoncteur par serveur MCP, pour les appels directs comme pour ceux que décide le modèle : une panne n’ouvre pas celui des autres ;',
       'un disjoncteur `agent-model` devant le fournisseur, sur l’appel bloquant comme sur le flux en direct ;',
       'réessai : jusqu’à {{retry_attempts}} tentatives espacées de {{retry_wait}} pour les erreurs passagères.'],
     null),
@@ -562,7 +562,7 @@ const s12 = [
   ]),
   H2('12.3 Limites connues de l’implémentation'),
   ...bullets([
-    'Le disjoncteur des appels pilotés par le modèle est **partagé** entre serveurs MCP : la bibliothèque n’indique pas de quelle connexion vient chaque outil.',
+    'Seules les connexions MCP classiques sont suivies pour isoler le disjoncteur par serveur, pas les connexions « modern » de Spring AI, que ce projet ne configure pas.',
     'La sélection d’outils est **lexicale** : elle ne comprend pas les synonymes au-delà d’une courte liste.',
     'Les **cartes interactives Teams** ne peuvent pas déclencher d’action sans un Bot Framework enregistré : l’approbation depuis Teams n’est pas disponible, contrairement à Slack.',
     'Les **prévisions** sont des estimations : elles annoncent un risque, elles ne confirment pas un incident.',

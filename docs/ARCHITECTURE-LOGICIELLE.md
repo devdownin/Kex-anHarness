@@ -145,7 +145,7 @@ flowchart TB
 | `RateLimitFilter`, `TokenBucket`, `InMemoryRateLimiter`, `JdbcRateLimiter` | Limite de débit par clé, locale ou partagée. |
 | `AgentToolRegistry`, `RecordingToolCallbackProvider` | Outils internes exposés au modèle ; enveloppe `<tool_result trust="untrusted">` de chaque résultat. |
 | `McpBearerTokenCustomizer`, `ClientCredentialsTokenSource`, `McpTraceContextCustomizer` | Authentification sortante vers les serveurs MCP (statique ou OAuth2 client credentials), propagation du contexte de trace. |
-| `ResilienceConfig` | Disjoncteurs `agent-model` et `mcp-tool-<connexion>`, retry. |
+| `ResilienceConfig` | Disjoncteurs `agent-model` et `mcp-tool-<connexion>` (partagé entre l'appel direct et les outils du modèle ; `mcp-tool` seul pour une connexion inconnue), retry. |
 | `OpenApiConfig`, `StaticResourceConfig` (dans `web`) | Spécification OpenAPI ; service de la console. |
 
 ### 4.3 `tools` — contrôle des outils
@@ -160,7 +160,7 @@ flowchart TB
 
 | Sous-ensemble | Classes |
 |---|---|
-| Invocation | `McpToolCatalog` (`call`, `callGoverned`, ressources, diagnostics), `DynamicMcpToolCallbackProvider`, `BudgetedMcpCallback`, `McpServerRateLimiter` |
+| Invocation | `McpToolCatalog` (`call`, `callGoverned`, ressources, diagnostics), `DynamicMcpToolCallbackProvider`, `BudgetedMcpCallback`, `ConnectionTrackingToolNames` (nom d'outil → connexion, pour le disjoncteur par serveur), `McpServerRateLimiter` |
 | Inventaire dynamique | `McpServerRegistration`, `EncryptedMcpServerStore` (fichier chiffré `mcp-servers.enc`), `McpSecretRotation`, `McpConfigurationBundle`, `McpRuntimeServerView`, `McpToolDiff` |
 | Santé | `McpHealthCheckScheduler`, `McpHealthSample`, `McpServerDiagnostics`, `McpConnectionTestResult` |
 | Catalogue d'installation | `McpCatalogController`, `McpRecommendedCatalog`, `McpCatalogDiscoveryService`, sources `OfficialMcpRegistrySource` et `DockerMcpCatalogSource`, `McpTrustScoreCalculator` (`McpTrustScore`, `McpTrustCriterion*`) |
@@ -259,7 +259,7 @@ Vue technique, sans recalcul : `KafkaViewService` (topics, lag via `MeasuredValu
 | Contrôleur | Base | Routes |
 |---|---|---|
 | `AgentController` | `/api/agent` | `POST /chat`, `/chat/structured`, `/chat/stream` (SSE) ; `DELETE /conversations/{conversationId}` ; `/mcp/servers` (GET, POST, `test`), `/mcp/runtime-servers`, `/mcp/servers/{connection}` (PUT, DELETE, `enabled`, `secret`, `refresh`, `diagnostics`, `preview`, `resources`, `resource`), `POST /mcp/servers/{connection}/tools/{tool}`, `/mcp/configuration` (GET, POST), `/mcp/storage`, `/mcp/metrics` |
-| `SupervisionController` | `/supervision` | `overview`, `status`, `processes` (+ `definitions`, POST), `alerts`, `performance`, `cycles` (GET, POST, `current`), `decisions` (+ `{decision}`, `pending`, `approve`, `reject`), `processes/{process}/maintenance` (POST, DELETE), `processes/{process}/history`, `audit`, `policy` (GET, PUT), `pause`, `resume`, `notify/test` |
+| `SupervisionController` | `/supervision` | `overview`, `status`, `processes` (+ `definitions`, POST), `alerts`, `performance`, `cycles` (GET, POST, `current`), `decisions` (+ `{decision}`, `pending`, `approve`, `reject`), `processes/{process}/maintenance` (POST, DELETE), `processes/{process}/history`, `audit` (+ `integrity`), `policy` (GET, PUT), `pause`, `resume`, `notify/test` |
 | `SkillsController` | `/skills` | GET, POST, `available`, `review-queue`, `curation`, `{id}/retire`, `{id}/probe-suggestion`, `{id}/precedents`, `{id}/probe`, `probe-together`, `{id}/approve`, `{id}/reject` |
 | `CharterController` | `/charter` | GET, PUT, `versions` |
 | `TaskController` | `/tasks` | GET, POST, `{id}`, `bindings`, `plan`, `{id}/approve`, `{id}/run`, `{id}/cancel` |
@@ -514,6 +514,7 @@ outil est permis.
 | `V8__skill_scope_and_probes` | Portée des compétences, rejeux |
 | `V9__skill_reads` | Lectures de compétences |
 | `V10__harness_context` | Résultats d'outils, verrou de conversation |
+| `V11__audit_chain` | Chaîne de l'audit : rang, empreinte précédente, empreinte de l'entrée |
 
 Flyway n'est actif que sous `shared-memory` ; hors de ce profil, `DataSourceAutoConfiguration`
 et `FlywayAutoConfiguration` sont exclus. Les tests de dépôt JDBC rejouent la vraie migration
@@ -615,7 +616,7 @@ première fois en local pour le scan Trivy, puis poussée depuis le même cache.
 | Santé | `/actuator/health` (public), `KexMcpServerHealthIndicator` |
 | Métriques | `/actuator/prometheus` (`METRICS` ou `ADMIN`) ; `kex.mcp.tool.call`, `kex.mcp.server.request`, `kex.mcp.server.up` ; `gen_ai.client.token.usage` (filtrer `gen_ai.token.type`) ; disjoncteurs Resilience4j |
 | Traces | Micrometer Tracing → OpenTelemetry OTLP ; contexte propagé aux serveurs MCP (`McpTraceContextCustomizer`) |
-| Audit métier | `AuditRepository` (`/supervision/audit`), `McpServerAuditPublisher`, `AutomationAudit` |
+| Audit métier | `AuditRepository` (`/supervision/audit`), chaîné sous `shared-memory` : `AuditChain` (SHA-256 de l'entrée et de la précédente), vérifié par `/supervision/audit/integrity` ; `McpServerAuditPublisher`, `AutomationAudit` |
 | Journal des prompts | `kex.agent.log-interactions` (`SimpleLoggerAdvisor` en `DEBUG`) |
 
 Détail : [`OBSERVABILITE.md`](OBSERVABILITE.md).
@@ -627,7 +628,7 @@ Détail : [`OBSERVABILITE.md`](OBSERVABILITE.md).
 | Unitaires et intégration Java | 165 classes `*Test` (JUnit, Mockito, MockMvc, H2 + vraie migration Flyway, `reactor-test`) |
 | Fonctions pures de la console | `src/test/frontend/*.mjs` sous Node |
 | Navigateur | `src/test/browser/*.mjs` sous Playwright, contre un agent réel ; `KEX_CPU_THROTTLE` ralentit le processeur |
-| Surfaces | `src/test/frontend/contrast.mjs` (contraste AA des jetons, clair et sombre) ; `src/test/browser/surfaces.mjs` (verre, opacité des menus, téléphone, mouvement réduit, contraste renforcé, grille), captures en artefact CI `console-surfaces` |
+| Surfaces | `src/test/frontend/contrast.mjs` (contraste AA des jetons, clair et sombre) ; `src/test/frontend/user-workspace-tokens.mjs` (les valeurs recopiées par l'espace utilisateur restent celles de la console, et ses textes passent AA) ; `src/test/browser/surfaces.mjs` (verre, opacité des menus, téléphone, mouvement réduit, contraste renforcé, grille), captures en artefact CI `console-surfaces` |
 | Documentation | `scripts/check-architecture-doc.py` (chaque nom cité ici existe dans le code) ; `scripts/check-guide-values.py` (les valeurs du guide pédagogique sont celles de `application.yml`) |
 | Évaluations d'agent | `agent-evals.yml`, corpus avec garde anti-fuite ([`AGENT-EVALUATIONS.md`](AGENT-EVALUATIONS.md)) |
 
@@ -642,7 +643,7 @@ sous 85 % / 70 %) et SBOM (CycloneDX).
 ## 15. Invariants transverses
 
 Les règles que tout composant respecte ; leur justification est dans
-[`ARCHITECTURE.md`](ARCHITECTURE.md) et [`CLAUDE.md`](../CLAUDE.md).
+[`ARCHITECTURE.md`](ARCHITECTURE.md) et [`PIEGES.md`](PIEGES.md).
 
 1. **Absence ≠ zéro ≠ OK.** Une mesure absente reste absente, un état illisible vaut `UNKNOWN`,
    un taux sur zéro verdict vaut `null`.
