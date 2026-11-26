@@ -636,6 +636,36 @@ public class McpToolCatalog implements AutoCloseable {
                 .toList();
     }
 
+    /**
+     * Rend un prompt publié par le serveur. Les arguments requis sont vérifiés ici, contre la liste
+     * que le serveur annonce : sans cela, un prompt rendu avec un trou (« Trace la clé  sur  »)
+     * partirait tel quel dans la conversation, et le modèle comblerait le trou lui-même.
+     */
+    public McpPromptRendering prompt(String connection, String name, Map<String, String> arguments) {
+        McpSyncClient client = client(connection);
+        if (client.getServerCapabilities() == null || client.getServerCapabilities().prompts() == null) {
+            throw new UnsupportedMcpCapabilityException(connection, "prompts");
+        }
+        Map<String, String> given = arguments == null ? Map.of() : arguments;
+        McpSchema.Prompt declared = client.listPrompts().prompts().stream()
+                .filter(prompt -> prompt.name().equals(name)).findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Prompt inconnu de « " + connection + " » : " + name));
+        List<String> missing = declared.arguments() == null ? List.of() : declared.arguments().stream()
+                .filter(argument -> Boolean.TRUE.equals(argument.required()))
+                .map(McpSchema.PromptArgument::name)
+                .filter(argument -> given.get(argument) == null || given.get(argument).isBlank())
+                .toList();
+        if (!missing.isEmpty()) {
+            throw new IllegalArgumentException("Arguments requis manquants pour " + name + " : " + String.join(", ", missing));
+        }
+        McpSchema.GetPromptResult result = client.getPrompt(new McpSchema.GetPromptRequest(name, new LinkedHashMap<String, Object>(given)));
+        List<McpPromptRendering.Message> messages = result.messages() == null ? List.of() : result.messages().stream()
+                .map(message -> new McpPromptRendering.Message(message.role() == null ? "user" : message.role().name()
+                        .toLowerCase(java.util.Locale.ROOT), textOf(List.of(message.content())).getFirst()))
+                .toList();
+        return new McpPromptRendering(connection, name, result.description(), messages);
+    }
+
     public List<McpToolMetric> metrics() {
         Map<List<String>, List<Timer>> byConnectionAndTool = meterRegistry.find("kex.mcp.tool.call").timers().stream()
                 .collect(Collectors.groupingBy(timer -> List.of(tagOrUnknown(timer, "connection"),

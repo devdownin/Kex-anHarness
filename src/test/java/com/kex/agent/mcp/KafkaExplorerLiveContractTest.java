@@ -2,13 +2,19 @@
 // Copyright (C) 2026 Kex Agent AI Contributors
 package com.kex.agent.mcp;
 
+import java.nio.file.Path;
+import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kex.agent.memory.FileLearningRepository;
+import com.kex.agent.skills.McpSkillImporter;
+import com.kex.agent.skills.SkillsService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
@@ -79,6 +85,42 @@ class KafkaExplorerLiveContractTest {
                 assertThat(diagnosis.path("coverage").isObject()).isTrue();
                 assertThat(diagnosis.path("data").path("queueTopic").asText()).isEqualTo(dlq);
             }
+        } finally {
+            if (catalog.dynamicConnectionNames().contains("explorer-contract")) {
+                catalog.unregister("explorer-contract");
+            }
+        }
+    }
+
+    /**
+     * Depuis 2.9, l'Explorer publie ses compétences en ressources ({@code kex://skills}) et ses
+     * enchaînements d'outils en prompts. Le contrat qui compte pour Kex : chaque compétence Kafka se
+     * propose, empreinte vérifiée sur les octets reçus par le vrai transport, et un prompt se rend.
+     */
+    @Test
+    void kex_imports_the_published_skills_and_renders_a_prompt(@TempDir Path directory) {
+        String url = System.getenv("KAFKA_EXPLORER_MCP_URL");
+        assumeTrue(url != null && !url.isBlank(), "Set KAFKA_EXPLORER_MCP_URL for the live contract");
+        McpServerRegistration registration = new McpServerRegistration("explorer-contract", "HTTP", url,
+                "/mcp", System.getenv("KAFKA_EXPLORER_MCP_TOKEN"), Map.of(), null, List.of(), Map.of(), true, TOOLS,
+                Map.of());
+        try {
+            catalog.register(registration);
+            SkillsService skills = new SkillsService(new FileLearningRepository(new ObjectMapper().findAndRegisterModules(),
+                    directory.resolve("learning.json"), 50), Clock.systemUTC());
+            McpSkillImporter.Report report = new McpSkillImporter(catalog, skills, JSON, Clock.systemUTC())
+                    .importFrom("contrat", "explorer-contract");
+
+            assertThat(report.outcomes()).filteredOn(outcome -> outcome.name().startsWith("kafka-"))
+                    .isNotEmpty()
+                    .allSatisfy(outcome -> assertThat(outcome.status()).as(outcome.name() + " : " + outcome.detail())
+                            .isEqualTo(McpSkillImporter.Status.PROPOSED));
+            assertThat(skills.list("contrat")).allSatisfy(entry -> assertThat(entry.status()).isEqualTo("PENDING"));
+
+            McpPromptRendering prompt = catalog.prompt("explorer-contract", "kex_incident_triage",
+                    Map.of("key", "order-42", "window", "30m"));
+            assertThat(prompt.messages()).isNotEmpty();
+            assertThat(prompt.messages().getFirst().text()).contains("order-42");
         } finally {
             if (catalog.dynamicConnectionNames().contains("explorer-contract")) {
                 catalog.unregister("explorer-contract");

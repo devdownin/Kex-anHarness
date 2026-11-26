@@ -461,4 +461,48 @@ class McpToolCatalogTest {
             assertThat(metric.averageDurationMs()).isNotNull();
         });
     }
+
+    private void withPrompts() {
+        given(client.getServerCapabilities())
+                .willReturn(McpSchema.ServerCapabilities.builder().prompts(false).build());
+        given(client.listPrompts()).willReturn(new McpSchema.ListPromptsResult(List.of(new McpSchema.Prompt(
+                "kex_incident_triage", "Triage d'incident", List.of(
+                        new McpSchema.PromptArgument("key", "Clé", true),
+                        new McpSchema.PromptArgument("window", "Fenêtre", true)))), null));
+    }
+
+    @Test
+    void rend_un_prompt_publie_par_le_serveur() {
+        withPrompts();
+        given(client.getPrompt(new McpSchema.GetPromptRequest("kex_incident_triage",
+                Map.of("key", "order-42", "window", "30m"))))
+                .willReturn(new McpSchema.GetPromptResult("Triage", List.of(new McpSchema.PromptMessage(
+                        McpSchema.Role.USER, new McpSchema.TextContent("Trace order-42 sur 30m")))));
+
+        McpPromptRendering rendering = catalog(true).prompt("kafka-explorer", "kex_incident_triage",
+                Map.of("key", "order-42", "window", "30m"));
+
+        assertThat(rendering.messages()).containsExactly(new McpPromptRendering.Message("user", "Trace order-42 sur 30m"));
+        assertThat(rendering.description()).isEqualTo("Triage");
+    }
+
+    /** Un prompt rendu avec un trou partirait tel quel, et le modèle comblerait le trou lui-même. */
+    @Test
+    void refuse_un_prompt_sans_ses_arguments_requis() {
+        withPrompts();
+
+        assertThatThrownBy(() -> catalog(true).prompt("kafka-explorer", "kex_incident_triage", Map.of("key", "order-42")))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("window");
+        assertThatThrownBy(() -> catalog(true).prompt("kafka-explorer", "kex_inconnu", Map.of()))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("inconnu");
+        verify(client, never()).getPrompt(any());
+    }
+
+    @Test
+    void un_serveur_sans_prompts_le_dit() {
+        given(client.getServerCapabilities()).willReturn(McpSchema.ServerCapabilities.builder().tools(false).build());
+
+        assertThatThrownBy(() -> catalog(true).prompt("kafka-explorer", "kex_incident_triage", Map.of()))
+                .isInstanceOf(UnsupportedMcpCapabilityException.class);
+    }
 }

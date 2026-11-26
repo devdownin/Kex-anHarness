@@ -15,7 +15,7 @@ gras, puis pourquoi, puis ce qui le corrige et le test qui l'aurait attrapé.
 - [Modèle et conversation](#modèle-et-conversation) — 9
 - [Serveurs MCP](#serveurs-mcp) — 7
 - [Supervision, décisions et mesures](#supervision-décisions-et-mesures) — 17
-- [Compétences et mémoire long terme](#compétences-et-mémoire-long-terme) — 9
+- [Compétences et mémoire long terme](#compétences-et-mémoire-long-terme) — 10
 - [Persistance et migrations](#persistance-et-migrations) — 3
 - [Console et espace utilisateur](#console-et-espace-utilisateur) — 21
 - [Tests](#tests) — 10
@@ -371,6 +371,13 @@ Revue, classement, rejeu, règles tirées des refus, charte.
   `SkillsService.propose` rend `409` (`SkillAlreadyJudgedException`) ; `console.mjs` retire sa
   procédure en fin de parcours, et une seconde exécution contre le même agent échouait en
   « 409 !== 201 ». Son texte porte donc un horodatage.
+
+- **Une empreinte vérifiée par le navigateur n'est qu'une affirmation.** L'import des compétences
+  de l'Explorer recalculait SHA-256 dans la console, puis postait le texte et la « preuve » à
+  `POST /api/agent/skills`, qui accepte n'importe quel texte : le serveur ne savait rien de ce qui
+  avait été vérifié, Web Crypto manque hors HTTPS, et la compétence partait sans déclencheur — elle
+  aurait pesé sur toutes les conversations. L'import passe désormais par `McpSkillImporter`, qui lit
+  et vérifie lui-même les octets reçus et pose des déclencheurs tirés du nom.
 
 ## Persistance et migrations
 

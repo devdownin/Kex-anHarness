@@ -307,7 +307,7 @@ function isKafkaExplorer(server) {
 function kafkaExplorerSkills(server, managed) {
   const section = el('section', 'mcp-kafka-skills stack');
   section.append(el('h4', null, 'Compétences KafkaExplorer'));
-  section.append(el('p', 'hint', 'Skills versionnés publiés par le serveur MCP. Leur lecture ne les active pas : chaque import crée une proposition soumise à la revue Kex.'));
+  section.append(el('p', 'hint', 'Skills versionnés publiés par le serveur MCP. Leur lecture ne les active pas : Kex vérifie l’empreinte SHA-256 de chacune, puis la soumet à la revue humaine.'));
   const discover = el('button', 'ghost', 'Découvrir les compétences');
   discover.type = 'button';
   discover.disabled = Boolean(managed && !managed.enabled) || !server.initialized;
@@ -336,7 +336,8 @@ function kafkaExplorerSkills(server, managed) {
         return;
       }
       status.textContent = `${entries.length} compétence(s) publiées. Choisissez celles à examiner ou à proposer à Kex.`;
-      entries.forEach((entry) => list.append(kafkaSkillEntry(base, entry)));
+      entries.forEach((entry) => list.append(kafkaSkillEntry(base, server.connection, entry)));
+      list.prepend(importAllButton(server.connection, list));
     } catch (error) {
       status.textContent = `Découverte impossible : ${error.message}`;
       report(error);
@@ -348,12 +349,54 @@ function kafkaExplorerSkills(server, managed) {
   return section;
 }
 
-function kafkaSkillEntry(base, entry) {
+const IMPORT_OUTCOMES = {
+  PROPOSED: 'Proposée : en attente de revue',
+  KNOWN: 'Déjà en revue ou approuvée',
+  JUDGED: 'Déjà écartée par un humain',
+  SKIPPED: 'Écartée',
+  REFUSED: 'Refusée',
+};
+
+function importOutcomeLabel(outcome) {
+  if (!outcome) return 'Aucune réponse pour cette compétence.';
+  return `${IMPORT_OUTCOMES[outcome.status] || outcome.status} · ${outcome.detail || ''}`.replace(/ · $/, '');
+}
+
+// Toutes les compétences du catalogue en une fois : chacune garde son constat, et rien n'agit avant
+// l'approbation d'un humain dans la file de revue.
+function importAllButton(connection, list) {
+  const button = el('button', 'primary', 'Proposer toutes les compétences Kafka');
+  button.type = 'button';
+  const summary = el('p', 'hint');
+  summary.setAttribute('role', 'status');
+  button.addEventListener('click', () => busy(button, async () => {
+    try {
+      const imported = await api(`/api/agent/skills/import/${encodeURIComponent(connection)}`, { method: 'POST' });
+      const outcomes = imported?.outcomes || [];
+      outcomes.forEach((outcome) => {
+        const card = [...list.querySelectorAll('[data-skill-name]')].find((node) => node.dataset.skillName === outcome.name);
+        const status = card?.querySelector('[data-skill-status]');
+        if (status) status.textContent = importOutcomeLabel(outcome);
+      });
+      const proposed = outcomes.filter((outcome) => outcome.status === 'PROPOSED').length;
+      summary.textContent = `${proposed} proposée(s) sur ${outcomes.length} ; la revue se fait dans Compétences.`;
+      if (proposed) toast(`${proposed} compétence(s) proposée(s) à la revue Kex.`);
+    } catch (error) {
+      report(error);
+    }
+  }));
+  const host = el('div', 'stack');
+  host.append(button, summary);
+  return host;
+}
+
+function kafkaSkillEntry(base, connection, entry) {
   const frontmatter = entry.frontmatter || {};
   const name = frontmatter.name || 'Compétence sans nom';
   const description = frontmatter.description || 'Description non fournie.';
   const manifestFile = entry.resources?.find((file) => file.uri && file.digest);
   const card = el('article', 'mcp-skill-entry stack');
+  card.dataset.skillName = name;
   const head = el('div', 'row-between');
   head.append(el('strong', null, name), el('span', 'chip', name.startsWith('kafkaexplorer-') ? 'Engineering' : 'Kafka'));
   card.append(head, el('p', 'hint', description));
@@ -366,60 +409,45 @@ function kafkaSkillEntry(base, entry) {
     definition('Taille annoncée', el('span', null, `${manifestFile.size ?? '—'} octets`)));
   const preview = el('details', 'advanced');
   preview.append(el('summary', null, 'Prévisualiser le SKILL.md'));
-  const content = el('pre', 'dump', 'Le contenu sera chargé à la demande et son empreinte vérifiée.');
+  const content = el('pre', 'dump', 'Le contenu sera chargé à la demande. Kex vérifie son empreinte au moment de la proposition.');
   preview.append(content);
   const actions = el('div', 'row');
-  const load = el('button', 'ghost', 'Charger et vérifier');
+  const load = el('button', 'ghost', 'Lire le SKILL.md');
   load.type = 'button';
   const propose = el('button', 'primary', 'Proposer à Kex');
   propose.type = 'button';
-  propose.disabled = true;
-  let verifiedMarkdown = null;
+  propose.disabled = name.startsWith('kafkaexplorer-');
   load.addEventListener('click', () => busy(load, async () => {
-    propose.disabled = true;
-    verifiedMarkdown = null;
-    content.textContent = 'Chargement et vérification SHA-256…';
+    content.textContent = 'Chargement…';
     try {
       const result = await api(`${base}/resource?uri=${encodeURIComponent(manifestFile.uri)}`);
       const markdown = (result || []).find((item) => typeof item.text === 'string')?.text;
       if (typeof markdown !== 'string') throw new Error('Le serveur n’a pas renvoyé le SKILL.md en texte.');
-      if (new TextEncoder().encode(markdown).byteLength !== manifestFile.size) {
-        throw new Error('La taille du fichier reçu ne correspond pas au manifeste.');
-      }
-      if (!globalThis.crypto?.subtle) throw new Error('Web Crypto indisponible : intégrité non vérifiable dans ce contexte.');
-      const digest = `sha256:${[...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(markdown)))]
-        .map((byte) => byte.toString(16).padStart(2, '0')).join('')}`;
-      if (digest !== manifestFile.digest) throw new Error('Empreinte SHA-256 différente : proposition refusée.');
-      verifiedMarkdown = markdown;
       content.textContent = markdown;
-      propose.disabled = markdown.length > 12000;
-      if (propose.disabled) content.textContent += '\\n\\n[Import indisponible : Kex limite une compétence à 12 000 caractères.]';
+      preview.open = true;
     } catch (error) {
-      content.textContent = `Vérification impossible : ${error.message}`;
+      content.textContent = `Lecture impossible : ${error.message}`;
       report(error);
     }
   }));
+  // L'empreinte se vérifie côté serveur, sur les octets qu'il a lui-même reçus : la vérification du
+  // navigateur n'était qu'une affirmation postée avec le texte, et Web Crypto manque hors HTTPS.
+  // busy() rend le bouton à la fin : le verrou d'une compétence déjà traitée se pose après lui.
+  let settled = false;
   propose.addEventListener('click', () => busy(propose, async () => {
-    if (!verifiedMarkdown) return;
     try {
-      const created = await api('/api/agent/skills', {
-        method: 'POST',
-        body: {
-          title: name,
-          markdown: verifiedMarkdown,
-          evidence: `Import depuis KafkaExplorer · ${server.connection} · ${manifestFile.uri} · ${manifestFile.digest}`,
-          scope: 'DOMAIN',
-          triggers: [],
-        },
-      });
-      propose.disabled = true;
-      statusSkill.textContent = `Proposition créée · ${created.id || 'en attente de revue'}`;
-      toast(`Compétence « ${name} » proposée à la revue Kex.`);
+      const imported = await api(`/api/agent/skills/import/${encodeURIComponent(connection)}?name=${encodeURIComponent(name)}`,
+        { method: 'POST' });
+      const outcome = (imported?.outcomes || []).find((item) => item.name === name);
+      statusSkill.textContent = importOutcomeLabel(outcome);
+      settled = Boolean(outcome && outcome.status !== 'REFUSED');
+      if (outcome?.status === 'PROPOSED') toast(`Compétence « ${name} » proposée à la revue Kex.`);
     } catch (error) {
       report(error);
     }
-  }));
+  }).then(() => { if (settled) propose.disabled = true; }));
   const statusSkill = el('p', 'hint');
+  statusSkill.dataset.skillStatus = '';
   actions.append(load, propose);
   card.append(preview, actions, statusSkill);
   return card;
@@ -599,7 +627,7 @@ function openServerDrawer(server, updateUrl = true, inspected = false, refresh =
   if (inspected || server.retrievedAt) {
     appendCatalogSection(body, 'Ressources', server.resources, server.supportedCapabilities?.includes('resources'), 'resources');
     appendCatalogSection(body, 'Modèles de ressources', server.resourceTemplates, server.supportedCapabilities?.includes('resources'), 'templates');
-    appendCatalogSection(body, 'Prompts du serveur', server.prompts, server.supportedCapabilities?.includes('prompts'), 'prompts');
+    appendCatalogSection(body, 'Prompts du serveur', server.prompts, server.supportedCapabilities?.includes('prompts'), 'prompts', server.connection);
   }
 
   if (managed) {
@@ -642,7 +670,49 @@ function openServerDrawer(server, updateUrl = true, inspected = false, refresh =
   }
 }
 
-function appendCatalogSection(body, title, rows = [], supported = false, kind) {
+// Un prompt rendu est un texte, pas une exécution : il se relit, se copie, et part dans le chat comme
+// toute demande — chaque outil qu'il cite reste soumis à la politique des outils.
+function promptRenderer(connection, prompt) {
+  const form = el('form', 'stack');
+  const inputs = (prompt.arguments || []).map((arg) => {
+    const input = el('input');
+    input.name = arg.name;
+    input.required = Boolean(arg.required);
+    input.placeholder = arg.description || arg.name;
+    input.setAttribute('aria-label', arg.name);
+    form.append(input);
+    return input;
+  });
+  const render = el('button', 'ghost', 'Rendre le prompt');
+  render.type = 'submit';
+  const output = el('pre', 'dump');
+  output.hidden = true;
+  const copy = el('button', 'ghost', 'Copier');
+  copy.type = 'button';
+  copy.hidden = true;
+  copy.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(output.textContent); toast('Prompt copié'); } catch (error) { report(error); }
+  });
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    busy(render, async () => {
+      try {
+        const body = Object.fromEntries(inputs.filter((input) => input.value.trim()).map((input) => [input.name, input.value.trim()]));
+        const rendering = await api(`/api/agent/mcp/servers/${encodeURIComponent(connection)}/prompts/${encodeURIComponent(prompt.name)}`,
+          { method: 'POST', body });
+        output.textContent = (rendering.messages || []).map((message) => message.text).join('\n\n');
+        output.hidden = false;
+        copy.hidden = false;
+      } catch (error) {
+        report(error);
+      }
+    });
+  });
+  form.append(render, output, copy);
+  return form;
+}
+
+function appendCatalogSection(body, title, rows = [], supported = false, kind, connection) {
   const section = el('section', 'stack mcp-catalog-section'); section.dataset.catalogKind = kind;
   section.append(el('h3', 'drawer-sub', `${title} · ${rows.length}`));
   if (!supported) section.append(el('p', 'muted', 'Cette capacité n’est pas proposée par le serveur.'));
@@ -661,11 +731,12 @@ function appendCatalogSection(body, title, rows = [], supported = false, kind) {
         `${arg.name} · ${arg.required ? 'Requis' : 'Facultatif'} · ${arg.description || 'Description non fournie'}`)));
       card.append(el('h5', null, 'Arguments du prompt'),
         item.arguments?.length ? args : el('p', 'muted', 'Aucun argument déclaré.'));
+      if (connection) card.append(promptRenderer(connection, item));
     }
     section.append(card);
   });
   section.append(el('p', 'hint', kind === 'prompts'
-    ? 'Présentation du prompt déclaré ; aucun prompt n’est exécuté.'
+    ? 'Rendre un prompt n’exécute rien : le serveur renvoie des consignes, à relire avant de les envoyer au chat.'
     : 'Métadonnées uniquement ; aucun contenu de ressource n’est lu.'));
   body.append(section);
 }

@@ -135,6 +135,14 @@ class ApiKeyPrincipalTest {
         assertThat(postStatus("/api/agent/skills/probe-together", "Bearer jeton-admin")).isEqualTo(400);
     }
 
+    /** Un import remplit la file de revue de textes venus d'un serveur tiers : même pouvoir que trancher. */
+    @Test
+    void seul_un_admin_peut_importer_les_competences_d_un_serveur_mcp() throws Exception {
+        assertThat(postStatus("/api/agent/skills/import/inconnu", "Bearer jeton-ops")).isEqualTo(403);
+        // Le 404 vient du serveur inconnu : la sécurité a laissé passer l'admin.
+        assertThat(postStatus("/api/agent/skills/import/inconnu", "Bearer jeton-admin")).isEqualTo(404);
+    }
+
     /** La suggestion lit une compétence en attente de n'importe quel propriétaire, comme la file. */
     @Test
     void seul_un_admin_peut_lire_une_suggestion_de_rejeu() throws Exception {

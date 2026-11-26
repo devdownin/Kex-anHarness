@@ -19,6 +19,7 @@ import com.kex.agent.agent.StructuredOutputException;
 import com.kex.agent.config.ActorIdentity;
 import com.kex.agent.mcp.McpConfigurationBundle;
 import com.kex.agent.mcp.McpConnectionTestResult;
+import com.kex.agent.mcp.McpPromptRendering;
 import com.kex.agent.mcp.McpResourceContent;
 import com.kex.agent.mcp.McpResourceInfo;
 import com.kex.agent.mcp.McpRuntimeServerView;
@@ -322,6 +323,16 @@ class AgentController {
     @GetMapping("/mcp/servers/{connection}/resource")
     List<McpResourceContent> resource(@PathVariable String connection, @RequestParam String uri) {
         return toolCatalog.readResource(connection, uri);
+    }
+
+    /**
+     * Rendre un prompt n'exécute rien : le texte revient à l'appelant, qui décide de l'envoyer.
+     * C'est pourquoi le corps est une simple table d'arguments et la réponse un texte à relire.
+     */
+    @PostMapping("/mcp/servers/{connection}/prompts/{name}")
+    McpPromptRendering prompt(@PathVariable String connection, @PathVariable String name,
+                              @RequestBody(required = false) Map<String, String> arguments) {
+        return toolCatalog.prompt(connection, name, arguments);
     }
 
     @ExceptionHandler(InvalidJsonSchemaException.class)

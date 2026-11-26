@@ -21,6 +21,7 @@ try {
   let fail = false; let denied = false; let noOutput = false;
   let delayed = null;
   let refreshFails = false;
+  let rendered = null;
   const detail = { connection: 'new-server', serverName: 'Services métier', version: '1.2',
     protocolVersion: '2025-06-18', initialized: true,
     reportedToolCount: 1,
@@ -41,6 +42,11 @@ try {
     let body = [];
     if (path.endsWith('/runtime-servers')) body = [{ connection: 'new-server', enabled: false, transport: 'HTTP' }];
     if (path.endsWith('/storage')) body = null;
+    if (path.endsWith('/prompts/triage')) {
+      rendered = route.request().postDataJSON();
+      body = { connection: 'new-server', name: 'triage', description: null,
+        messages: [{ role: 'user', text: `Analyse le topic ${rendered.topic}` }] };
+    }
     if (path.endsWith('/preview')) {
       previews++;
       if (delayed) await delayed;
@@ -74,6 +80,13 @@ try {
   assert.match(await page.textContent('[data-catalog-kind="templates"]'), /test:\/\/orders\/\{id\}/);
   assert.match(await page.textContent('[data-catalog-kind="prompts"]'), /topic · Requis/);
   console.log('✓ la sélection charge les informations et descriptions sans activation');
+  const prompts = page.locator('[data-catalog-kind="prompts"]');
+  await prompts.getByRole('textbox', { name: 'topic' }).fill('orders');
+  await prompts.getByRole('button', { name: 'Rendre le prompt' }).click();
+  await prompts.locator('pre').filter({ hasText: 'Analyse le topic orders' }).waitFor();
+  assert.deepEqual(rendered, { topic: 'orders' });
+  assert.match(await prompts.textContent(), /n’exécute rien/);
+  console.log('✓ un prompt se rend avec ses arguments, sans rien exécuter');
   const retrieved = await page.textContent('#drawer-body time');
   refreshFails = true;
   await page.getByRole('button', { name: 'Actualiser le catalogue' }).click();
