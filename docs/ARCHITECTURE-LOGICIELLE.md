@@ -193,6 +193,7 @@ stdio (commande, environnement, limites).
 | `SkillProbeService`, `ProbeSuggestion` | Rejeu contrastif d'une candidate (seule ou groupée), sans écriture en mémoire long-terme. |
 | `SkillCurator`, `SkillCuration` | Ce qui est mesurable : active, dormante, doublon, non revue. Ne retire rien. |
 | `RefusalSkillProposer` | Transforme N refus concordants (`RepeatedRefusals`) en proposition déterministe. |
+| `McpSkillImporter`, `McpSkillImportController` | Import des compétences qu'un serveur MCP publie en ressources (`kex://skills`, `skill://{name}/SKILL.md`) : empreinte SHA-256 recalculée, déclencheurs tirés du nom, entrée en revue `PENDING`. |
 | `CharterService`, `CharterController`, `Charter` | Charte versionnée, écrite par un `ADMIN`, hors circuit de revue. |
 
 ### 4.8 `harness` — contexte long

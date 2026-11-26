@@ -242,25 +242,48 @@ configurées, en plus de la liste minimale héritée par le SDK MCP.
 
 ### Compétences Agent Skills de KafkaExplorer
 
-La fiche de chaque connexion MCP propose **Compétences KafkaExplorer**. Le bouton de découverte
-cherche la ressource `kex://skills` dans le catalogue MCP ; si elle existe, Kex lit son manifeste
-JSON puis affiche les compétences publiées (nom, description, URI, taille et SHA-256).
+Depuis la 2.9, Kafka SQL Explorer publie ses compétences en ressources MCP : un catalogue
+`kex://skills` (nom, description, URI et empreinte SHA-256 de chaque `SKILL.md`) et un gabarit
+`skill://{name}/SKILL.md` qui rend les octets publiés. La fiche de chaque connexion propose
+**Compétences KafkaExplorer** : **Découvrir** lit le catalogue, **Lire le SKILL.md** affiche un texte,
+**Proposer à Kex** (ou **Proposer toutes les compétences Kafka**) l'importe.
 
-Chaque `SKILL.md` est chargé à la demande depuis son URI `skill://…/SKILL.md`. Avant de
-proposer l'import, le navigateur vérifie la taille et recalcule SHA-256 sur les octets UTF-8 exacts.
-Une différence d'empreinte, un manifeste incomplet ou une ressource inaccessible bloque la
-proposition. La limite d'import est celle de la bibliothèque Kex (12 000 caractères).
+L'import se fait côté serveur — `POST /api/agent/skills/import/{connection}`, réservé à `ADMIN`,
+`?name=…` répétable pour n'en prendre que certaines (`McpSkillImporter`). Pour chaque entrée, Kex :
 
-**Proposer à Kex** ne copie pas une compétence dans le prompt et ne l'active pas. L'API
-`POST /api/agent/skills` crée une proposition `DOMAIN` dans l'espace du principal connecté ;
-elle apparaît dans la file de revue habituelle. Un administrateur doit l'approuver explicitement
-avant qu'elle puisse être injectée. Les compétences d'ingénierie (`kafkaexplorer-*`) sont
-identifiées séparément des compétences Kafka. L'import ne modifie jamais les permissions MCP :
-les appels de tools restent soumis aux règles Kex et à celles du serveur source.
+1. refuse un nom ou une URI hors de la convention `skill://{nom}/SKILL.md` ;
+2. écarte les compétences d'ingénierie `kafkaexplorer-*` (réparer la CI de l'Explorer, publier sa
+   version : sans objet pour un cluster) ;
+3. lit le `SKILL.md`, **recalcule SHA-256 et la taille sur les octets reçus** et refuse tout écart
+   avec le manifeste ;
+4. propose le texte en `PENDING`, portée `DOMAIN`, avec pour **déclencheurs** les mots du nom sans
+   « kafka » (et leur équivalent français quand la forme change : `forecast` → `prévision`) ;
+5. ne repropose pas un texte déjà en revue ou approuvé (`KNOWN`), ni un texte qu'un humain a écarté
+   (`JUDGED`).
 
-Cette intégration utilise uniquement les primitives MCP Resources déjà publiées par KafkaExplorer
-(`kex://skills` et `skill://{name}/SKILL.md`) ; elle ne prétend pas prendre en charge
-`skills/list` / `skills/get` natifs SEP-2640.
+La réponse donne un constat par compétence (`PROPOSED`, `KNOWN`, `JUDGED`, `SKIPPED`, `REFUSED`),
+et l'audit garde qui a importé. **Importer n'active rien** : la compétence attend l'approbation d'un
+administrateur dans la file de revue habituelle, et n'accorde aucun droit d'outil — ses appels restent
+soumis aux règles de Kex et à celles du serveur source. Un serveur sans `kex://skills` répond `409`
+(« pas de catalogue ici » n'est pas « aucune compétence »), un serveur sans ressources `501`.
+
+Cette intégration utilise uniquement les primitives MCP Resources publiées par l'Explorer ; elle ne
+prétend pas prendre en charge `skills/list` / `skills/get` natifs (SEP-2640), que l'Explorer ne
+négocie pas non plus.
+
+### Prompts de KafkaExplorer
+
+L'Explorer publie six prompts qui décrivent un enchaînement d'outils : `kex_incident_triage`
+(`key`, `window`), `kex_dlq_postmortem` (`queue`, `window`), `kex_onboard_domain` (`prefix`),
+`kex_schema_drift_check` (`topic`, `baselineSchema`), `kex_flow_health` (`prefix`) et
+`kex_forecast_analysis` (`metricId`). La fiche du serveur les liste avec leurs arguments ; **Rendre le
+prompt** appelle `POST /api/agent/mcp/servers/{connection}/prompts/{name}` (corps : table des
+arguments) et affiche le texte, à copier dans le chat.
+
+Rendre un prompt **n'exécute rien**, ni chez l'Explorer ni chez Kex : le texte part dans la
+conversation comme toute demande. Kex vérifie les arguments requis contre la liste que le serveur
+annonce avant de demander le rendu : un prompt rendu avec un trou partirait tel quel, et le modèle
+comblerait le trou lui-même.
 
 ### Découvrir des serveurs depuis des registres externes
 

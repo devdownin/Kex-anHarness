@@ -8,7 +8,9 @@ import java.time.Clock;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kex.agent.agent.AgentService;
 import com.kex.agent.config.AgentProperties;
+import com.kex.agent.mcp.McpToolCatalog;
 import com.kex.agent.skills.CharterService;
+import com.kex.agent.skills.McpSkillImporter;
 import com.kex.agent.skills.RefusalSkillProposer;
 import com.kex.agent.skills.SkillCurator;
 import com.kex.agent.skills.SkillProbeService;
@@ -57,6 +59,11 @@ class LearningConfig {
     @Bean
     RefusalSkillProposer refusalSkillProposer(SkillsService skills) {
         return new RefusalSkillProposer(skills);
+    }
+
+    @Bean
+    McpSkillImporter mcpSkillImporter(McpToolCatalog catalog, SkillsService skills, ObjectMapper mapper, Clock clock) {
+        return new McpSkillImporter(catalog, skills, mapper, clock);
     }
 
     @Bean

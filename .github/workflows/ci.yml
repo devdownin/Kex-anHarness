@@ -215,6 +215,7 @@ jobs:
           node src/test/browser/forecasts.mjs
           node src/test/browser/process-associations.mjs
           node src/test/browser/mcp-services.mjs
+          node src/test/browser/mcp-skills.mjs
           node src/test/browser/tasks.mjs
           node src/test/frontend/user-stream.mjs
           node src/test/frontend/user-experience.mjs
@@ -454,7 +455,7 @@ jobs:
           set -euo pipefail
           report=target/surefire-reports/com.kex.agent.mcp.KafkaExplorerLiveContractTest.txt
           cat "$report"
-          grep -q 'Tests run: 1, Failures: 0, Errors: 0, Skipped: 0' "$report"
+          grep -q 'Tests run: 2, Failures: 0, Errors: 0, Skipped: 0' "$report"
 
       # Les captures de site/img/, régénérées sur l'agent branché sur ce même Explorer réel. Elles
       # partent en artefact : une PR qui change la console montre ce qu'elle fait à la page de
