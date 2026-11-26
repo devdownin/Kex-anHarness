@@ -609,7 +609,9 @@ await check('aucune commande sous 32 px ni texte sous 12 px sur la vue d’ensem
   const offenders = await page.evaluate(() => {
     const visible = (node) => node.offsetParent !== null && node.getBoundingClientRect().width > 0;
     const small = [...document.querySelectorAll('button, summary, select, a.nav-item')].filter(visible)
-      .filter((node) => node.getBoundingClientRect().height < 32).map((node) => `cible ${node.textContent.trim().slice(0, 30)}`);
+      // Arrondi au centième : pendant une animation de translation, une cible de 32 px se mesure
+      // 31,99997 px, et l'échec ne tenait qu'au moment de la mesure.
+      .filter((node) => Math.round(node.getBoundingClientRect().height * 100) / 100 < 32).map((node) => `cible ${node.textContent.trim().slice(0, 30)}`);
     const tiny = [...document.querySelectorAll('body *')].filter(visible)
       .filter((node) => [...node.childNodes].some((child) => child.nodeType === 3 && child.textContent.trim()))
       .filter((node) => parseFloat(getComputedStyle(node).fontSize) < 12).map((node) => `texte ${node.textContent.trim().slice(0, 30)}`);
@@ -629,7 +631,8 @@ await check('les flèches de « Personnaliser » offrent une cible de 32 px', as
   await page.click('#dashboard-customizer summary');
   await page.locator('#dashboard-customizer-panel .dashboard-order-actions button').first().waitFor();
   const small = await page.$$eval('#dashboard-customizer-panel .dashboard-order-actions button', (buttons) =>
-    buttons.map((button) => button.getBoundingClientRect()).filter((box) => box.height < 32 || box.width < 32).length);
+    buttons.map((button) => button.getBoundingClientRect())
+      .filter((box) => Math.round(box.height * 100) / 100 < 32 || Math.round(box.width * 100) / 100 < 32).length);
   assert.equal(small, 0, `${small} flèche(s) sous 32 px`);
   await context.close();
 });

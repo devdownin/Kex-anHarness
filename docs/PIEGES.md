@@ -18,7 +18,7 @@ gras, puis pourquoi, puis ce qui le corrige et le test qui l'aurait attrapé.
 - [Compétences et mémoire long terme](#compétences-et-mémoire-long-terme) — 10
 - [Persistance et migrations](#persistance-et-migrations) — 3
 - [Console et espace utilisateur](#console-et-espace-utilisateur) — 22
-- [Tests](#tests) — 10
+- [Tests](#tests) — 11
 - [CI, image et publication](#ci-image-et-publication) — 6
 
 ## Démarrage et configuration
@@ -584,6 +584,12 @@ Mockito, Playwright, scripts navigateur et leur indépendance.
   compact`, sans hauteur minimale) tombaient sous 32 px ; le contrôle de la vue d'ensemble ne le
   voyait qu'au hasard, et son message ne disait pas quels éléments. Il les nomme maintenant dans
   cette première ligne, et un contrôle ouvre le panneau exprès.
+
+- **Une mesure prise pendant une animation de translation n'est pas entière.** Les flèches de
+  « Personnaliser » font 32 px en CSS, mais `getBoundingClientRect()` les lisait à 31,99997 px tant
+  que `popover-in` ou `view-enter` translataient leur conteneur : les contrôles de cible de
+  `first-run.mjs` échouaient au hasard, plus souvent sous processeur ralenti. Ils arrondissent la
+  mesure au centième avant de la comparer ; le seuil reste 32 px.
 
 - **Un test qui a besoin d'un état vide le simule, il ne le suppose pas.** Le cas « Lancer une
   analyse » de `first-run.mjs` lisait l'état réel de l'agent : jamais analysé, sans serveur MCP. Après
