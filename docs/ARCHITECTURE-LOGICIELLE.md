@@ -161,7 +161,7 @@ flowchart TB
 
 | Sous-ensemble | Classes |
 |---|---|
-| Invocation | `McpToolCatalog` (`call`, `callGoverned`, ressources, diagnostics), `DynamicMcpToolCallbackProvider`, `BudgetedMcpCallback`, `ConnectionTrackingToolNames` (nom d'outil → connexion, pour le disjoncteur par serveur), `McpServerRateLimiter` |
+| Invocation | `McpToolCatalog` (`call`, `callGoverned`, ressources, `prompt` → `McpPromptRendering`, diagnostics), `DynamicMcpToolCallbackProvider`, `BudgetedMcpCallback`, `ConnectionTrackingToolNames` (nom d'outil → connexion, pour le disjoncteur par serveur), `McpServerRateLimiter` |
 | Inventaire dynamique | `McpServerRegistration`, `EncryptedMcpServerStore` (fichier chiffré `mcp-servers.enc`), `McpSecretRotation`, `McpConfigurationBundle`, `McpRuntimeServerView`, `McpToolDiff` |
 | Santé | `McpHealthCheckScheduler`, `McpHealthSample`, `McpServerDiagnostics`, `McpConnectionTestResult` |
 | Catalogue d'installation | `McpCatalogController`, `McpRecommendedCatalog`, `McpCatalogDiscoveryService`, sources `OfficialMcpRegistrySource` et `DockerMcpCatalogSource`, `McpTrustScoreCalculator` (`McpTrustScore`, `McpTrustCriterion*`) |
@@ -260,9 +260,10 @@ Vue technique, sans recalcul : `KafkaViewService` (topics, lag via `MeasuredValu
 
 | Contrôleur | Base | Routes |
 |---|---|---|
-| `AgentController` | `/api/agent` | `POST /chat`, `/chat/structured`, `/chat/stream` (SSE) ; `DELETE /conversations/{conversationId}` ; `/mcp/servers` (GET, POST, `test`), `/mcp/runtime-servers`, `/mcp/servers/{connection}` (PUT, DELETE, `enabled`, `secret`, `refresh`, `diagnostics`, `preview`, `resources`, `resource`), `POST /mcp/servers/{connection}/tools/{tool}`, `/mcp/configuration` (GET, POST), `/mcp/storage`, `/mcp/metrics` |
+| `AgentController` | `/api/agent` | `POST /chat`, `/chat/structured`, `/chat/stream` (SSE) ; `DELETE /conversations/{conversationId}` ; `/mcp/servers` (GET, POST, `test`), `/mcp/runtime-servers`, `/mcp/servers/{connection}` (PUT, DELETE, `enabled`, `secret`, `refresh`, `diagnostics`, `preview`, `resources`, `resource`), `POST /mcp/servers/{connection}/tools/{tool}`, `POST /mcp/servers/{connection}/prompts/{name}` (rend un prompt du serveur, n'exécute rien), `/mcp/configuration` (GET, POST), `/mcp/storage`, `/mcp/metrics` |
 | `SupervisionController` | `/supervision` | `overview`, `status`, `processes` (+ `definitions`, POST), `alerts`, `performance`, `cycles` (GET, POST, `current`), `decisions` (+ `{decision}`, `pending`, `approve`, `reject`), `processes/{process}/maintenance` (POST, DELETE), `processes/{process}/history`, `audit` (+ `integrity`), `policy` (GET, PUT), `pause`, `resume`, `notify/test` |
 | `SkillsController` | `/skills` | GET, POST, `available`, `review-queue`, `curation`, `{id}/retire`, `{id}/probe-suggestion`, `{id}/precedents`, `{id}/probe`, `probe-together`, `{id}/approve`, `{id}/reject` |
+| `McpSkillImportController` | `/skills/import` | `POST /{connection}` (`?name=` répétable) : importe les compétences publiées par un serveur MCP, en revue `PENDING` |
 | `CharterController` | `/charter` | GET, PUT, `versions` |
 | `TaskController` | `/tasks` | GET, POST, `{id}`, `bindings`, `plan`, `{id}/approve`, `{id}/run`, `{id}/cancel` |
 | `WorkspaceController` | `/workspace/requests` | GET, `{id}`, `stream` (SSE), `{id}/recover/stream` (SSE), `{id}/plan` |
@@ -311,7 +312,7 @@ flowchart LR
 | `POST /channels/callback`, `/channels/slack/interactivity` (signature HMAC) | | | | | ✓ |
 | `POST /chat*`, `DELETE /conversations/**`, `GET /whoami`, `/skills/available`, espace de travail (lecture, flux) | ✓ | ✓ | ✓ | | |
 | `POST /workspace/requests/*/plan`, `/tasks/**`, cycle, pause/reprise, maintenance, tout autre `/api/agent/**` | | ✓ | ✓ | | |
-| Appel direct d'outil MCP, inscription/édition/suppression de serveur, politique, charte, associations de prévision, file de revue, retrait de compétence, contradiction de résumé, suppression de mémoire | | | ✓ | | |
+| Appel direct d'outil MCP, inscription/édition/suppression de serveur, politique, charte, associations de prévision, file de revue, retrait de compétence, import de compétences d'un serveur MCP, contradiction de résumé, suppression de mémoire | | | ✓ | | |
 | `/actuator/prometheus` | | | ✓ | ✓ | |
 | Autres endpoints actuator | | | ✓ | | |
 
@@ -378,6 +379,8 @@ sequenceDiagram
     M-->>CC: jetons
     CC-->>AC: Flux<AgentEvent>
     AC-->>C: SSE (data: …)
+    AS->>AS: AnswerEvidence : les chiffres de la réponse<br/>sont-ils dans les résultats d'outils ?
+    AS-->>C: SSE evidence (seulement s'il y a quelque chose à dire)
     AS->>AS: usage, résumé long-terme UNVERIFIED
 ```
 
@@ -470,13 +473,17 @@ sur un thread virtuel.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> PENDING: propose (conversation, RefusalSkillProposer)
+    [*] --> PENDING: propose (conversation, RefusalSkillProposer, McpSkillImporter)
     PENDING --> APPROVED: approve (ADMIN, après rejeu facultatif)
     PENDING --> REJECTED: reject (ADMIN)
     APPROVED --> RETIRED: retire (ADMIN)
 ```
 
-Un texte identique à une compétence `REJECTED` ou `RETIRED` est refusé (`409`). Les compétences
+Un texte identique à une compétence `REJECTED` ou `RETIRED` est refusé (`409`). `McpSkillImporter` ne
+court-circuite pas la revue : il lit `kex://skills` puis chaque `skill://{name}/SKILL.md`, recalcule
+SHA-256 et taille sur les octets reçus, refuse tout écart avec le manifeste, écarte les compétences
+d'ingénierie `kafkaexplorer-*` et entre en `PENDING` avec des déclencheurs tirés du nom. Les
+prompts du serveur (`prompts/list`, `prompts/get`) se rendent sans rien exécuter. Les compétences
 `INVARIANT` sont toujours recopiées ; les `DOMAIN` sont indexées et lues par `read_skill` quand un
 outil est permis.
 
@@ -627,12 +634,13 @@ Détail : [`OBSERVABILITE.md`](OBSERVABILITE.md).
 
 | Niveau | Contenu |
 |---|---|
-| Unitaires et intégration Java | 165 classes `*Test` (JUnit, Mockito, MockMvc, H2 + vraie migration Flyway, `reactor-test`) |
+| Unitaires et intégration Java | 171 classes `*Test` (JUnit, Mockito, MockMvc, H2 + vraie migration Flyway, `reactor-test`) |
 | Fonctions pures de la console | `src/test/frontend/*.mjs` sous Node |
 | Navigateur | `src/test/browser/*.mjs` sous Playwright, contre un agent réel ; `KEX_CPU_THROTTLE` ralentit le processeur |
 | Surfaces | `src/test/frontend/contrast.mjs` (contraste AA des jetons, clair et sombre) ; `src/test/frontend/user-workspace-tokens.mjs` (les valeurs recopiées par l'espace utilisateur restent celles de la console, et ses textes passent AA) ; `src/test/browser/surfaces.mjs` (verre, opacité des menus, téléphone, mouvement réduit, contraste renforcé, grille), captures en artefact CI `console-surfaces` |
 | Documentation | `scripts/check-architecture-doc.py` (chaque nom cité ici existe dans le code) ; `scripts/check-guide-values.py` (les valeurs du guide pédagogique sont celles de `application.yml`) |
-| Évaluations d'agent | `agent-evals.yml`, corpus avec garde anti-fuite ([`AGENT-EVALUATIONS.md`](AGENT-EVALUATIONS.md)) |
+| Contrat de l'Explorer | Le test de contrat live (job CI `explorer-contract`, image épinglée) : les outils de supervision, l'import des compétences publiées (empreintes vérifiées) et le rendu d'un prompt, contre le vrai serveur |
+| Évaluations d'agent | `agent-evals.yml`, corpus avec garde anti-fuite ; `KEX_EVAL_OPTIONS` (`compaction`, `results`, `discovery`, `selection`) mesure une option du harnais avant d'en changer le défaut ([`AGENT-EVALUATIONS.md`](AGENT-EVALUATIONS.md)) |
 
 Workflows CI : `ci.yml` (jobs `build`, `mcp-interop`, `browser`, `docker`, `explorer-contract`,
 `refresh-screenshots`), `browser-throttled.yml` (hebdomadaire), `mcp-browser.yml`,
@@ -660,3 +668,8 @@ Les règles que tout composant respecte ; leur justification est dans
    l'appel au modèle.
 7. **Une fonction éteinte n'est pas une panne.** `404` attendu, annoncé par `whoami.features`.
 8. **Le résultat d'un outil est une donnée non fiable**, jamais une instruction.
+9. **Ce qui entre dans le prompt a été relu par un humain.** Une compétence importée d'un serveur
+   MCP, apprise d'une tâche ou tirée de refus entre en `PENDING` ; une empreinte se recalcule côté
+   serveur, jamais sur la foi du navigateur.
+10. **Un chiffre cité se retrouve dans un résultat d'outil, ou la réponse le signale** — alerte
+    (`AnswerEvidence`), jamais refus.

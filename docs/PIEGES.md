@@ -206,7 +206,7 @@ Connexions, initialisation, outils, disjoncteurs, contrat de Kafka SQL Explorer.
 - **Les serveurs MCP s'adressent par clé de connexion**, jamais par le nom qu'ils annoncent :
   celui-ci est inconnu avant le handshake.
 
-- **Le serveur MCP de Kafka SQL Explorer est en lecture seule.** Quinze outils, aucun mutant :
+- **Le serveur MCP de Kafka SQL Explorer est en lecture seule.** Aucun de ses outils exposés n'est mutant :
   devant lui l'agent observe et recommande, il n'agit pas.
 
 - **« Le SDK n'expose pas la connexion » n'est pas « rien ne peut la lire ».** `SyncMcpToolCallback`

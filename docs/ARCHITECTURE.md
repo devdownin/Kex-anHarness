@@ -1091,17 +1091,43 @@ vue qui échoue en nommant l'outil attendu se règle — une vue qui échoue en 
 
 ### Ce que le serveur MCP de Kafka SQL Explorer expose réellement
 
-Vérifié dans son dépôt, pas dans sa spécification : quinze outils, **tous en lecture seule**
-(`kex_list_topics`, `kex_describe_topic`, `kex_preview_messages`, `kex_infer_schema`,
-`kex_sql_query`, `kex_list_tables`, `kex_trace_key`, `kex_resume_trace`, `kex_compare_traces`,
-`kex_deduce_data_model`, `kex_build_join`, `kex_run_audit`, `kex_get_audit`, `kex_consumer_lag`,
-`kex_suggest_kpis`). `MutatingMcpTools` est une interface sans implémentation, `readonly` vaut
-`true` en dur, et les mutations d'administration sont hors de son périmètre déclaré.
+Vérifié dans son dépôt et par le journal de démarrage de l'image épinglée (2.9.6), pas dans sa
+spécification : **27 outils exposés, 7 retenus, `readonly=true`**, plus 3 ressources, 2 modèles de
+ressources et 6 prompts. Aucun outil exposé ne modifie le cluster : `MutatingMcpTools` est une
+interface sans implémentation, `readonly` vaut `true` en dur, et les mutations d'administration
+sont hors de son périmètre déclaré. Ce document disait « quinze outils » ; la liste a grandi
+(`kex_consumer_lag_trend`, `kex_diagnose_consumer`, `kex_process_health`, `kex_incident_evidence`,
+`kex_dlq_diagnosis`, les prévisions…) et c'est le décompte du serveur réel qui fait foi, pas une liste
+recopiée ici.
 
 Conséquence pour nos capacités : aucune n'a de contrepartie sur ce serveur. Devant lui, l'agent
 observe et recommande — il n'agit pas. Ce n'est pas un cas dégradé, c'est l'état nominal, et le
 chemin « aucun outil MCP lié à la capacité » le rend déjà explicite plutôt que de laisser croire à
 une exécution.
+
+### Les compétences et prompts de l'Explorer s'importent côté serveur, jamais sur la foi du navigateur
+
+Depuis la 2.9 l'Explorer publie ses compétences en ressources MCP (`kex://skills`, `skill://{name}/SKILL.md`,
+avec l'empreinte SHA-256 de chaque fichier) et six prompts d'enchaînement d'outils. La console savait
+déjà proposer une compétence : le navigateur recalculait l'empreinte, puis postait le texte sur
+`POST /api/agent/skills`. Trois défauts en découlaient. Le serveur ne savait rien de ce qui avait été
+vérifié — l'empreinte n'était qu'une affirmation postée avec le texte. Web Crypto manque hors HTTPS.
+Et la compétence arrivait sans déclencheur : une compétence de domaine sans déclencheur pèse sur toutes
+les conversations.
+
+`McpSkillImporter` fait l'import : il lit le catalogue, puis chaque `SKILL.md`, recalcule l'empreinte et
+la taille sur les octets reçus et refuse tout écart avec le manifeste. Il écarte les compétences
+d'ingénierie `kafkaexplorer-*`, qui parlent du dépôt de l'Explorer et pas d'un cluster, et il pose
+comme déclencheurs les mots du nom sans « kafka » — présent dans presque toute demande, il ferait agir la
+compétence partout. Rien n'est activé : chaque compétence entre en `PENDING` et attend un administrateur,
+comme une procédure écrite à la main, sans doublon ni retour d'un texte déjà écarté. Importer remplit
+la file de revue de textes venus d'un serveur tiers, d'où l'accès réservé aux administrateurs.
+
+Un serveur sans catalogue répond `409`, pas par une liste vide : « pas de catalogue ici » n'est pas
+« aucune compétence ». Les prompts se rendent (`POST /mcp/servers/{connection}/prompts/{name}`) après
+vérification des arguments requis contre la liste que le serveur annonce — un prompt rendu avec un
+trou partirait tel quel et le modèle comblerait le trou lui-même — et ne s'exécutent jamais : le texte
+revient à l'appelant, qui décide de l'envoyer au chat.
 
 ### Une alerte est un symptôme dédupliqué, pas un relevé
 
