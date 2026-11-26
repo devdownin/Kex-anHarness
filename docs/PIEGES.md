@@ -17,8 +17,8 @@ gras, puis pourquoi, puis ce qui le corrige et le test qui l'aurait attrapé.
 - [Supervision, décisions et mesures](#supervision-décisions-et-mesures) — 17
 - [Compétences et mémoire long terme](#compétences-et-mémoire-long-terme) — 10
 - [Persistance et migrations](#persistance-et-migrations) — 3
-- [Console et espace utilisateur](#console-et-espace-utilisateur) — 21
-- [Tests](#tests) — 10
+- [Console et espace utilisateur](#console-et-espace-utilisateur) — 22
+- [Tests](#tests) — 11
 - [CI, image et publication](#ci-image-et-publication) — 6
 
 ## Démarrage et configuration
@@ -529,6 +529,15 @@ Rendu, interactions, accessibilité, surfaces et thèmes de l'interface sans bui
   clair (`#167d73`) ne faisait que 4,24:1 sur le bas du dégradé de fond, là où un lien tombe hors d'un
   panneau : `contrast.mjs` ne le mesurait que sur `--surface`. L'accent clair vaut `#14776d`.
 
+- **Un tableau Markdown s'affichait en barres brutes dans le chat.** `renderMarkdown` ne
+  connaissait que listes, titres et paragraphes ; le modèle restitue pourtant volontiers un
+  classement en tableau, et la réponse arrivait en `|Rang|Topic|` illisible. `markdown-table.js`
+  lit le tableau (GFM : en-tête, séparateur d'au moins trois tirets, alignements, barre échappée),
+  testé sous Node ; `chat.js` le rend dans un conteneur qui défile seul. Si en plus les mots
+  arrivent collés, ce n'est pas le rendu : c'est un découpeur SSE qui retire l'espace de tête des
+  jetons — voir l'entrée sur `data:` dans [Modèle et conversation](#modèle-et-conversation), et
+  vérifier que le serveur et la console viennent du même build.
+
 ## Tests
 
 Mockito, Playwright, scripts navigateur et leur indépendance.
@@ -575,6 +584,12 @@ Mockito, Playwright, scripts navigateur et leur indépendance.
   compact`, sans hauteur minimale) tombaient sous 32 px ; le contrôle de la vue d'ensemble ne le
   voyait qu'au hasard, et son message ne disait pas quels éléments. Il les nomme maintenant dans
   cette première ligne, et un contrôle ouvre le panneau exprès.
+
+- **Une mesure prise pendant une animation de translation n'est pas entière.** Les flèches de
+  « Personnaliser » font 32 px en CSS, mais `getBoundingClientRect()` les lisait à 31,99997 px tant
+  que `popover-in` ou `view-enter` translataient leur conteneur : les contrôles de cible de
+  `first-run.mjs` échouaient au hasard, plus souvent sous processeur ralenti. Ils arrondissent la
+  mesure au centième avant de la comparer ; le seuil reste 32 px.
 
 - **Un test qui a besoin d'un état vide le simule, il ne le suppose pas.** Le cas « Lancer une
   analyse » de `first-run.mjs` lisait l'état réel de l'agent : jamais analysé, sans serveur MCP. Après
