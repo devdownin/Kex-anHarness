@@ -12,6 +12,13 @@ public sealed interface AgentEvent {
     record Token(String text) implements AgentEvent {
     }
 
+    /**
+     * Le constat sur les chiffres de la réponse, émis après le dernier jeton — il ne peut se faire
+     * qu'une fois la réponse entière lue — et seulement quand il a quelque chose à dire.
+     */
+    record Evidence(AnswerEvidence.Evidence evidence) implements AgentEvent {
+    }
+
     record ToolCall(String tool, long durationMillis, boolean failed, String observedAt, String result) implements AgentEvent {
         public ToolCall(String tool, long durationMillis, boolean failed) {
             this(tool, durationMillis, failed, null, null);

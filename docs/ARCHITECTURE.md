@@ -507,6 +507,24 @@ précis a fait. `RecordingToolCallbackProvider` enveloppe chaque outil et mesure
 résultat sort par deux chemins : un événement `tool` dans le flux, et le champ `tools` de la réponse
 bloquante.
 
+### Les chiffres d'une réponse de chat se contrôlent contre ce que les outils ont rendu
+
+Le cycle de supervision écarte déjà une anomalie qui ne cite aucun outil abouti. Le chat n'avait pas
+d'équivalent : un retard de « 120 000 messages » inventé se lisait comme mesuré. `AnswerEvidence` compare
+les chiffres de la réponse aux résultats d'outils réellement reçus, sans second modèle — un modèle
+chargé de juger le premier hériterait de son biais optimiste, et coûterait un appel de plus par réponse.
+
+Le résultat sort par deux chemins : le champ `evidence` de la réponse bloquante, et un événement
+`evidence` du flux, émis après le dernier jeton (il ne peut se faire qu'une réponse entière lue) et
+seulement quand il a quelque chose à dire. Un flux interrompu n'en porte pas. C'est une **alerte** :
+la console affiche une note sous la réponse, rien n'est refusé.
+
+Ce que le contrôle dit, et ne dit pas : seuls les nombres d'au moins trois chiffres comptent, hors
+dates, années et chiffres écrits par l'utilisateur ; « 120 000 », « 120000 » et « 120,000 » sont le même
+nombre ; un résultat d'outil que `ToolResultEvidence` n'a pas pu relire (`result` nul) rend le constat
+`UNVERIFIABLE` plutôt qu'une accusation. Faux positif connu : une somme ou un ratio calculé par le
+modèle n'est pas retrouvé tel quel, d'où le libellé « non retrouvés tels quels ».
+
 Le collecteur voyage dans le `ToolContext` de la requête, **pas** dans un ThreadLocal : la boucle
 d'outils du chemin en flux s'exécute sur des threads Reactor, où un ThreadLocal ne suit pas.
 

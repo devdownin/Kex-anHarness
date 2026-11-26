@@ -14,7 +14,7 @@ gras, puis pourquoi, puis ce qui le corrige et le test qui l'aurait attrapé.
 - [Sécurité, API et canaux de messagerie](#sécurité-api-et-canaux-de-messagerie) — 12
 - [Modèle et conversation](#modèle-et-conversation) — 9
 - [Serveurs MCP](#serveurs-mcp) — 7
-- [Supervision, décisions et mesures](#supervision-décisions-et-mesures) — 16
+- [Supervision, décisions et mesures](#supervision-décisions-et-mesures) — 17
 - [Compétences et mémoire long terme](#compétences-et-mémoire-long-terme) — 9
 - [Persistance et migrations](#persistance-et-migrations) — 3
 - [Console et espace utilisateur](#console-et-espace-utilisateur) — 21
@@ -314,6 +314,16 @@ Cycle d'analyse, états, preuves, autonomie, verrous, vérification après actio
   `null` distinct du vide (sans cela, déplacer un caractère d'un champ au suivant ne changerait rien).
   Une chaîne ne voit pas la troncature de sa fin : `headSeq` et `headHash` sont là pour être relevés
   ailleurs.
+
+- **Une alerte déterministe vaut mieux qu'un juge, et ne doit accuser que ce qu'elle établit.** Le
+  chat n'avait pas l'équivalent de la règle « une anomalie sans outil cité n'est qu'une affirmation » :
+  `AnswerEvidence` compare les chiffres d'une réponse aux résultats d'outils reçus. Trois choix la
+  gardent honnête. Un résultat que `ToolResultEvidence` n'a pas pu relire (`result` nul : texte libre,
+  trop long) donne `UNVERIFIABLE`, jamais `UNSUPPORTED` — l'absence d'un chiffre n'y prouve rien. La
+  comparaison ne garde que les chiffres, donc « 1,5 » passe pour « 15 » : un oubli plutôt qu'une fausse
+  accusation. Et un nombre n'est jamais couvert par un préfixe plus court (« 12 » ne fonde pas « 120 »).
+  Un motif de nombre trop gourmand avait fait lire « en 2026, 12 partitions » comme un seul nombre :
+  une virgule suivie d'une espace ne relie rien, et une espace ne relie que des milliers.
 
 ## Compétences et mémoire long terme
 

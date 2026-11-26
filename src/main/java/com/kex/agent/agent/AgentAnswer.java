@@ -12,12 +12,20 @@ import java.util.List;
  *                     quel plutôt que normalisé, un mot inconnu ne devant pas devenir un verdict.
  *                     Sans lui, une réponse coupée au plafond de jetons se lit exactement comme une
  *                     réponse complète.
+ * @param evidence     les chiffres de la réponse se retrouvent-ils dans ce que les outils ont rendu ?
+ *                     {@code null} quand le contrôle n'a pas eu lieu (rejeu, sortie structurée) ;
+ *                     une alerte, jamais un refus — voir {@link AnswerEvidence}
  */
 public record AgentAnswer(String conversationId, String content, List<AgentEvent.ToolCall> tools,
-                          AgentUsage usage, String finishReason, List<com.kex.agent.knowledge.KnowledgeSource> sources) {
+                          AgentUsage usage, String finishReason, List<com.kex.agent.knowledge.KnowledgeSource> sources,
+                          AnswerEvidence.Evidence evidence) {
+    public AgentAnswer(String conversationId, String content, List<AgentEvent.ToolCall> tools,
+            AgentUsage usage, String finishReason, List<com.kex.agent.knowledge.KnowledgeSource> sources) {
+        this(conversationId, content, tools, usage, finishReason, sources, null);
+    }
     public AgentAnswer(String conversationId, String content, List<AgentEvent.ToolCall> tools,
             AgentUsage usage, String finishReason) {
-        this(conversationId, content, tools, usage, finishReason, List.of());
+        this(conversationId, content, tools, usage, finishReason, List.of(), null);
     }
     public AgentAnswer { sources = List.copyOf(sources); }
 }

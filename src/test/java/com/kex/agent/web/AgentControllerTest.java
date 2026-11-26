@@ -349,6 +349,31 @@ class AgentControllerTest {
                 .contains("\"tool\":\"echo\"").contains("\"durationMillis\":12"));
     }
 
+    @Test
+    void le_flux_signale_apres_le_dernier_jeton_des_chiffres_qu_aucun_outil_ne_fonde() throws Exception {
+        var verdict = com.kex.agent.agent.AnswerEvidence.check("Le retard est de 120 000 messages.", "Retard ?", List.of());
+        given(agentService.stream("Anonyme", null, "Retard ?")).willReturn(new AgentStream("conv-10",
+                Flux.just(new AgentEvent.Token("Le retard est de 120 000 messages."), new AgentEvent.Evidence(verdict))));
+
+        var response = mvc.post().uri("/api/agent/chat/stream")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"message":"Retard ?"}""")
+                .exchange();
+
+        // Un flux SSE est de l'UTF-8 ; le mock décode en ISO-8859-1 sans en-tête de charset, et les
+        // accents du constat se liraient « citÃ©s ».
+        List<String> events = sseEvents(response.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
+        // Après le jeton, avant la fin : le constat ne peut venir que d'une réponse entière lue.
+        assertThat(events).containsSubsequence("conversation=conv-10",
+                "token=Le retard est de 120 000 messages.");
+        assertThat(events).anySatisfy(event -> assertThat(event).startsWith("evidence=")
+                .contains("\"status\":\"UNSUPPORTED\"").contains("\"unsupported\":[\"120 000\"]")
+                .contains("aucun outil n'ait été appelé"));
+        assertThat(events.indexOf("done=response-complete"))
+                .isGreaterThan(events.indexOf(events.stream().filter(e -> e.startsWith("evidence=")).findFirst().orElseThrow()));
+    }
+
     /** Découpe un corps SSE comme la norme : une seule espace retirée après {@code data:}. */
     private static List<String> sseEvents(String body) {
         List<String> events = new java.util.ArrayList<>();

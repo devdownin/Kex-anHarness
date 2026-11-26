@@ -1637,6 +1637,45 @@ await check('le cockpit MCP synthétise les connexions et leurs métriques', asy
   await page.unroute('**/api/agent/mcp/storage');
 });
 
+await check('des chiffres qu’aucun outil ne fonde sont signalés sous la réponse, en flux comme en bloc', async () => {
+  const evidence = { status: 'UNSUPPORTED', toolCalls: 0, unsupported: ['120 000'],
+    message: 'Chiffres cités sans qu’aucun outil n’ait été appelé : 120 000' };
+  await page.route('**/api/agent/chat/stream', (route) => route.fulfill({ status: 200,
+    headers: { 'Content-Type': 'text/event-stream' },
+    body: `event: conversation\ndata: conv-evidence\n\nevent: token\ndata: Le retard est de 120 000 messages.\n\nevent: evidence\ndata: ${JSON.stringify(evidence)}\n\nevent: done\ndata: ok\n\n` }));
+  await page.goto(`${BASE}/#/chat`);
+  await page.locator('#stream-mode').check();
+  await page.locator('#prompt').fill('Quel est le retard ?');
+  await page.locator('#send').click();
+  const note = page.locator('#transcript .evidence-note');
+  await note.waitFor();
+  assert.match(await note.innerText(), /aucun outil n’ait été appelé : 120 000/);
+  assert.equal(await note.locator('.chip.failed').count(), 1, 'le constat doit se lire comme une alerte');
+  await page.unroute('**/api/agent/chat/stream');
+
+  // Le chemin bloquant porte le même constat ; une réponse fondée n'en porte aucun.
+  await page.route('**/api/agent/chat', (route) => route.fulfill({ status: 200, contentType: 'application/json',
+    body: JSON.stringify({ conversationId: 'conv-evidence-2', content: 'Le retard est de 120 000 messages.',
+      tools: [], finishReason: 'stop', evidence }) }));
+  await page.locator('#stream-mode').uncheck();
+  await page.locator('#prompt').fill('Et en bloc ?');
+  await page.locator('#send').click();
+  await page.waitForFunction(() => document.querySelectorAll('#transcript .evidence-note').length >= 1);
+  await page.unroute('**/api/agent/chat');
+  await page.route('**/api/agent/chat', (route) => route.fulfill({ status: 200, contentType: 'application/json',
+    body: JSON.stringify({ conversationId: 'conv-evidence-3', content: 'Rien à signaler.', tools: [],
+      finishReason: 'stop', evidence: { status: 'GROUNDED', toolCalls: 1, unsupported: [], message: '' } }) }));
+  await page.locator('#prompt').fill('Autre question ?');
+  await page.locator('#send').click();
+  // Le tour lui-même, pas un compte global : reprendre une autre conversation réinitialise la
+  // transcription, et un compte avant/après dépendait de cet ordre.
+  const grounded = page.locator('#transcript .turn', { hasText: 'Rien à signaler.' });
+  await grounded.waitFor();
+  assert.equal(await grounded.locator('.evidence-note').count(), 0, 'une réponse fondée ne doit rien signaler');
+  await page.unroute('**/api/agent/chat');
+  await page.locator('#stream-mode').check();
+});
+
 await check('une panne du fournisseur en flux propose de réessayer le même message', async () => {
   let calls = 0;
   await page.route('**/api/agent/chat/stream', (route) => {
