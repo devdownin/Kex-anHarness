@@ -52,7 +52,12 @@ public class LlmViewService implements ModelAvailability {
         };
         String variable = apiKeyVariable(provider);
         Boolean keyPresent = keyPresent(provider);
-        boolean gateway = OPENAI.equals(provider) && localProvider() == null && !hostIs(baseUrl, OPENAI_HOST);
+        // Une passerelle est un intermédiaire HÉBERGÉ : un llama-server ou un autre serveur local sur
+        // cette machine ou ce réseau n'en est pas une, et le dire ici affirmerait que les prompts
+        // quittent la machine alors qu'ils ne la quittent pas — l'avertissement qui ne se trompe pas
+        // dans l'autre sens est celui qu'on continue de lire.
+        boolean gateway = OPENAI.equals(provider) && localProvider() == null && !hostIs(baseUrl, OPENAI_HOST)
+                && !isPrivateHost(baseUrl);
 
         List<String> warnings = new ArrayList<>();
         if (Boolean.FALSE.equals(keyPresent)) {
@@ -185,10 +190,48 @@ public class LlmViewService implements ModelAvailability {
                 if ("ollama".equals(localProvider())) yield "Ollama (API locale)";
                 if ("vllm".equals(localProvider())) yield "vLLM (API locale)";
                 if (hostIs(baseUrl, OPENROUTER_HOST)) yield "OpenRouter";
-                yield hostIs(baseUrl, OPENAI_HOST) ? "OpenAI" : "Passerelle compatible OpenAI";
+                if (hostIs(baseUrl, OPENAI_HOST)) yield "OpenAI";
+                yield isPrivateHost(baseUrl) ? "API locale compatible OpenAI" : "Passerelle compatible OpenAI";
             }
             default -> provider;
         };
+    }
+
+    /**
+     * Vrai quand l'hôte de la base d'URL ne peut pas être un service public : boucle locale, adresse
+     * privée ou de lien local, nom sans point (un service Docker ou Compose, comme {@code llama-cpp}),
+     * ou suffixe réservé aux réseaux internes. Lu sur la chaîne seule : aucune résolution DNS, qui
+     * ferait dépendre l'écran du réseau et d'un nom qu'un tiers peut faire pointer où il veut.
+     */
+    static boolean isPrivateHost(String baseUrl) {
+        if (!StringUtils.hasText(baseUrl)) return false;
+        String host;
+        try {
+            host = URI.create(baseUrl).getHost();
+        }
+        catch (IllegalArgumentException ex) {
+            return false;
+        }
+        if (host == null) return false;
+        host = host.toLowerCase(java.util.Locale.ROOT);
+        if (host.startsWith("[") && host.endsWith("]")) host = host.substring(1, host.length() - 1);
+        if (host.equals("localhost") || host.endsWith(".localhost") || host.endsWith(".local")
+                || host.endsWith(".internal") || host.endsWith(".lan") || host.endsWith(".svc")
+                || host.endsWith(".cluster.local")) {
+            return true;
+        }
+        if (host.contains(":")) { // IPv6 littéral : boucle locale, adresse unique locale (fc00::/7), lien local
+            return host.equals("::1") || host.startsWith("fc") || host.startsWith("fd") || host.startsWith("fe80");
+        }
+        java.util.regex.Matcher ipv4 = java.util.regex.Pattern
+                .compile("^(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})$").matcher(host);
+        if (ipv4.matches()) {
+            int a = Integer.parseInt(ipv4.group(1));
+            int b = Integer.parseInt(ipv4.group(2));
+            return a == 127 || a == 10 || (a == 192 && b == 168) || (a == 172 && b >= 16 && b <= 31)
+                    || (a == 169 && b == 254);
+        }
+        return !host.contains("."); // nom sans point : un service du réseau local, jamais un domaine public
     }
 
     /** Une base d'URL absente vaut le point d'accès du fournisseur : l'appel est direct. */

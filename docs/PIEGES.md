@@ -12,12 +12,12 @@ gras, puis pourquoi, puis ce qui le corrige et le test qui l'aurait attrapé.
 
 - [Démarrage et configuration](#démarrage-et-configuration) — 6
 - [Sécurité, API et canaux de messagerie](#sécurité-api-et-canaux-de-messagerie) — 12
-- [Modèle et conversation](#modèle-et-conversation) — 9
+- [Modèle et conversation](#modèle-et-conversation) — 12
 - [Serveurs MCP](#serveurs-mcp) — 7
 - [Supervision, décisions et mesures](#supervision-décisions-et-mesures) — 17
 - [Compétences et mémoire long terme](#compétences-et-mémoire-long-terme) — 10
 - [Persistance et migrations](#persistance-et-migrations) — 3
-- [Console et espace utilisateur](#console-et-espace-utilisateur) — 22
+- [Console et espace utilisateur](#console-et-espace-utilisateur) — 23
 - [Tests](#tests) — 11
 - [CI, image et publication](#ci-image-et-publication) — 6
 
@@ -195,6 +195,29 @@ Appel du fournisseur, flux SSE, mémoire de conversation, cache, métriques de j
   reçu une de trop. La console n'a plus qu'un découpeur, `events()` de `user-stream.js`, testé sous
   Node, et `AgentControllerTest` lit le flux comme un client conforme au lieu de comparer le texte
   brut — avec un jeton qui commence par une espace, le seul cas où les deux formats diffèrent.
+
+- **Un réglage de connexion posé sous `chat.options.` est lu sans erreur et ne sert à rien.** Les profils
+  `ollama` et `vllm` y posaient `max-retries: 0` : Spring AI garde l'alias `spring.ai.openai.chat.options.*`
+  pour les réglages du *modèle* (`model`, `temperature`…, qu'il relaie), mais `timeout`, `max-retries`,
+  `base-url`, `api-key` et `proxy` y restent dans l'alias, que rien ne lit. Le client réessayait donc trois
+  fois — chaque fois le prompt entier, sur un modèle local déjà lent — après un plafond de 60 s qui
+  s'applique à l'**appel entier, flux compris**, et non au premier octet. Ces réglages se posent à
+  `spring.ai.openai.*`, et `LlmConnectionConfigTest` lit la valeur *résolue* par la fonction de
+  l'autoconfiguration, jamais la clé : une clé qu'on ne fait que relire passe vert quelle que soit sa portée.
+
+- **Un serveur local compatible OpenAI n'est pas une « passerelle hébergée ».** `gateway` valait « fournisseur
+  `openai` sans profil local et hôte différent d'`api.openai.com` » : un llama-server derrière le service
+  Compose `llama-cpp` se voyait annoncer comme un tiers par lequel les prompts et les contenus Kafka lus
+  « quittent la machine ». `LlmViewService.isPrivateHost` classe l'hôte sur la chaîne seule — boucle locale,
+  adresses privées (172.16–31, pas 172.32), nom sans point, suffixes `.local` / `.internal` — sans DNS, qu'un
+  tiers fait pointer où il veut ; un nom à point reste une passerelle, `openrouter.ai.evil.example` compris.
+
+- **Le motif d'une panne du fournisseur est le même sur les deux routes, et sans le corps brut.** Le flux
+  rendait « refusé la clé (HTTP 401) » ; la route bloquante renvoyait `ex.getMessage()` — le JSON du
+  fournisseur, avec parfois l'identifiant de requête. Une seule fonction (`modelProviderMessage`) dit
+  maintenant quoi régler : le plafond d'un appel (`InterruptedIOException` d'OkHttp), une adresse fausse
+  (`ConnectException`, `UnknownHostException`), un `400` de serveur local (fenêtre dépassée, modèle sans
+  appel d'outils), un `402` de crédits, un `404` de modèle.
 
 ## Serveurs MCP
 
@@ -537,6 +560,19 @@ Rendu, interactions, accessibilité, surfaces et thèmes de l'interface sans bui
   arrivent collés, ce n'est pas le rendu : c'est un découpeur SSE qui retire l'espace de tête des
   jetons — voir l'entrée sur `data:` dans [Modèle et conversation](#modèle-et-conversation), et
   vérifier que le serveur et la console viennent du même build.
+
+- **Le Markdown d'une réponse se lit sans DOM, se rend sans `innerHTML`, et un renvoi `[source:…]` se masque
+  avant d'être lu.** Le chat ne savait rendre que paragraphes, listes à puces et titres, l'espace
+  utilisateur rien du tout (la réponse y arrivait en texte brut, barres de tableau et `**` compris).
+  `markdown.js` produit un arbre — testé sous Node, entrées hostiles comprises —, `markdown-view.js` le rend
+  pour les deux surfaces. Trois règles ont chacune un défaut derrière elles : un lien n'est cliquable que vers
+  http(s) ou mailto (`safeHref`), parce qu'une réponse recopie ce que des messages Kafka écrits par un tiers
+  contiennent ; un marqueur sans compagnon reste du texte, parce qu'une réponse en flux est tronquée et qu'un
+  `**` ouvert ne doit pas mettre le reste de la page en gras ; et les renvois `[source:…]` sont remplacés par
+  des caractères d'usage privé avant l'analyse, puis remis en boutons — un id contenant `*` ou `_` aurait
+  ouvert une emphase au milieu d'un renvoi, et un renvoi coupé entre deux nœuds n'est plus reconnu. Une réponse
+  reçue en partie se rend aussi en Markdown : elle n'est pas du texte brut parce qu'elle est incomplète. Et la
+  ligne de séparation d'un tableau n'exige pas trois tirets : `|:--|--:|` est ce que les modèles écrivent.
 
 ## Tests
 

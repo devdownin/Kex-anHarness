@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Kex Agent AI Contributors
 import { $, api, credentials, el, failure, headers } from './core.js';
 import { presentedResponse, drawValidation, drawConsultations } from './user-presentation.js';
+import { renderMarkdown } from './markdown-view.js';
 import { resultIssue, drawEvidence, drawFindings, drawToolEvidence } from './user-evidence.js';
 import { drawTables, drawJson, resultStatus, rememberDetails, drawExports, drawMetrics } from './user-results.js';
 import { drawWork, drawRunActivity, resultSections } from './user-work.js';
@@ -268,7 +269,10 @@ function drawDetail() {
       result.choices.forEach(c => { const choice = button(c.label, () => { $('#followup').value = c.value; $('#followup').focus(); }); choice.disabled = !!active || !current.conversationId; choices.append(choice); });
       article.append(choices, el('p', 'muted', 'Le choix prépare votre réponse. Cliquez sur Envoyer pour poursuivre ; vous pouvez aussi écrire une autre réponse.'));
     } else if (t.role === 'agent' && t.completed) drawEvidence(article, t.text || 'Aucun résultat reçu.', t.sources);
-    else article.append(el('div', 'answer', t.role === 'agent' && current.status === 'RUNNING' && t === current.turns.at(-1) ? 'Kex prépare votre réponse…' : t.text || 'En attente de la réponse…'));
+    else if (t.role === 'agent' && t.text && !(current.status === 'RUNNING' && t === current.turns.at(-1))) {
+      // Une réponse reçue en partie ou interrompue se lit aussi mise en forme : son texte est du Markdown comme l'autre.
+      const partial = el('div', 'answer evidence-text'); partial.append(renderMarkdown(t.text)); article.append(partial);
+    } else article.append(el('div', 'answer', t.role === 'agent' && current.status === 'RUNNING' && t === current.turns.at(-1) ? 'Kex prépare votre réponse…' : t.text || 'En attente de la réponse…'));
     if (t.role === 'agent' && t.completed && result?.kind !== 'clarification') { const provenance = { sources: t.sources || [], tools: t.tools || [], presentation: t.presentation || null, receivedAt: t.receivedAt || null }; drawFindings(article, result?.findings, t.sources, t.tools); drawMetrics(article, Array.isArray(result?.metrics) ? result.metrics.map(m => ({ ...m, provenance })) : []); drawTables(article, result?.tables, provenance); drawJson(article, t.text, provenance); drawExports(article, t, provenance); }
     if (t.error) article.append(el('p', 'error', t.error));
     if (t.sources?.length) {

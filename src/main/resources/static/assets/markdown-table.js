@@ -5,7 +5,10 @@
 // testé sous Node : le modèle restitue volontiers un classement en tableau, et sans ce rendu la
 // console affichait les barres verticales en texte brut.
 
-const SEPARATOR_CELL = /^:?-{3,}:?$/;
+// Une cellule de séparation est des tirets, avec un deux-points facultatif de chaque côté : GFM n'en
+// exige pas trois, et `|:--|--:|` est ce que les modèles écrivent le plus. La largeur égale à celle de
+// l'en-tête reste le garde-fou contre une ligne de tirets qui n'est pas un tableau.
+const SEPARATOR_CELL = /^:?-+:?$/;
 
 function cells(line) {
   let row = line.trim();
@@ -17,7 +20,7 @@ function cells(line) {
 
 /**
  * Lit un bloc de lignes comme un tableau, ou rend {@code null} : en-tête, ligne de séparation dont
- * chaque cellule compte au moins trois tirets, puis les lignes de données. Une ligne de données plus
+ * chaque cellule est des tirets (deux-points facultatifs), puis les lignes de données. Une ligne de données plus
  * courte que l'en-tête est complétée, une plus longue tronquée — comme GFM.
  */
 export function parseTable(lines) {

@@ -575,7 +575,8 @@ build. Modules ES natifs :
 | `core.js` | Registre des panneaux (clé d'URL), routage par `hash`, `busy(...)`, `featureApi`, `confirmAction`, identifiants (`sessionStorage`) |
 | `console.js`, `console.css` | Coquille (`.shell` en `height: 100dvh`), navigation |
 | `supervision.js`, `overview-summary.js`, `process-creation.js`, `process-forecasts.js` | Supervision, vue d'ensemble, processus |
-| `chat.js`, `user-stream.js`, `markdown-table.js` | Conversation ; découpeur SSE unique `events()` ; tableaux Markdown des réponses |
+| `chat.js`, `user-stream.js` | Conversation ; découpeur SSE unique `events()` |
+| `markdown.js`, `markdown-table.js`, `markdown-view.js` | Le Markdown des réponses : l'arbre (sans DOM, testé sous Node), les tableaux, puis le rendu partagé par le chat et l'espace utilisateur |
 | `tools.js`, `mcp-services.js`, `mcp-ux.js`, `mcp-ux-guard.js`, `mcp-server.js` | Serveurs MCP, invocation, Kex serveur |
 | `skills.js`, `blind-review.js`, `memory.js`, `summaries.js`, `knowledge.js` | Gouvernance de l'apprentissage |
 | `tasks.js`, `automations.js`, `channels.js`, `kafka.js`, `forecasts.js`, `llm.js` | Fonctions dédiées |

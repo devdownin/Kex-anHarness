@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Kex Agent AI Contributors
 import { el } from './core.js';
 import { findingQuality } from './user-presentation.js';
+import { renderMarkdown } from './markdown-view.js';
 
 const date = value => Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString('fr-FR') : 'Date non fournie';
 export function resultIssue(request) {
@@ -33,17 +34,37 @@ export function sourceValidity(source, now = Date.now()) {
   const until = Date.parse(source.validUntil);
   return Number.isFinite(until) ? until <= now ? 'Validité expirée' : 'Valide jusqu’au ' + date(source.validUntil) : 'Validité non fournie';
 }
+// Les renvois `[source:…]` sont masqués avant que le Markdown ne soit lu : un id qui contient `*` ou `_`
+// ne doit pas ouvrir une emphase au milieu d'un renvoi, ni un renvoi se retrouver coupé entre deux nœuds.
+// Des caractères d'usage privé, sans sens en Markdown, tiennent la place ; le rendu les remet en
+// boutons dans le texte ordinaire, et tels quels dans le code.
+const MARK_OPEN = '\uE000'; const MARK_CLOSE = '\uE001';
+const MARKER = new RegExp(`${MARK_OPEN}(\\d+)${MARK_CLOSE}`);
+export function maskCitations(text) {
+  const ids = [];
+  const masked = String(text).replace(/\[source:([^\]\r\n]{1,200})\]/g, (_, id) => { ids.push(id); return `${MARK_OPEN}${ids.length - 1}${MARK_CLOSE}`; });
+  return { masked, ids };
+}
 export function drawEvidence(host, text, sources = []) {
   const content = el('div', 'answer evidence-text'); let linked = false;
-  citations(text, sources).forEach(part => {
-    if (part.text !== undefined) { content.append(document.createTextNode(part.text)); return; }
-    if (!part.source) { content.append(el('span', 'source-missing', `[source:${part.id}] — Source non fournie`)); return; }
-    linked = true; const source = part.source; const group = el('span', 'evidence-reference');
+  const { masked, ids } = maskCitations(text);
+  const known = Array.isArray(sources) ? sources : [];
+  const citation = (parent, id) => {
+    const source = known.find(item => item.id === id);
+    if (!source) { parent.append(el('span', 'source-missing', `[source:${id}] — Source non fournie`)); return; }
+    linked = true; const group = el('span', 'evidence-reference');
     const button = el('button', 'evidence-link', `${source.source || source.id} · ${date(source.observedAt)}`); button.type = 'button'; button.setAttribute('aria-expanded', 'false');
     const detail = el('span', 'evidence-excerpt'); detail.hidden = true;
     detail.append(el('strong', null, 'Source ' + source.id), el('span', null, ' · Observé le ' + date(source.observedAt) + ' · ' + sourceValidity(source)), el('span', 'muted', 'Association proposée dans la réponse ; vérifiez l’extrait et sa validité.'), el('span', null, source.excerpt || 'Extrait non fourni.'));
-    button.addEventListener('click', () => { detail.hidden = !detail.hidden; button.setAttribute('aria-expanded', String(!detail.hidden)); }); group.append(button, detail); content.append(group);
+    button.addEventListener('click', () => { detail.hidden = !detail.hidden; button.setAttribute('aria-expanded', String(!detail.hidden)); }); group.append(button, detail); parent.append(group);
+  };
+  const inline = (run, parent) => run.split(new RegExp(`(${MARK_OPEN}\\d+${MARK_CLOSE})`)).forEach(piece => {
+    const marker = MARKER.exec(piece);
+    if (marker && piece === marker[0]) citation(parent, ids[Number(marker[1])]);
+    else if (piece) parent.append(document.createTextNode(piece));
   });
+  const literal = value => value.replace(new RegExp(MARKER.source, 'g'), (_, index) => `[source:${ids[Number(index)]}]`);
+  content.append(renderMarkdown(masked, { inline, literal }));
   host.append(content);
   if (!linked) host.append(el('p', 'muted evidence-note', 'Aucune source reliée à ce constat dans la réponse. Les sources consultées ne prouvent pas à elles seules cette conclusion.'));
 }

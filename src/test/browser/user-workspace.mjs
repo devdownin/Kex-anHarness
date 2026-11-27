@@ -8,6 +8,11 @@ const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? 'playwright')
 const root = resolve('src/main/resources/static');
 let mode = 'success'; let approved = true; let posts = [];
 const unsafe = '<img src=x onerror="window.hacked=true">';
+// Une réponse en prose telle qu'un modèle l'écrit : titre, emphase, liens (dont un piégé), listes imbriquées, tableau, citation, code.
+const rich = ['## Synthèse', '', 'Le traitement est **en retard** (*voir* [le runbook](https://example.org/runbook)).', '',
+  '- Commandes : `order-integration`', '  - dernier message il y a 12 min', '- Clients : à jour', '', '1. Vérifier le topic', '2. Relancer le consommateur', '',
+  '| Topic | Retard |', '|---|--:|', '| orders | 120 |', '', '> Mesure non vérifiée', '', '```sql', 'SELECT 1;', '```', '',
+  '[piège](javascript:window.hacked=true) ' + unsafe].join('\n');
 const server = createServer(async (req, res) => {
   const token = req.headers.authorization;
   if (req.url === '/api/agent/whoami') {
@@ -26,10 +31,10 @@ const server = createServer(async (req, res) => {
     if (mode === 'hold') return;
     res.write('event: tool\ndata: {"tool":"kex_process_health","durationMillis":9,"failed":false}\n\n');
     res.write('event: sources\ndata: [{"source":"runbook","observedAt":"2026-10-04T08:00:00Z","excerpt":"preuve"}]\n\n');
-    const output = mode === 'clarification' ? JSON.stringify({ kind: 'clarification', question: 'Quelle période examiner ?', choices: [{ label: 'Aujourd’hui', value: 'Depuis ce matin' }, { label: 'Cette semaine', value: 'Depuis lundi' }] }) : mode === 'structured' ? JSON.stringify({ kind: 'result', observations: unsafe, uncertainties: 'Période non vérifiée', nextAction: 'Préciser la période' }) : 'Observation ' + unsafe;
-    res.write('event: token\ndata: ' + output + '\n\n');
+    const output = mode === 'markdown' ? rich : mode === 'clarification' ? JSON.stringify({ kind: 'clarification', question: 'Quelle période examiner ?', choices: [{ label: 'Aujourd’hui', value: 'Depuis ce matin' }, { label: 'Cette semaine', value: 'Depuis lundi' }] }) : mode === 'structured' ? JSON.stringify({ kind: 'result', observations: unsafe, uncertainties: 'Période non vérifiée', nextAction: 'Préciser la période' }) : 'Observation ' + unsafe;
+    res.write('event: token\n' + output.split('\n').map(line => 'data: ' + line).join('\n') + '\n\n');
     if (mode === 'error') res.write('event: error\ndata: Service indisponible\n\n');
-    if (['success', 'clarification', 'structured'].includes(mode)) res.write('event: done\ndata: response-complete\n\n');
+    if (['success', 'clarification', 'structured', 'markdown'].includes(mode)) res.write('event: done\ndata: response-complete\n\n');
     res.end(); return;
   }
   const path = req.url.split('?')[0];
@@ -95,6 +100,19 @@ try {
     await page.getByRole('heading', { name: 'Ce que j’ai constaté', exact: true }).waitFor();
     assert.equal(await page.locator('#turns img').count(), 0);
     assert.match(posts.at(-1).message, /Depuis ce matin/);
+    mode = 'markdown'; await page.locator('#followup').fill('Mets cela en forme'); await page.locator('#followup-send').click();
+    const body = page.locator('#turns .markdown-body').last(); await body.locator('table').waitFor();
+    assert.equal(await body.locator('h4').innerText(), 'Synthèse');
+    assert.equal(await body.locator('strong').first().innerText(), 'en retard'); assert.equal(await body.locator('em').first().innerText(), 'voir');
+    const link = body.locator('a'); assert.equal(await link.count(), 1, 'seul le lien http(s) est cliquable');
+    assert.equal(await link.getAttribute('href'), 'https://example.org/runbook'); assert.match(await link.getAttribute('rel'), /noopener/); assert.equal(await link.getAttribute('target'), '_blank');
+    assert.equal(await body.locator('ul > li > ul > li').count(), 1, 'sous-liste'); assert.equal(await body.locator('ol > li').count(), 2);
+    assert.deepEqual(await body.locator('th').allInnerTexts(), ['Topic', 'Retard']); assert.equal(await body.locator('td').nth(1).evaluate(n => n.style.textAlign), 'right');
+    assert.match(await body.locator('blockquote').innerText(), /Mesure non vérifiée/);
+    assert.equal(await body.locator('.code-lang').textContent(), 'sql'); assert.equal(await body.locator('pre.code-block').innerText(), 'SELECT 1;');
+    assert.equal(await body.locator('img').count(), 0); assert.equal(await page.evaluate(() => window.hacked), undefined);
+    assert.ok(await body.evaluate(n => n.scrollWidth <= n.clientWidth + 1), 'la réponse ne déborde pas de son conteneur');
+    await body.locator('.code-copy').click(); await body.locator('.code-copy').filter({ hasText: /Copié|Copie impossible/ }).waitFor();
     mode = 'partial'; await page.locator('#followup').fill('Précise les limites'); await page.locator('#followup-send').click();
     await page.locator('#run-status').getByText('Résultat partiel', { exact: true }).waitFor();
     mode = 'error'; await page.locator('#followup').fill('Nouvelle vérification'); await page.locator('#followup-send').click();

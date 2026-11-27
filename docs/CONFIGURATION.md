@@ -26,6 +26,7 @@ arrive.
 | `KEX_AGENT_LLM_PROVIDER` | `anthropic` | Fournisseur du modèle de conversation : `anthropic` ou `openai` (OpenRouter) |
 | `OPENROUTER_MODEL` | `openai/gpt-oss-120b:free` | Modèle OpenRouter, au format `fournisseur/modèle` |
 | `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | Toute autre passerelle compatible OpenAI se règle ici |
+| `KEX_AGENT_MODEL_TIMEOUT` | `120s` (`600s` sous les profils `ollama` et `vllm`) | Plafond d'**un** appel au modèle, flux compris — voir [Plafonds d'un appel](#plafonds-dun-appel-au-modèle) |
 | `KAFKA_EXPLORER_URL` | `http://localhost:8080` | URL de l'Explorer, côté agent |
 | `SPECTRALLM_URL` | *(vide)* | URL de l'API SpectraLLM, côté agent. Vide, aucune clé n'est posée — voir [MCP.md](MCP.md#spectrallm) |
 | `SPECTRA_API_KEY` | *(vide)* | Clé de SpectraLLM, envoyée en `X-API-Key` aux seules requêtes vers `SPECTRALLM_URL` |
@@ -545,6 +546,8 @@ n'est pas une action partagée qui partirait en double.
 | `spring.ai.anthropic.chat.options.temperature` | `0.2` | Basse : on veut des faits, pas du style |
 | `spring.ai.openai.base-url` | `https://openrouter.ai/api/v1` | Passerelle, quand le fournisseur est `openai` |
 | `spring.ai.openai.chat.options.model` | `openai/gpt-oss-120b:free` | Modèle OpenRouter |
+| `spring.ai.openai.timeout` | `120s` | Plafond d'un appel au modèle (60 s par défaut dans Spring AI) |
+| `spring.ai.openai.max-retries` | *(3, valeur du client)* ; `0` sous `ollama` et `vllm` | Nouvelles tentatives du client, qui rejouent le prompt entier |
 | `spring.ai.tools.limits.max-total-tool-calls` | `20` | Plafond d'appels d'outils par échange |
 | `spring.ai.tools.limits.on-limit-exceeded` | `return_error_response` | Le modèle conclut au lieu de lever une 500 |
 | `spring.ai.mcp.client.initialized` | `false` | Initialisation paresseuse — voir ARCHITECTURE.md |
@@ -657,6 +660,23 @@ choses à savoir avant de basculer :
 
 `OPENROUTER_BASE_URL` pointe ailleurs pour toute autre passerelle compatible OpenAI — un LiteLLM
 ou un vLLM interne, par exemple.
+
+### Plafonds d'un appel au modèle
+
+Trois plafonds s'emboîtent, du plus étroit au plus large : `spring.ai.openai.timeout`
+(`KEX_AGENT_MODEL_TIMEOUT`, **un** appel au modèle), `kex.agent.request-timeout` (l'échange entier,
+tours d'outils compris) puis `spring.mvc.async.request-timeout` (la requête asynchrone, plus longue
+pour que l'agent rende lui-même une erreur explicite). Le premier ne doit pas dépasser le deuxième :
+un appel plus long que l'échange qui le porte ne finirait pas. `LlmConnectionConfigTest` le lit sur
+les YAML livrés.
+
+Le client de Spring AI applique son plafond à **l'appel entier, flux compris**, et non au premier
+octet : à 60 s (sa valeur par défaut) il coupait une réponse de 4 096 jetons à 40 jet/s. Un modèle
+local est plus lent encore, d'où `600s` et `max-retries: 0` sous les profils `ollama` et `vllm` — et
+sous une pile qui pointe `OPENROUTER_BASE_URL` sur un serveur local, où il faut poser
+`KEX_AGENT_MODEL_TIMEOUT`, `SPRING_AI_OPENAI_MAXRETRIES=0`, `KEX_AGENT_REQUESTTIMEOUT` et
+`SPRING_MVC_ASYNC_REQUESTTIMEOUT` ensemble. Ces réglages se posent à `spring.ai.openai.*` : la même
+clé sous `spring.ai.openai.chat.options.*` est lue sans erreur et ignorée.
 
 ### Lire la configuration appliquée
 

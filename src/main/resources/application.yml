@@ -82,6 +82,13 @@ spring:
       # quittent la machine, et transitent par un tiers de plus qu'avec un appel direct.
       api-key: ${OPENROUTER_API_KEY:}
       base-url: ${OPENROUTER_BASE_URL:https://openrouter.ai/api/v1}
+      # Plafond d'UN appel au modèle, flux compris : le client de Spring AI le pose sur l'appel entier,
+      # pas sur le premier octet, et sa valeur par défaut — 60 s — coupait une réponse longue (4 096
+      # jetons à 40 jet/s font ~100 s) en cours de route. Aligné sur kex.agent.request-timeout : un appel
+      # plus long que l'échange qui le porte ne pourrait pas finir. Les nouvelles tentatives restent à
+      # la valeur du client (3) ; les profils locaux les coupent, rejouer un prompt sur un CPU lent
+      # triplant la charge pour le même résultat.
+      timeout: ${KEX_AGENT_MODEL_TIMEOUT:120s}
       chat:
         options:
           # OpenRouter nomme ses modèles fournisseur/modèle. Celui-ci sait appeler des outils, ce

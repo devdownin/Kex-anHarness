@@ -125,3 +125,24 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(4px);-webkit-backd
 @media(max-width:700px){
   .app-header{position:static;margin:8px 8px 0;border-radius:20px;backdrop-filter:blur(14px) saturate(150%);-webkit-backdrop-filter:blur(14px) saturate(150%)}
 }
+
+/* La réponse en prose, rendue depuis son Markdown (markdown-view.js) : mêmes éléments que le chat de la console,
+   habillés avec les jetons de cet espace. Pas de pre-wrap sur le corps : les blocs sont déjà des éléments. */
+.evidence-text .markdown-body{display:flex;flex-direction:column;gap:12px;white-space:normal}
+.markdown-body p{margin:0}.markdown-body h3,.markdown-body h4,.markdown-body h5{margin:8px 0 0;line-height:1.3}
+.markdown-body ul,.markdown-body ol{margin:0;padding-left:26px;display:flex;flex-direction:column;gap:6px}.markdown-body ul ul,.markdown-body ol ol,.markdown-body ul ol,.markdown-body ol ul{margin-top:6px}
+.markdown-body ul{list-style:disc}.markdown-body ul ul{list-style:circle}.markdown-body ol{list-style:decimal}
+.markdown-body blockquote{margin:0;padding:4px 0 4px 16px;border-left:4px solid var(--line);color:var(--muted);display:flex;flex-direction:column;gap:8px}
+.markdown-body hr{width:100%;margin:4px 0;border:0;border-top:1px solid var(--line)}
+.markdown-body a{overflow-wrap:anywhere}.markdown-body del{color:var(--muted)}
+.markdown-body .inline-code,.markdown-body code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.88em}
+.markdown-body .inline-code{padding:2px 6px;border-radius:6px;background:var(--soft);border:1px solid var(--line)}
+.markdown-body .code-wrap{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--soft)}
+.markdown-body .code-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 6px 2px 14px;border-bottom:1px solid var(--line)}
+.markdown-body .code-lang{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.markdown-body .code-copy{min-height:44px;padding:4px 12px;background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:8px;font-size:15px}
+.markdown-body pre.code-block{margin:0;padding:14px;overflow-x:auto;font-size:.88em;line-height:1.5;white-space:pre}
+.markdown-body .chat-table-wrap{max-width:100%;overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+.markdown-body .chat-table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+.markdown-body .chat-table th,.markdown-body .chat-table td{padding:8px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.markdown-body .chat-table thead th{background:var(--soft);font-weight:700}.markdown-body .chat-table tbody tr:last-child td{border-bottom:0}

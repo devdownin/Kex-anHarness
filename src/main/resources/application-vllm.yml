@@ -7,13 +7,24 @@ spring:
     openai:
       base-url: ${VLLM_BASE_URL:http://localhost:8000/v1}
       api-key: ${VLLM_API_KEY:kex-local}
+      # Les réglages de CONNEXION se posent ici, pas sous `chat.options.` : cette clé est un alias de
+      # compatibilité qui garde timeout et max-retries pour elle et que rien ne lit — `max-retries: 0`
+      # y était posé et le client réessayait trois fois quand même, après un plafond de 60 s.
+      timeout: ${KEX_AGENT_MODEL_TIMEOUT:600s}
+      max-retries: 0
       chat:
         options:
           model: ${VLLM_MODEL:Qwen/Qwen3-8B}
-          max-retries: 0
+  mvc:
+    async:
+      # Au-delà de kex.agent.request-timeout, pour que l'agent rende lui-même une erreur explicite.
+      request-timeout: 650s
 kex:
   models:
     local-provider: vllm
   agent:
+    # Un modèle local met des minutes là où un modèle hébergé met des secondes : les 120 s livrées
+    # couperaient l'échange avant la fin du premier appel.
+    request-timeout: 600s
     knowledge:
       enabled: false

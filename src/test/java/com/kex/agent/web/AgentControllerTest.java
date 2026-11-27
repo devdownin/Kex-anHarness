@@ -462,6 +462,37 @@ class AgentControllerTest {
     }
 
     @Test
+    void le_motif_dit_quoi_regler_selon_le_code_ou_la_cause() {
+        // Sans code HTTP : le plafond d'un appel (OkHttp lève InterruptedIOException « timeout ») et une
+        // adresse fausse ne se règlent pas au même endroit, et aucun n'est « une réponse illisible ».
+        assertThat(AgentController.modelProviderMessage(new OpenAIException("timeout",
+                new java.net.SocketTimeoutException("timeout")))).contains("KEX_AGENT_MODEL_TIMEOUT");
+        assertThat(AgentController.modelProviderMessage(new OpenAIException("x",
+                new java.io.InterruptedIOException("timeout")))).contains("KEX_AGENT_MODEL_TIMEOUT");
+        assertThat(AgentController.modelProviderMessage(new OpenAIException("x",
+                new java.net.ConnectException("Connection refused")))).contains("injoignable").contains("adresse de base");
+        assertThat(AgentController.modelProviderMessage(new OpenAIException("x",
+                new RuntimeException(new java.net.UnknownHostException("llama-cpp"))))).contains("adresse de base");
+        // Les codes qu'un serveur local ou un compte sans crédit renvoient vraiment.
+        assertThat(AgentController.modelProviderMessage(openai(400))).contains("HTTP 400").contains("fenêtre de contexte");
+        assertThat(AgentController.modelProviderMessage(openai(402))).contains("crédits");
+        assertThat(AgentController.modelProviderMessage(openai(404))).contains("nom du modèle");
+        assertThat(AgentController.modelProviderMessage(openai(503))).contains("indisponible").contains("HTTP 503");
+        assertThat(AgentController.modelProviderMessage(openai(418))).contains("HTTP 418");
+    }
+
+    private static com.openai.errors.OpenAIServiceException openai(int status) {
+        return switch (status) {
+            case 400 -> com.openai.errors.BadRequestException.builder().headers(com.openai.core.http.Headers.builder().build()).build();
+            case 404 -> com.openai.errors.NotFoundException.builder().headers(com.openai.core.http.Headers.builder().build()).build();
+            case 503 -> com.openai.errors.InternalServerException.builder().statusCode(503)
+                    .headers(com.openai.core.http.Headers.builder().build()).build();
+            default -> com.openai.errors.UnexpectedStatusCodeException.builder().statusCode(status)
+                    .headers(com.openai.core.http.Headers.builder().build()).build();
+        };
+    }
+
+    @Test
     void retourne_504_avec_l_identifiant_de_conversation_quand_l_appel_depasse_le_plafond() {
         willThrow(new AgentTimeoutException(Duration.ofSeconds(120), "conv-9"))
                 .given(agentService).ask("Anonyme", "conv-1", "bonjour");
@@ -519,14 +550,20 @@ class AgentControllerTest {
      */
     @Test
     void retourne_502_et_non_401_quand_le_fournisseur_anthropic_refuse_la_cle() {
-        willThrow(new AnthropicException("invalid x-api-key"))
+        willThrow(com.anthropic.errors.UnauthorizedException.builder()
+                .headers(com.anthropic.core.http.Headers.builder().build())
+                .body(com.anthropic.core.JsonValue.from("{\"error\":\"invalid x-api-key\",\"request_id\":\"req_011\"}"))
+                .build())
                 .given(agentService).ask("Anonyme", "conv-1", "bonjour");
 
+        // Le motif, pas le corps brut du fournisseur : même phrase que sur le flux, et ni l'identifiant de
+        // requête ni le JSON ne repartent chez l'appelant.
         assertThat(mvc.post().uri("/api/agent/chat")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"conversationId":"conv-1","message":"bonjour"}"""))
-                .hasStatus(502).bodyJson().extractingPath("$.detail").isEqualTo("invalid x-api-key");
+                .hasStatus(502).bodyJson().extractingPath("$.detail")
+                .asString().contains("refusé la clé (HTTP 401)").doesNotContain("req_011").doesNotContain("x-api-key");
     }
 
     /** Même défaut, même correctif, côté OpenRouter — l'autre fournisseur que l'agent sait appeler. */
