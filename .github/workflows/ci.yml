@@ -47,6 +47,11 @@ jobs:
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}
           restore-keys: maven-${{ runner.os }}-
 
+      # Le wget de mvnw ne réessaie pas, et les réessais de .mvn/maven.config ne valent qu'une fois
+      # Maven lancé : un cache vide (première exécution, clé changée) se jouait sur un seul essai.
+      - name: Fetch Maven
+        run: for attempt in 1 2 3 4; do ./mvnw -q -v > /dev/null && exit 0; sleep $((attempt * 15)); done; exit 1
+
       # Aucun secret : le profil `test` fournit une clé Anthropic factice et désactive le
       # client MCP, donc la suite ne sort jamais sur le réseau. Un fork construit à l'identique.
       # `verify` couvre le format, les en-têtes de licence, les tests, le seuil de couverture
@@ -95,6 +100,10 @@ jobs:
             ~/.m2/wrapper
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}
           restore-keys: maven-${{ runner.os }}-
+
+      # Réessais du téléchargement de Maven quand le cache est vide : voir ci.yml, job `build`.
+      - name: Fetch Maven
+        run: for attempt in 1 2 3 4; do ./mvnw -q -v > /dev/null && exit 0; sleep $((attempt * 15)); done; exit 1
       - name: Run MCP interoperability contract
         run: ./mvnw -B --no-transfer-progress -Dtest=KexMcpServerInteropContractTest,KexMcpServerComplianceTest test
 
@@ -161,6 +170,10 @@ jobs:
             ~/.m2/wrapper
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}
           restore-keys: maven-${{ runner.os }}-
+
+      # Réessais du téléchargement de Maven quand le cache est vide : voir ci.yml, job `build`.
+      - name: Fetch Maven
+        run: for attempt in 1 2 3 4; do ./mvnw -q -v > /dev/null && exit 0; sleep $((attempt * 15)); done; exit 1
 
       # Pas de setup-node : les exécuteurs GitHub embarquent Node et npm, et le script n'utilise
       # que des API stables depuis Node 18. Une action de plus, c'est une empreinte de plus à
@@ -428,6 +441,10 @@ jobs:
             ~/.m2/wrapper
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}
           restore-keys: maven-${{ runner.os }}-
+
+      # Réessais du téléchargement de Maven quand le cache est vide : voir ci.yml, job `build`.
+      - name: Fetch Maven
+        run: for attempt in 1 2 3 4; do ./mvnw -q -v > /dev/null && exit 0; sleep $((attempt * 15)); done; exit 1
 
       - name: Bring Kafka and the pinned Explorer up
         run: |

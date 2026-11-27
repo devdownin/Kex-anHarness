@@ -50,6 +50,10 @@ jobs:
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}
           restore-keys: maven-${{ runner.os }}-
 
+      # Réessais du téléchargement de Maven quand le cache est vide : voir ci.yml, job `build`.
+      - name: Fetch Maven
+        run: for attempt in 1 2 3 4; do ./mvnw -q -v > /dev/null && exit 0; sleep $((attempt * 15)); done; exit 1
+
       - name: Build and test
         run: ./mvnw -B --no-transfer-progress verify
 
@@ -81,6 +85,10 @@ jobs:
             ~/.m2/wrapper
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}
           restore-keys: maven-${{ runner.os }}-
+
+      # Réessais du téléchargement de Maven quand le cache est vide : voir ci.yml, job `build`.
+      - name: Fetch Maven
+        run: for attempt in 1 2 3 4; do ./mvnw -q -v > /dev/null && exit 0; sleep $((attempt * 15)); done; exit 1
 
       # Le nom du dépôt d'images et l'identifiant sont des variables, le jeton un secret : un nom
       # d'utilisateur n'est pas un secret, et le ranger comme tel le rend invisible dans les

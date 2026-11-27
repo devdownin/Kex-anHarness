@@ -688,7 +688,9 @@ Workflows, cache, image Docker, scan, versions publiées.
   `.mvn/maven.config` ne valent qu'une fois Maven lancé. `~/.m2/wrapper` est ajouté à chaque cache, et
   la liste doit rester identique entre l'écrivain et les lecteurs : `actions/cache` range les chemins
   dans la version de la clé, et un lecteur qui en liste d'autres ne restaure rien, sans le dire.
-  `scripts/tests/test_workflow_maven_cache.py` l'impose.
+  Le cache ne couvre pas sa propre première exécution : la PR qui l'a ajouté a échoué de la même
+  façon, cache vide. L'étape `Fetch Maven` (`./mvnw -v`, quatre essais espacés) suit donc chaque cache
+  Maven. `scripts/tests/test_workflow_maven_cache.py` impose les deux.
 
 - **Une variable d'environnement de job l'emporte sur le défaut d'un script.** `explorer-contract`
   déclare `KEX_AGENT_API_KEY: contract-secret` pour tout le job, mais démarrait l'agent avec

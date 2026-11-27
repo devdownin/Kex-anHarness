@@ -58,6 +58,10 @@ jobs:
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}
           restore-keys: maven-${{ runner.os }}-
 
+      # Réessais du téléchargement de Maven quand le cache est vide : voir ci.yml, job `build`.
+      - name: Fetch Maven
+        run: for attempt in 1 2 3 4; do ./mvnw -q -v > /dev/null && exit 0; sleep $((attempt * 15)); done; exit 1
+
       - name: Package the agent
         run: ./mvnw -B --no-transfer-progress -DskipTests package
 

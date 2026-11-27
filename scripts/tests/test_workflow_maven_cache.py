@@ -3,7 +3,8 @@
 Sans `~/.m2/wrapper`, chaque job retéléchargeait Maven par `wget`, sans réessai : un hoquet de
 repo.maven.apache.org suffisait à faire échouer `browser` en douze secondes. Et `actions/cache`
 range les chemins dans la version de la clé : un job qui en liste d'autres que l'écrivain ne
-restaure rien, sans le dire.
+restaure rien, sans le dire. Le cache ne couvre pas sa première exécution : l'étape `Fetch Maven`,
+qui réessaie, suit donc chaque cache Maven, avant le premier `./mvnw`.
 """
 
 import pathlib
@@ -42,6 +43,20 @@ class WorkflowMavenCacheTest(unittest.TestCase):
     def test_un_cache_sans_wrapper_est_signale(self):
         text = "      with:\n        path: ~/.m2/repository\n        key: maven-x\n"
         self.assertEqual([["~/.m2/repository"]], list(maven_cache_paths(text)))
+
+    def test_chaque_cache_maven_est_suivi_du_telechargement_qui_reessaie(self):
+        found = 0
+        for workflow in sorted(WORKFLOWS.glob("*.yml")):
+            text = workflow.read_text(encoding="utf-8")
+            for match in CACHE.finditer(text):
+                found += 1
+                following = text[match.end():]
+                next_step = following[following.index("- name:"):].splitlines()[0]
+                self.assertEqual("- name: Fetch Maven", next_step, workflow.name)
+                self.assertLess(
+                    following.index("- name: Fetch Maven"), following.index("./mvnw"), workflow.name
+                )
+        self.assertGreater(found, 0)
 
 
 if __name__ == "__main__":
