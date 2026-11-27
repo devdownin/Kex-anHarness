@@ -94,7 +94,9 @@ class LlmViewServiceTest {
 
             LlmView view = service.describe();
 
-            assertThat(view.gateway()).as(url).isFalse();
+            // Son catalogue reste lisible (`gateway`), mais il n'est pas un tiers (`local`).
+            assertThat(view.gateway()).as(url).isTrue();
+            assertThat(view.local()).as(url).isTrue();
             assertThat(view.label()).as(url).isEqualTo("API locale compatible OpenAI");
             assertThat(view.warnings()).as(url).noneMatch(w -> w.contains("quittent la machine"));
         }
@@ -112,6 +114,7 @@ class LlmViewServiceTest {
             LlmView view = service.describe();
 
             assertThat(view.gateway()).as(url).isTrue();
+            assertThat(view.local()).as(url).isFalse();
             assertThat(view.warnings()).as(url).anyMatch(w -> w.contains("quittent la machine"));
         }
     }

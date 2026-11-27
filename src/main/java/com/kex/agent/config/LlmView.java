@@ -15,8 +15,12 @@ import java.util.List;
  * @param label            nom lisible du fournisseur effectif — « OpenRouter » plutôt que
  *                         « openai », que rien ne distinguerait d'un appel direct à OpenAI
  * @param baseUrl          {@code null} quand l'appel part directement chez le fournisseur
- * @param gateway          un intermédiaire de plus que l'appel direct : ce que la console doit
- *                         dire, puisque prompts et résultats d'outils y transitent
+ * @param gateway          un point d'accès compatible OpenAI autre qu'OpenAI lui-même : la console y
+ *                         lit un catalogue de modèles ({@code /models}), qu'il soit hébergé ou local
+ * @param local            ce point d'accès est sur cette machine ou ce réseau (boucle locale, adresse
+ *                         privée, service Compose) : rien n'y transite par un tiers. Séparé de
+ *                         {@code gateway}, qui disait les deux à la fois — un serveur local se voyait
+ *                         ou annoncé comme un tiers, ou privé de son catalogue
  * @param apiKeyPresent    {@code null} quand le fournisseur n'est pas connu d'ici : un {@code false}
  *                         affirmerait « pas de clé » là où la phrase vraie est « pas su regarder »
  * @param apiKeyVariable   la variable d'environnement à poser, pas la propriété Spring : c'est
@@ -24,7 +28,7 @@ import java.util.List;
  * @param warnings         ce que cette configuration coûte ou risque, en clair
  */
 public record LlmView(String provider, String label, String model, String baseUrl, boolean gateway,
-                      Boolean apiKeyPresent, String apiKeyVariable, Integer maxTokens,
+                      boolean local, Boolean apiKeyPresent, String apiKeyVariable, Integer maxTokens,
                       Double temperature, Integer maxToolCalls, String onToolLimitExceeded,
                       String requestTimeout, int maxHistoryMessages, boolean logInteractions,
                       String embeddingProvider, boolean knowledgeEnabled, String systemPrompt,
