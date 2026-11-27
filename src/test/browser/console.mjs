@@ -1674,6 +1674,68 @@ await check('une réponse en Markdown reçue en jetons se rend mise en forme, es
   await page.unroute('**/api/agent/chat/stream');
 });
 
+await check('les questions de relance arrivent sous la réponse, se placent dans le champ sans partir, et se débrayent', async () => {
+  const stream = 'event: conversation\ndata: conv-suggest\n\nevent: token\ndata: demo.app.topic domine.\n\nevent: done\ndata: ok\n\n';
+  const asked = [];
+  await page.route('**/api/agent/chat/stream', (route) => route.fulfill({ status: 200,
+    headers: { 'Content-Type': 'text/event-stream' }, body: stream }));
+  await page.route('**/api/agent/chat/suggestions', (route) => {
+    asked.push(JSON.parse(route.request().postData()));
+    route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ suggestions: ['Quel est le retard du groupe orders ?', '<img src=x onerror="window.hacked=1">', ''], reason: null }) });
+  });
+  await page.evaluate(() => localStorage.removeItem('kex.agent.chat.suggestions'));
+  await page.goto(`${BASE}/#/chat`);
+  await page.locator('#suggestions-switch').waitFor();
+  assert.equal(await page.locator('#suggestions-mode').isChecked(), true, 'actives par défaut');
+  await page.locator('#stream-mode').check();
+  await page.locator('#prompt').fill('Quels topics ont le plus de messages ?');
+  await page.locator('#send').click();
+  const chips = page.locator('#transcript .turn-suggestions .suggestion-chip');
+  await chips.first().waitFor();
+  assert.deepEqual(asked.at(-1), { question: 'Quels topics ont le plus de messages ?', answer: 'demo.app.topic domine.' });
+  // Le texte du modèle reste du texte : ni balise interprétée, ni puce vide.
+  assert.deepEqual(await chips.allInnerTexts(), ['Quel est le retard du groupe orders ?', '<img src=x onerror="window.hacked=1">']);
+  assert.equal(await page.evaluate(() => window.hacked), undefined);
+  // Un clic remplit le champ et ne fait rien partir.
+  const before = asked.length;
+  const turns = await page.locator('#transcript .turn').count();
+  await chips.first().click();
+  assert.equal(await page.locator('#prompt').inputValue(), 'Quel est le retard du groupe orders ?');
+  await page.waitForTimeout(300);
+  assert.equal(await page.locator('#transcript .turn').count(), turns, 'rien n’est envoyé au clic');
+  // Débrayées : les puces disparaissent, et la réponse suivante ne demande plus rien au serveur.
+  await page.locator('#suggestions-mode').uncheck();
+  assert.equal(await page.locator('#transcript .turn-suggestions').count(), 0);
+  assert.equal(await page.evaluate(() => localStorage.getItem('kex.agent.chat.suggestions')), 'off');
+  await page.locator('#send').click();
+  await page.locator('#transcript .turn').nth(turns + 1).waitFor();
+  await page.waitForTimeout(300);
+  assert.equal(asked.length, before, 'aucun appel de suggestions une fois débrayées');
+  // Retenu par navigateur : la page rechargée garde l'interrupteur éteint.
+  await page.reload();
+  await page.locator('#suggestions-switch').waitFor();
+  assert.equal(await page.locator('#suggestions-mode').isChecked(), false);
+  await page.evaluate(() => localStorage.removeItem('kex.agent.chat.suggestions'));
+  await page.unroute('**/api/agent/chat/suggestions');
+  await page.unroute('**/api/agent/chat/stream');
+});
+
+await check('les suggestions éteintes côté serveur cachent l’interrupteur', async () => {
+  await page.route('**/api/agent/whoami', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    await route.fulfill({ response, json: { ...body, features: { ...body.features, suggestions: false } } });
+  });
+  // Un vrai rechargement : la console garde whoami pour la page, un simple changement d'ancre le relirait du cache.
+  await page.goto(`${BASE}/#/chat`);
+  await page.reload();
+  await page.locator('#composer').waitFor();
+  await page.waitForTimeout(300);
+  assert.equal(await page.locator('#suggestions-switch').isHidden(), true);
+  await page.unroute('**/api/agent/whoami');
+});
+
 await check('des chiffres qu’aucun outil ne fonde sont signalés sous la réponse, en flux comme en bloc', async () => {
   const evidence = { status: 'UNSUPPORTED', toolCalls: 0, unsupported: ['120 000'],
     message: 'Chiffres cités sans qu’aucun outil n’ait été appelé : 120 000' };

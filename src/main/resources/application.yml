@@ -400,6 +400,13 @@ kex:
         min-refusals: 3
         window: 30d
 
+    # Les questions de relance proposées sous une réponse du chat (SuggestionService). Un appel au modèle
+    # de plus par réponse, sans outil ni mémoire, compté dans le budget de jetons et la limite de débit.
+    # false : ni route, ni appel, ni interrupteur dans la console. La console a aussi le sien, par navigateur.
+    suggestions:
+      enabled: ${KEX_AGENT_SUGGESTIONS_ENABLED:true}
+      max: 3
+      timeout: 30s
     rate-limit:
       # Par appelant authentifié, pas par instance : avec un seul bearer il n'existe qu'un
       # appelant, donc le seuil se lit comme avant. Sous le profil `shared-memory`, le seau vit

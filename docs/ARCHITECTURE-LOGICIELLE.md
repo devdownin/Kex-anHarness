@@ -127,6 +127,7 @@ flowchart TB
 | `AgentService` | Point d'entrée de toute conversation : `ask`, `askStructured`, `stream`, variantes `askReadOnly`, `askForTask`, `streamReadOnly`, `streamForTask`, rejeux `probe` / `probeTogether`, `clear`. Assemble outils, contexte durable, compétences, connaissance et les deux blocs système. |
 | `AgentAnswer`, `AgentStructuredAnswer`, `AgentStream`, `AgentEvent`, `AgentUsage`, `AgentProbe` | Contrats de sortie (texte, JSON validé, flux SSE typé, consommation, rejeu). |
 | `JsonSchemaOutputConverter` | Sortie structurée validée contre un JSON Schema fourni par l'appelant. |
+| `SuggestionService`, `SuggestionProperties` | Une à trois questions de relance après une réponse du chat : un appel au modèle à part, sans outil ni mémoire, imputé au budget de l'appelant, servi par `ChatSuggestionController` (`POST /api/agent/chat/suggestions`). Débrayable par `kex.agent.suggestions.enabled` et par l'interrupteur de la console. |
 | `TokenBudgetService`, `BudgetRepository` (`File…`/`Jdbc…`), `BudgetController` | Budget de jetons journalier, réservé avant l'appel, partagé en base sous `shared-memory`. |
 | `ToolCallRecorder`, `ToolResultEvidence` | Trace des appels d'outils d'un échange, preuves citables par la supervision. |
 | `AnswerEvidence` | Contrôle déterministe des chiffres d'une réponse de chat : se retrouvent-ils dans les résultats d'outils reçus ? Alerte (`evidence` dans la réponse et dans le flux SSE), jamais un refus. |

@@ -871,6 +871,7 @@
             <textarea id="prompt" rows="1" placeholder="Interroger l'agent… (Entrée pour envoyer, Maj+Entrée pour un saut de ligne)" required></textarea>
             <div class="composer-side">
               <label class="switch" title="La réponse s’affiche au fil de son écriture ; décochée, elle arrive d’un bloc, une fois terminée."><input type="checkbox" id="stream-mode" checked> <span>Réponse en direct</span></label>
+              <label class="switch" id="suggestions-switch" hidden title="Après chaque réponse, jusqu’à trois questions de relance à placer dans le champ de saisie. Un appel au modèle de plus, compté dans le budget."><input type="checkbox" id="suggestions-mode" checked> <span>Suggestions</span></label>
               <button type="submit" class="primary" id="send">Envoyer</button>
               <button type="button" class="ghost danger" id="abort" hidden>Arrêter</button>
             </div>

@@ -1693,6 +1693,16 @@ table.grid tr.just-changed td, .compact-card.just-changed { animation: change-ar
 .markdown-body h4.chat-header { font-size: 15px; }
 .markdown-body h5.chat-header { font-size: 14px; }
 .chat-table-wrap { max-width: 100%; overflow-x: auto; }
+/* Les questions de relance : sous la bulle, à sa largeur, des puces qui passent à la ligne. */
+.turn-suggestions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; max-width: 100%; }
+.turn-suggestions-label { font-size: 11px; font-weight: 700; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; margin-right: 2px; }
+.suggestion-chip {
+  min-height: 32px; padding: 5px 12px; max-width: 100%;
+  font: inherit; font-size: 13px; line-height: 1.35; text-align: left; white-space: normal; overflow-wrap: anywhere;
+  color: var(--accent); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; cursor: pointer;
+}
+.suggestion-chip:hover { background: var(--accent-soft); border-color: var(--accent); }
+.suggestion-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .chat-table { border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
 .chat-table th, .chat-table td { padding: 4px 10px; border: 1px solid var(--line); text-align: left; }
 .chat-table thead th { font-weight: 700; color: var(--ink); background: var(--surface-2); }
@@ -1783,7 +1793,7 @@ table.grid tr.just-changed td, .compact-card.just-changed { animation: change-ar
   backdrop-filter: blur(var(--blur-thin)) saturate(var(--saturate-thin));
   -webkit-backdrop-filter: blur(var(--blur-thin)) saturate(var(--saturate-thin));
 }
-.composer-side { display: flex; align-items: center; gap: 8px; }
+.composer-side { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .switch { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); white-space: nowrap; }
 
 .chat-aside { position: sticky; top: 0; }
