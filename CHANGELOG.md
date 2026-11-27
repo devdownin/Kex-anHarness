@@ -6,6 +6,12 @@ Versionnement [sémantique](https://semver.org/lang/fr/).
 ## [Non publié]
 
 ### Ajouté
+- **Questions de relance sous une réponse du chat.** Après une réponse confirmée de bout en bout, la console propose
+  de une à trois questions liées à la question et à la réponse ; un clic place la question dans le champ de saisie,
+  rien ne part sans la personne. Un appel au modèle à part (`POST /api/agent/chat/suggestions`), sans outil ni
+  mémoire, compté dans le budget de jetons et la limite de débit de l'appelant. Débrayables pour l'installation
+  (`kex.agent.suggestions.enabled`, `KEX_AGENT_SUGGESTIONS_ENABLED` : la route et l'interrupteur disparaissent) et
+  par navigateur (interrupteur « Suggestions » du composeur, éteint = aucun appel).
 - **Catalogue Agent Skills KafkaExplorer dans les connexions MCP** : découverte via `kex://skills`, chargement à la demande des `SKILL.md`, contrôle taille/SHA-256 et proposition dans la file de revue Kex. Aucun skill distant n'est activé automatiquement et les droits MCP restent inchangés.
 
 - **Départ autonome du cycle sans base de données**, sur une instance déclarée unique

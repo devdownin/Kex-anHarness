@@ -32,7 +32,8 @@ class WhoAmIController {
      * à un seul endroit.
      */
     private static final java.util.Map<String, String> OPTIONAL_FEATURES = java.util.Map.of(
-            "tasks", "taskController", "automations", "automationController");
+            "tasks", "taskController", "automations", "automationController",
+            "suggestions", "chatSuggestionController");
 
     private final org.springframework.context.ApplicationContext context;
 

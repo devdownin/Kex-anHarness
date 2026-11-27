@@ -5,7 +5,7 @@
 // comprendre ce qui se passe.
 
 import {
-  $, ago, api, busy, credentials, dismissDrawer, el, empty, failure, headers, onCredentialChange,
+  $, ago, api, busy, credentials, dismissDrawer, el, empty, failure, featureApi, featureEnabled, headers, onCredentialChange,
   openDrawer, registerDrawer, report,
   params, setDrawerParam, setParams,
 } from './core.js';
@@ -255,6 +255,97 @@ function addTurn(role, text) {
   return { turn, bubble };
 }
 
+// ── Questions de relance ─────────────────────────────────────────────────
+//
+// Débrayables à deux niveaux : `kex.agent.suggestions.enabled` côté serveur (la route et l'interrupteur
+// disparaissent alors) et l'interrupteur « Suggestions » ici, retenu par navigateur. Éteint, aucun appel
+// n'est fait : chaque suggestion coûte un appel au modèle, compté dans le budget de jetons.
+const SUGGESTIONS_KEY = 'kex.agent.chat.suggestions';
+
+function suggestionsWanted() {
+  try {
+    return localStorage.getItem(SUGGESTIONS_KEY) !== 'off';
+  } catch {
+    return true;
+  }
+}
+
+function clearSuggestions() {
+  document.querySelectorAll('#transcript .turn-suggestions').forEach((node) => node.remove());
+}
+
+/**
+ * Sous la réponse, de une à trois questions proposées. Un clic place la question dans le champ de
+ * saisie et rend la main : c'est la personne qui l'envoie, ou la modifie avant. Ce que le modèle a
+ * écrit ne part jamais tout seul vers l'agent et ses outils.
+ */
+async function offerSuggestions(turn, question, answer) {
+  const toggle = $('#suggestions-mode');
+  if (!toggle || toggle.closest('[hidden]') || !toggle.checked) return;
+  const requestCredential = credentials.get();
+  let result;
+  try {
+    result = await featureApi('suggestions', '/api/agent/chat/suggestions', {
+      method: 'POST', body: { question, answer: answer.slice(0, 20_000) },
+    });
+  } catch {
+    // Une suggestion n'est jamais la réponse : son absence ne mérite pas une alerte.
+    return;
+  }
+  // Pendant l'attente, l'accès a pu changer, une autre question partir, ou l'interrupteur s'éteindre.
+  if (requestCredential !== credentials.get() || !turn.isConnected || !toggle.checked
+      || turn !== $('#transcript').lastElementChild) return;
+  const items = (Array.isArray(result?.suggestions) ? result.suggestions : [])
+    .filter((text) => typeof text === 'string' && text.trim()).slice(0, 3);
+  if (!items.length) return;
+  const transcript = $('#transcript');
+  const stick = nearBottom(transcript);
+  const box = el('div', 'turn-suggestions');
+  box.setAttribute('role', 'group');
+  box.setAttribute('aria-label', 'Questions suggérées');
+  box.append(el('span', 'turn-suggestions-label', 'Pour aller plus loin'));
+  for (const text of items) {
+    const button = el('button', 'suggestion-chip', text);
+    button.type = 'button';
+    button.title = 'Placer cette question dans le champ de saisie — rien n’est envoyé';
+    button.addEventListener('click', () => {
+      const field = $('#prompt');
+      field.value = text;
+      resizeComposer(field);
+      field.focus();
+    });
+    box.append(button);
+  }
+  turn.append(box);
+  if (stick) transcript.scrollTop = transcript.scrollHeight;
+}
+
+function wireSuggestionsToggle() {
+  const toggle = $('#suggestions-mode');
+  if (!toggle) return;
+  toggle.checked = suggestionsWanted();
+  toggle.addEventListener('change', () => {
+    try {
+      localStorage.setItem(SUGGESTIONS_KEY, toggle.checked ? 'on' : 'off');
+    } catch {
+      // Stockage indisponible : le choix vaut pour cette page.
+    }
+    if (!toggle.checked) clearSuggestions();
+  });
+  onCredentialChange(() => refreshSuggestionsSwitch());
+}
+
+/**
+ * Éteintes sur le serveur : l'interrupteur ne s'affiche pas, plutôt que de promettre ce qui n'existe pas.
+ * Lu à l'ouverture de la vue et à chaque changement d'accès, jamais au chargement du module : sans
+ * accès, la lecture de whoami ouvrirait la demande d'identifiants avant que la personne n'ait rien fait.
+ */
+async function refreshSuggestionsSwitch() {
+  const holder = $('#suggestions-switch');
+  if (!holder || !credentials.get()) return;
+  holder.hidden = !(await featureEnabled('suggestions'));
+}
+
 /**
  * Une panne du fournisseur ou un disjoncteur ouvert sont passagers : sans bouton, il fallait
  * recopier le message à la main. Le bouton remet le message dans le champ et le renvoie.
@@ -444,6 +535,8 @@ async function sendStreaming(message) {
   // interrompu ne doit pas écrire son tour incomplet dans la conversation qui vient de le remplacer.
   let ownConversationId = null;
   let accumulatedText = '';
+  let completed = false;
+  let failed = false;
   try {
     for await (const event of serverSentEvents(response)) {
       if (requestCredential !== credentials.get()) throw new DOMException('Accès modifié', 'AbortError');
@@ -468,7 +561,10 @@ async function sendStreaming(message) {
         calls.push(JSON.parse(event.data));
         renderToolChips(turn, calls);
         renderToolLog(calls);
+      } else if (event.name === 'done') {
+        completed = true;
       } else if (event.name === 'error') {
+        failed = true;
         turn.classList.add('error');
         accumulatedText += (accumulatedText ? '\n\n' : '') + event.data;
         updateBubble(bubble, 'error', accumulatedText);
@@ -484,6 +580,9 @@ async function sendStreaming(message) {
     }
     inFlight = null;
   }
+  // Une réponse confirmée de bout en bout, et elle seule : une relance sur une réponse coupée
+  // partirait d'un texte que l'agent n'a pas fini d'écrire.
+  return completed && !failed && accumulatedText.trim() ? { turn, text: accumulatedText } : null;
 }
 
 async function sendBlocking(message) {
@@ -501,6 +600,7 @@ async function sendBlocking(message) {
   renderToolLog(answer.tools || []);
   appendTranscript(answer.conversationId,
     { role: 'agent', text: answer.content, tools: answer.tools, finishReason: answer.finishReason });
+  return answer.content?.trim() ? { turn, text: answer.content } : null;
 }
 
 /** Redessine une conversation déjà connue depuis sa transcription locale, sans appel réseau. */
@@ -579,6 +679,7 @@ function openHistory() {
 
 /** Reprend un diagnostic contextuel préparé depuis une alerte ou un processus. */
 export async function prefill() {
+  refreshSuggestionsSwitch();
   const transferred = params().get('userConversation');
   if (transferred) {
     // Le transfert reste local à l'onglet et doit appartenir au compte actuellement authentifié.
@@ -681,6 +782,7 @@ export function wire(onUnauthorized) {
     const message = field.value.trim();
     if (!message) return;
 
+    clearSuggestions();
     addTurn('user', message);
     field.value = '';
     resizeComposer(field);
@@ -689,8 +791,9 @@ export function wire(onUnauthorized) {
     const streaming = $('#stream-mode').checked;
     $('#send').disabled = true;
     $('#abort').hidden = !streaming;
+    let answered = null;
     try {
-      await (streaming ? sendStreaming(message) : sendBlocking(message));
+      answered = await (streaming ? sendStreaming(message) : sendBlocking(message));
     } catch (error) {
       if (error.name === 'AbortError') addTurn('error', 'Flux interrompu.');
       else {
@@ -702,7 +805,10 @@ export function wire(onUnauthorized) {
       $('#abort').hidden = true;
       field.focus();
     }
+    // Après la main rendue : les suggestions arrivent quand elles arrivent, sans bloquer l'envoi suivant.
+    if (answered) offerSuggestions(answered.turn, message, answered.text);
   });
+  wireSuggestionsToggle();
 
   $('#abort').addEventListener('click', () => inFlight?.abort());
 

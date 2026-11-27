@@ -64,6 +64,10 @@ arrive.
 | `oidc.tenant-claim` | *(vide)* | Claim porteur du locataire. Vide, tous les porteurs partagent `default-tenant` |
 | `oidc.default-tenant` | `default` | Locataire de tous les porteurs de jeton quand `tenant-claim` est vide |
 | `request-timeout` | `120s` | Attente maximale d'un échange, tours d'outils compris |
+| `suggestions.enabled` | `true` (`KEX_AGENT_SUGGESTIONS_ENABLED`) | Questions de relance sous une réponse du chat. `false` : ni route `POST /api/agent/chat/suggestions`, ni appel au modèle, ni interrupteur dans la console. La console a aussi le sien, retenu par navigateur |
+| `suggestions.max` | `3` | De 1 à 3 suggestions au plus |
+| `suggestions.timeout` | `30s` | Au-delà, aucune suggestion plutôt qu'une attente |
+| `suggestions.max-answer-characters` | `6000` | Ce qui est relu de la réponse pour proposer une suite |
 | `rate-limit.enabled` | `true` | Limite de débit sur `/api/agent/chat`, `/chat/stream` et l'invocation directe `POST /mcp/servers/{connection}/tools/{tool}` — l'introspection MCP en lecture reste libre |
 | `rate-limit.requests-per-minute` | `60` | Débit soutenu, **par principal authentifié** — un seau par nom d'`api-keys`, un seul avec `api-key`. Sous `shared-memory` le seau est partagé entre répliques et le seuil vaut pour l'installation ; sinon chaque réplique tient le sien |
 | `rate-limit.burst` | `20` | Pointe tolérée au-delà du débit soutenu, par principal également |

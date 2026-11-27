@@ -76,7 +76,7 @@ class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/agent/channels/callback",
                                 "/api/agent/channels/slack/interactivity").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/agent/chat", "/api/agent/chat/structured",
-                                "/api/agent/chat/stream").hasAnyRole("CHAT", "OPERATOR", "ADMIN")
+                                "/api/agent/chat/stream", "/api/agent/chat/suggestions").hasAnyRole("CHAT", "OPERATOR", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/agent/workspace/requests", "/api/agent/workspace/requests/*")
                                 .hasAnyRole("CHAT", "OPERATOR", "ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/agent/workspace/requests/stream", "/api/agent/workspace/requests/*/recover/stream")

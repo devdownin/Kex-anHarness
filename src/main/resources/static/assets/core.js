@@ -110,6 +110,11 @@ function features() {
   return featuresPromise;
 }
 
+/** Faux seulement quand le serveur a déclaré la fonction éteinte : une lecture de whoami en échec ne cache rien. */
+export async function featureEnabled(feature) {
+  return (await features())[feature] !== false;
+}
+
 /** Comme `api`, mais rend le 404 d'une fonction éteinte sans requête quand le serveur l'a déclarée. */
 export async function featureApi(feature, path, options = {}) {
   if ((await features())[feature] === false) throw new ApiError(404, 'Fonction non activée sur ce serveur');
