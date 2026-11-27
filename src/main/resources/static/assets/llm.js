@@ -62,7 +62,9 @@ function provider(data) {
   if (data.provider.toLowerCase() !== data.label.toLowerCase()) {
     wrap.append(el('span', 'mono muted', data.provider));
   }
-  if (data.gateway) wrap.append(stateTag('WARNING', 'Intermédiaire'));
+  // Un serveur local compatible OpenAI n'est pas un intermédiaire : rien n'y transite par un tiers.
+  if (data.gateway && !data.local) wrap.append(stateTag('WARNING', 'Intermédiaire'));
+  else if (data.local) wrap.append(stateTag('OK', 'Local'));
   return wrap;
 }
 
@@ -207,9 +209,9 @@ export async function view() {
       el('span', null, data.knowledgeEnabled ? 'Activée' : 'Désactivée')));
 
     // Le catalogue n'est proposé que là où il existe : sur un appel direct à Anthropic, le
-    // bouton n'ouvrirait qu'un panneau expliquant qu'il n'y a rien à lire.
+    // bouton n'ouvrirait qu'un panneau expliquant qu'il n'y a rien à lire. Un serveur local en a un.
     if (data.gateway) {
-      const open = el('button', 'ghost', 'Modèles disponibles sur la passerelle');
+      const open = el('button', 'ghost', data.local ? 'Modèles disponibles sur le serveur local' : 'Modèles disponibles sur la passerelle');
       open.type = 'button';
       open.id = 'open-llm-models';
       // Par l'adresse et non par un appel direct : c'est ce qui rend le bouton Retour capable de

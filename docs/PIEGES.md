@@ -205,12 +205,15 @@ Appel du fournisseur, flux SSE, mémoire de conversation, cache, métriques de j
   `spring.ai.openai.*`, et `LlmConnectionConfigTest` lit la valeur *résolue* par la fonction de
   l'autoconfiguration, jamais la clé : une clé qu'on ne fait que relire passe vert quelle que soit sa portée.
 
-- **Un serveur local compatible OpenAI n'est pas une « passerelle hébergée ».** `gateway` valait « fournisseur
-  `openai` sans profil local et hôte différent d'`api.openai.com` » : un llama-server derrière le service
-  Compose `llama-cpp` se voyait annoncer comme un tiers par lequel les prompts et les contenus Kafka lus
-  « quittent la machine ». `LlmViewService.isPrivateHost` classe l'hôte sur la chaîne seule — boucle locale,
-  adresses privées (172.16–31, pas 172.32), nom sans point, suffixes `.local` / `.internal` — sans DNS, qu'un
-  tiers fait pointer où il veut ; un nom à point reste une passerelle, `openrouter.ai.evil.example` compris.
+- **Un serveur local compatible OpenAI n'est pas une « passerelle hébergée », mais il a un catalogue.**
+  `gateway` disait deux choses à la fois : « un tiers voit passer les prompts » et « un catalogue de modèles
+  se lit à `/models` ». Un llama-server derrière le service Compose `llama-cpp` se voyait donc annoncer comme
+  un tiers par lequel les contenus Kafka lus « quittent la machine ». Le premier correctif a mis `gateway` à
+  faux pour un hôte local — et retiré du même coup le bouton du catalogue : trois cas de `console.mjs`
+  échouaient, la CI faisant tourner son faux fournisseur sur `127.0.0.1`. Les deux faits sont maintenant deux
+  champs : `gateway` (catalogue lisible) et `local` (`LlmViewService.isPrivateHost`, lu sur la chaîne seule —
+  boucle locale, adresses privées, 172.16–31 mais pas 172.32, nom sans point, `.local` / `.internal` —, sans
+  DNS, qu'un tiers fait pointer où il veut). Un nom à point reste un tiers, `openrouter.ai.evil.example` compris.
 
 - **Le motif d'une panne du fournisseur est le même sur les deux routes, et sans le corps brut.** Le flux
   rendait « refusé la clé (HTTP 401) » ; la route bloquante renvoyait `ex.getMessage()` — le JSON du

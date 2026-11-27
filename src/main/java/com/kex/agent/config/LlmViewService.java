@@ -52,12 +52,13 @@ public class LlmViewService implements ModelAvailability {
         };
         String variable = apiKeyVariable(provider);
         Boolean keyPresent = keyPresent(provider);
-        // Une passerelle est un intermédiaire HÉBERGÉ : un llama-server ou un autre serveur local sur
-        // cette machine ou ce réseau n'en est pas une, et le dire ici affirmerait que les prompts
-        // quittent la machine alors qu'ils ne la quittent pas — l'avertissement qui ne se trompe pas
-        // dans l'autre sens est celui qu'on continue de lire.
-        boolean gateway = OPENAI.equals(provider) && localProvider() == null && !hostIs(baseUrl, OPENAI_HOST)
-                && !isPrivateHost(baseUrl);
+        // Deux faits distincts. `gateway` : un point d'accès compatible OpenAI autre qu'OpenAI, dont la
+        // console lit le catalogue — un llama-server local en a un aussi. `local` : il est sur cette
+        // machine ou ce réseau, et rien n'y transite par un tiers. Confondus, un serveur local était
+        // annoncé comme un tiers par lequel les prompts quittent la machine ; séparés de travers, il
+        // perdait son catalogue. L'avertissement qui ne se trompe pas est celui qu'on continue de lire.
+        boolean gateway = OPENAI.equals(provider) && localProvider() == null && !hostIs(baseUrl, OPENAI_HOST);
+        boolean local = gateway && isPrivateHost(baseUrl);
 
         List<String> warnings = new ArrayList<>();
         if (Boolean.FALSE.equals(keyPresent)) {
@@ -68,7 +69,7 @@ public class LlmViewService implements ModelAvailability {
             warnings.add("Fournisseur « " + provider + " » : sa configuration n'est pas lue ici. "
                     + "Ce que cet écran n'affiche pas n'est pas absent, il n'a pas été regardé.");
         }
-        if (gateway) {
+        if (gateway && !local) {
             warnings.add("Passerelle hébergée : les prompts, l'historique de conversation et les "
                     + "résultats d'outils — donc le contenu des messages Kafka lus — quittent la "
                     + "machine et transitent par un tiers avant d'atteindre le modèle.");
@@ -78,7 +79,7 @@ public class LlmViewService implements ModelAvailability {
                     + "dans les journaux. À réserver au débogage.");
         }
 
-        return new LlmView(provider, label(provider, baseUrl), model(provider), baseUrl, gateway,
+        return new LlmView(provider, label(provider, baseUrl), model(provider), baseUrl, gateway, local,
                 keyPresent, variable, integer(provider, "max-tokens"), decimal(provider, "temperature"),
                 environment.getProperty("spring.ai.tools.limits.max-total-tool-calls", Integer.class),
                 environment.getProperty("spring.ai.tools.limits.on-limit-exceeded"),
@@ -119,7 +120,7 @@ public class LlmViewService implements ModelAvailability {
         }
         if (agent.logInteractions()) warnings.add("kex.agent.log-interactions est actif : prompts et réponses sont journalisés.");
         return new LlmView("routing", "Routage par tâche", endpoint.model(), safeUrl(endpoint.baseUrl()), hosted,
-                true, "kex.models.endpoints.<nom>.api-key", endpoint.maxTokens(), endpoint.temperature(),
+                false, true, "kex.models.endpoints.<nom>.api-key", endpoint.maxTokens(), endpoint.temperature(),
                 environment.getProperty("spring.ai.tools.limits.max-total-tool-calls", Integer.class),
                 environment.getProperty("spring.ai.tools.limits.on-limit-exceeded"),
                 agent.requestTimeout().toString(), agent.maxHistoryMessages(), agent.logInteractions(),
