@@ -36,12 +36,21 @@ jobs:
       # les modules que Surefire ne résout qu'au moment des tests. Un job qui ne fait que
       # compiler, sauvegardé le premier sous la même clé, en privait tous les autres — et
       # chaque test retéléchargeait surefire-junit-platform, jusqu'au 429 de Maven Central.
+      # Le wrapper aussi : sans lui, chaque job retélécharge Maven par un wget sans réessai. Les
+      # chemins sont les mêmes dans tous les workflows, ils font partie de la version de la clé.
       - name: Cache Maven repository
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.m2/repository
+          path: |
+            ~/.m2/repository
+            ~/.m2/wrapper
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}
           restore-keys: maven-${{ runner.os }}-
+
+      # Le wget de mvnw ne réessaie pas, et les réessais de .mvn/maven.config ne valent qu'une fois
+      # Maven lancé : un cache vide (première exécution, clé changée) se jouait sur un seul essai.
+      - name: Fetch Maven
+        run: for attempt in 1 2 3 4; do ./mvnw -q -v > /dev/null && exit 0; sleep $((attempt * 15)); done; exit 1
 
       # Aucun secret : le profil `test` fournit une clé Anthropic factice et désactive le
       # client MCP, donc la suite ne sort jamais sur le réseau. Un fork construit à l'identique.
@@ -86,9 +95,15 @@ jobs:
       - name: Restore Maven repository
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.m2/repository
+          path: |
+            ~/.m2/repository
+            ~/.m2/wrapper
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}
           restore-keys: maven-${{ runner.os }}-
+
+      # Réessais du téléchargement de Maven quand le cache est vide : voir ci.yml, job `build`.
+      - name: Fetch Maven
+        run: for attempt in 1 2 3 4; do ./mvnw -q -v > /dev/null && exit 0; sleep $((attempt * 15)); done; exit 1
       - name: Run MCP interoperability contract
         run: ./mvnw -B --no-transfer-progress -Dtest=KexMcpServerInteropContractTest,KexMcpServerComplianceTest test
 
@@ -150,9 +165,15 @@ jobs:
       - name: Restore Maven repository
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.m2/repository
+          path: |
+            ~/.m2/repository
+            ~/.m2/wrapper
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}
           restore-keys: maven-${{ runner.os }}-
+
+      # Réessais du téléchargement de Maven quand le cache est vide : voir ci.yml, job `build`.
+      - name: Fetch Maven
+        run: for attempt in 1 2 3 4; do ./mvnw -q -v > /dev/null && exit 0; sleep $((attempt * 15)); done; exit 1
 
       # Pas de setup-node : les exécuteurs GitHub embarquent Node et npm, et le script n'utilise
       # que des API stables depuis Node 18. Une action de plus, c'est une empreinte de plus à
@@ -415,9 +436,15 @@ jobs:
       - name: Restore Maven repository
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.m2/repository
+          path: |
+            ~/.m2/repository
+            ~/.m2/wrapper
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}
           restore-keys: maven-${{ runner.os }}-
+
+      # Réessais du téléchargement de Maven quand le cache est vide : voir ci.yml, job `build`.
+      - name: Fetch Maven
+        run: for attempt in 1 2 3 4; do ./mvnw -q -v > /dev/null && exit 0; sleep $((attempt * 15)); done; exit 1
 
       - name: Bring Kafka and the pinned Explorer up
         run: |
