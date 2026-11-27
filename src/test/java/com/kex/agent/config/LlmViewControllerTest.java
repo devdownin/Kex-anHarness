@@ -31,7 +31,7 @@ class LlmViewControllerTest {
     @Test
     void la_vue_rend_le_fournisseur_effectif_et_ses_avertissements() {
         given(llm.describe()).willReturn(new LlmView("openai", "OpenRouter",
-                "anthropic/claude-sonnet-4.5", "https://openrouter.ai/api/v1", true, true,
+                "anthropic/claude-sonnet-4.5", "https://openrouter.ai/api/v1", true, false, true,
                 "OPENROUTER_API_KEY", 4096, 0.2, 20, "return_error_response", "PT2M", 40, false,
                 "none", false, "prompt système", List.of("Passerelle hébergée")));
 
@@ -67,7 +67,7 @@ class LlmViewControllerTest {
     void une_presence_de_cle_inconnue_se_serialise_nulle_et_non_fausse() {
         // Sérialisée à false, elle se lirait « aucune clé configurée » — une affirmation que
         // l'agent n'a pas les moyens de faire devant un fournisseur qu'il ne sait pas lire.
-        given(llm.describe()).willReturn(new LlmView("ollama", "ollama", null, null, false, null,
+        given(llm.describe()).willReturn(new LlmView("ollama", "ollama", null, null, false, false, null,
                 null, null, null, null, null, "PT2M", 40, false, "none", false, "prompt", List.of()));
 
         assertThat(mvc.get().uri("/api/agent/llm")).hasStatusOk().bodyJson()

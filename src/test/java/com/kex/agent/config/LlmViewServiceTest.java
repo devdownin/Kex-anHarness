@@ -82,6 +82,44 @@ class LlmViewServiceTest {
     }
 
     @Test
+    void un_serveur_local_compatible_openai_n_est_pas_une_passerelle_hebergee() {
+        // llama-server derrière le service Compose `llama-cpp` : rien ne quitte la machine, et le dire
+        // dans la console comme dans les journaux serait affirmer le contraire du fait.
+        for (String url : new String[] {"http://llama-cpp:8080/v1", "http://localhost:8083/v1", "http://127.0.0.1:8083/v1",
+                "http://[::1]:8083/v1", "http://192.168.1.20:8000/v1", "http://10.0.0.5/v1", "http://172.20.0.2:8080/v1",
+                "http://gpu-box.local:8000/v1", "http://host.docker.internal:11434/v1"}) {
+            environment.setProperty("spring.ai.model.chat", "openai");
+            environment.setProperty("spring.ai.openai.base-url", url);
+            environment.setProperty("spring.ai.openai.api-key", "local-llm-no-key");
+
+            LlmView view = service.describe();
+
+            // Son catalogue reste lisible (`gateway`), mais il n'est pas un tiers (`local`).
+            assertThat(view.gateway()).as(url).isTrue();
+            assertThat(view.local()).as(url).isTrue();
+            assertThat(view.label()).as(url).isEqualTo("API locale compatible OpenAI");
+            assertThat(view.warnings()).as(url).noneMatch(w -> w.contains("quittent la machine"));
+        }
+    }
+
+    @Test
+    void une_adresse_publique_reste_une_passerelle_hebergee() {
+        // Le piège inverse : 172.32.x est public (le privé s'arrête à 172.31), un nom à point aussi.
+        for (String url : new String[] {"https://gateway.example.com/v1", "http://172.32.0.1/v1", "http://8.8.8.8/v1",
+                "http://192.169.0.1/v1", "https://openrouter.ai.evil.example/v1"}) {
+            environment.setProperty("spring.ai.model.chat", "openai");
+            environment.setProperty("spring.ai.openai.base-url", url);
+            environment.setProperty("spring.ai.openai.api-key", "k");
+
+            LlmView view = service.describe();
+
+            assertThat(view.gateway()).as(url).isTrue();
+            assertThat(view.local()).as(url).isFalse();
+            assertThat(view.warnings()).as(url).anyMatch(w -> w.contains("quittent la machine"));
+        }
+    }
+
+    @Test
     void describes_task_routing() {
         environment.setProperty("kex.models.enabled", "true");
         environment.setProperty("kex.models.routes.chat[0]", "m1");

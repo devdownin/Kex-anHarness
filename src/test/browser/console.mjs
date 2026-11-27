@@ -1637,10 +1637,11 @@ await check('le cockpit MCP synthétise les connexions et leurs métriques', asy
   await page.unroute('**/api/agent/mcp/storage');
 });
 
-await check('un tableau Markdown reçu en jetons se rend en tableau, espaces des jetons compris', async () => {
+await check('une réponse en Markdown reçue en jetons se rend mise en forme, espaces des jetons compris', async () => {
   // Jetons découpés comme les envoie le fournisseur : l'espace en tête de jeton est du contenu, et
   // `data:  de` en garde une après le séparateur.
-  const tokens = ['Classement', ' :', '\n\n| Rang | Topic |', '\n|---|---:|', '\n| 1 | demo.app.topic |', '\n\nFin', ' du', ' classement.'];
+  const tokens = ['Classement', ' :', '\n\n| Rang | Topic |', '\n|---|---:|', '\n| 1 | demo.app.topic |', '\n\nFin', ' du', ' **classement**', ' (', '[doc](https://example.org/d)', ').',
+    '\n\n1. un\n2. deux\n   - sous-point', '\n\n> à vérifier', '\n\n```sql\nSELECT 1;\n```', '\n\n[piège](javascript:window.hacked=true)'];
   const body = 'event: conversation\ndata: conv-table\n\n'
     + tokens.map((t) => `event: token\n${t.split('\n').map((l) => `data: ${l}`).join('\n')}\n\n`).join('')
     + 'event: done\ndata: ok\n\n';
@@ -1655,10 +1656,21 @@ await check('un tableau Markdown reçu en jetons se rend en tableau, espaces des
   assert.deepEqual(await table.locator('th').allInnerTexts(), ['Rang', 'Topic']);
   assert.deepEqual(await table.locator('tbody td').allInnerTexts(), ['1', 'demo.app.topic']);
   assert.equal(await table.locator('tbody td').nth(1).evaluate((n) => n.style.textAlign), 'right');
-  const text = await page.locator('#transcript .markdown-body').last().innerText();
+  const answer = page.locator('#transcript .markdown-body').last();
+  const text = await answer.innerText();
   assert.match(text, /Classement :/);
-  assert.match(text, /Fin du classement\./);
+  assert.match(text, /Fin du classement \(doc\)\./, 'les espaces des jetons survivent au rendu');
   assert.doesNotMatch(text, /\|/, 'aucune barre de tableau ne doit rester en texte brut');
+  assert.equal(await answer.locator('strong').innerText(), 'classement');
+  assert.equal(await answer.locator('a').count(), 1, 'seul le lien http(s) est cliquable');
+  assert.equal(await answer.locator('a').getAttribute('href'), 'https://example.org/d');
+  assert.match(await answer.locator('a').getAttribute('rel'), /noopener/);
+  assert.equal(await answer.locator('ol > li').count(), 2); assert.equal(await answer.locator('ol ul li').count(), 1, 'sous-liste');
+  assert.match(await answer.locator('blockquote').innerText(), /à vérifier/);
+  assert.equal(await answer.locator('.code-lang').textContent(), 'sql'); assert.equal(await answer.locator('pre.code-block').innerText(), 'SELECT 1;');
+  assert.equal(await page.evaluate(() => window.hacked), undefined);
+  await answer.locator('.code-copy').click();
+  await answer.locator('.code-copy').filter({ hasText: /Copié|Copie impossible/ }).waitFor();
   await page.unroute('**/api/agent/chat/stream');
 });
 

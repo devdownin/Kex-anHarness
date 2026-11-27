@@ -408,7 +408,10 @@ class AgentController {
     @ExceptionHandler({AnthropicException.class, OpenAIException.class})
     ProblemDetail modelProviderFailure(RuntimeException ex) {
         log.warn("Le fournisseur du modèle a refusé ou n'a pas pu traiter l'appel", ex);
-        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY, ex.getMessage());
+        // Le même motif que sur le flux : la panne ne se raconte pas de deux façons selon la route, et
+        // `ex.getMessage()` est le corps brut du fournisseur — « 401: {…} », parfois avec l'identifiant
+        // de requête ou du compte — que le détail renvoyé à l'appelant n'a pas à relayer.
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY, modelProviderMessage(ex));
     }
 
     /**
@@ -418,12 +421,46 @@ class AgentController {
     static String modelProviderMessage(Throwable ex) {
         Integer status = ex instanceof com.anthropic.errors.AnthropicServiceException anthropic ? anthropic.statusCode()
                 : ex instanceof com.openai.errors.OpenAIServiceException openai ? openai.statusCode() : null;
-        if (status == null) return "Le fournisseur du modèle est injoignable ou a renvoyé une réponse illisible";
-        if (status == 401 || status == 403) {
-            return "Le fournisseur du modèle a refusé la clé (HTTP " + status + ") — vérifier la clé dans Configuration";
+        if (status == null) {
+            // Pas de code HTTP : l'échec est avant ou pendant le transport. Le dire distinctement envoie
+            // régler le bon réglage — un plafond trop court pour un modèle local, ou une adresse fausse —
+            // plutôt que de laisser croire à une panne du fournisseur.
+            if (hasCause(ex, java.net.SocketTimeoutException.class, java.io.InterruptedIOException.class)) {
+                return "Le fournisseur du modèle n'a pas répondu dans le délai accordé à un appel "
+                        + "(spring.ai.openai.timeout, KEX_AGENT_MODEL_TIMEOUT) — un modèle local lent demande un plafond plus long";
+            }
+            if (hasCause(ex, java.net.ConnectException.class, java.net.UnknownHostException.class,
+                    java.net.NoRouteToHostException.class)) {
+                return "Le fournisseur du modèle est injoignable (connexion refusée ou adresse inconnue) — "
+                        + "vérifier son adresse de base et qu'il tourne";
+            }
+            return "Le fournisseur du modèle est injoignable ou a renvoyé une réponse illisible";
         }
-        if (status == 429) return "Limite de débit du fournisseur du modèle atteinte (HTTP 429) — réessayer dans un instant";
-        return "Le fournisseur du modèle n'a pas pu traiter l'appel (HTTP " + status + ")";
+        return switch (status) {
+            case 401, 403 -> "Le fournisseur du modèle a refusé la clé (HTTP " + status + ") — vérifier la clé dans Configuration";
+            case 429 -> "Limite de débit du fournisseur du modèle atteinte (HTTP 429) — réessayer dans un instant";
+            case 402 -> "Le fournisseur du modèle réclame des crédits que ce compte n'a pas (HTTP 402)";
+            case 404 -> "Modèle ou adresse introuvable chez le fournisseur (HTTP 404) — vérifier le nom du modèle et l'adresse de base";
+            // Un serveur local qui dépasse sa fenêtre ou ne sait pas appeler d'outils répond 400 : c'est le
+            // cas le plus fréquent, et « n'a pas pu traiter l'appel » n'en disait rien.
+            case 400 -> "Le fournisseur du modèle a refusé la requête (HTTP 400) — souvent une fenêtre de contexte "
+                    + "dépassée, ou un modèle qui ne sait pas appeler d'outils";
+            case 408, 504 -> "Le fournisseur du modèle a mis trop de temps à répondre (HTTP " + status + ")";
+            default -> status >= 500
+                    ? "Le fournisseur du modèle est indisponible (HTTP " + status + ") — réessayer plus tard"
+                    : "Le fournisseur du modèle n'a pas pu traiter l'appel (HTTP " + status + ")";
+        };
+    }
+
+    @SafeVarargs
+    private static boolean hasCause(Throwable ex, Class<? extends Throwable>... types) {
+        int depth = 0;
+        for (Throwable cause = ex; cause != null && depth < 8; cause = cause.getCause(), depth++) {
+            for (Class<? extends Throwable> type : types) {
+                if (type.isInstance(cause)) return true;
+            }
+        }
+        return false;
     }
 
     @ExceptionHandler(CallNotPermittedException.class)

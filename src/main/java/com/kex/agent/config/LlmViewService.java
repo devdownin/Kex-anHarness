@@ -52,7 +52,13 @@ public class LlmViewService implements ModelAvailability {
         };
         String variable = apiKeyVariable(provider);
         Boolean keyPresent = keyPresent(provider);
+        // Deux faits distincts. `gateway` : un point d'accès compatible OpenAI autre qu'OpenAI, dont la
+        // console lit le catalogue — un llama-server local en a un aussi. `local` : il est sur cette
+        // machine ou ce réseau, et rien n'y transite par un tiers. Confondus, un serveur local était
+        // annoncé comme un tiers par lequel les prompts quittent la machine ; séparés de travers, il
+        // perdait son catalogue. L'avertissement qui ne se trompe pas est celui qu'on continue de lire.
         boolean gateway = OPENAI.equals(provider) && localProvider() == null && !hostIs(baseUrl, OPENAI_HOST);
+        boolean local = gateway && isPrivateHost(baseUrl);
 
         List<String> warnings = new ArrayList<>();
         if (Boolean.FALSE.equals(keyPresent)) {
@@ -63,7 +69,7 @@ public class LlmViewService implements ModelAvailability {
             warnings.add("Fournisseur « " + provider + " » : sa configuration n'est pas lue ici. "
                     + "Ce que cet écran n'affiche pas n'est pas absent, il n'a pas été regardé.");
         }
-        if (gateway) {
+        if (gateway && !local) {
             warnings.add("Passerelle hébergée : les prompts, l'historique de conversation et les "
                     + "résultats d'outils — donc le contenu des messages Kafka lus — quittent la "
                     + "machine et transitent par un tiers avant d'atteindre le modèle.");
@@ -73,7 +79,7 @@ public class LlmViewService implements ModelAvailability {
                     + "dans les journaux. À réserver au débogage.");
         }
 
-        return new LlmView(provider, label(provider, baseUrl), model(provider), baseUrl, gateway,
+        return new LlmView(provider, label(provider, baseUrl), model(provider), baseUrl, gateway, local,
                 keyPresent, variable, integer(provider, "max-tokens"), decimal(provider, "temperature"),
                 environment.getProperty("spring.ai.tools.limits.max-total-tool-calls", Integer.class),
                 environment.getProperty("spring.ai.tools.limits.on-limit-exceeded"),
@@ -114,7 +120,7 @@ public class LlmViewService implements ModelAvailability {
         }
         if (agent.logInteractions()) warnings.add("kex.agent.log-interactions est actif : prompts et réponses sont journalisés.");
         return new LlmView("routing", "Routage par tâche", endpoint.model(), safeUrl(endpoint.baseUrl()), hosted,
-                true, "kex.models.endpoints.<nom>.api-key", endpoint.maxTokens(), endpoint.temperature(),
+                false, true, "kex.models.endpoints.<nom>.api-key", endpoint.maxTokens(), endpoint.temperature(),
                 environment.getProperty("spring.ai.tools.limits.max-total-tool-calls", Integer.class),
                 environment.getProperty("spring.ai.tools.limits.on-limit-exceeded"),
                 agent.requestTimeout().toString(), agent.maxHistoryMessages(), agent.logInteractions(),
@@ -185,10 +191,48 @@ public class LlmViewService implements ModelAvailability {
                 if ("ollama".equals(localProvider())) yield "Ollama (API locale)";
                 if ("vllm".equals(localProvider())) yield "vLLM (API locale)";
                 if (hostIs(baseUrl, OPENROUTER_HOST)) yield "OpenRouter";
-                yield hostIs(baseUrl, OPENAI_HOST) ? "OpenAI" : "Passerelle compatible OpenAI";
+                if (hostIs(baseUrl, OPENAI_HOST)) yield "OpenAI";
+                yield isPrivateHost(baseUrl) ? "API locale compatible OpenAI" : "Passerelle compatible OpenAI";
             }
             default -> provider;
         };
+    }
+
+    /**
+     * Vrai quand l'hôte de la base d'URL ne peut pas être un service public : boucle locale, adresse
+     * privée ou de lien local, nom sans point (un service Docker ou Compose, comme {@code llama-cpp}),
+     * ou suffixe réservé aux réseaux internes. Lu sur la chaîne seule : aucune résolution DNS, qui
+     * ferait dépendre l'écran du réseau et d'un nom qu'un tiers peut faire pointer où il veut.
+     */
+    static boolean isPrivateHost(String baseUrl) {
+        if (!StringUtils.hasText(baseUrl)) return false;
+        String host;
+        try {
+            host = URI.create(baseUrl).getHost();
+        }
+        catch (IllegalArgumentException ex) {
+            return false;
+        }
+        if (host == null) return false;
+        host = host.toLowerCase(java.util.Locale.ROOT);
+        if (host.startsWith("[") && host.endsWith("]")) host = host.substring(1, host.length() - 1);
+        if (host.equals("localhost") || host.endsWith(".localhost") || host.endsWith(".local")
+                || host.endsWith(".internal") || host.endsWith(".lan") || host.endsWith(".svc")
+                || host.endsWith(".cluster.local")) {
+            return true;
+        }
+        if (host.contains(":")) { // IPv6 littéral : boucle locale, adresse unique locale (fc00::/7), lien local
+            return host.equals("::1") || host.startsWith("fc") || host.startsWith("fd") || host.startsWith("fe80");
+        }
+        java.util.regex.Matcher ipv4 = java.util.regex.Pattern
+                .compile("^(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})$").matcher(host);
+        if (ipv4.matches()) {
+            int a = Integer.parseInt(ipv4.group(1));
+            int b = Integer.parseInt(ipv4.group(2));
+            return a == 127 || a == 10 || (a == 192 && b == 168) || (a == 172 && b >= 16 && b <= 31)
+                    || (a == 169 && b == 254);
+        }
+        return !host.contains("."); // nom sans point : un service du réseau local, jamais un domaine public
     }
 
     /** Une base d'URL absente vaut le point d'accès du fournisseur : l'appel est direct. */

@@ -17,7 +17,7 @@ assert.deepEqual(parseTable(['a | b', ':--- | :---:', 'x |', 'y | z | w', 'p\\|q
 });
 // Pas un tableau : séparateur absent, trop court, ou d'une autre largeur que l'en-tête.
 assert.equal(parseTable(['| a | b |', '| x | y |']), null);
-assert.equal(parseTable(['| a | b |', '| -- | -- |']), null);
+assert.deepEqual(parseTable(['| a | b |', '|:-|-:|', '| x | y |']), { headers: ['a', 'b'], align: ['left', 'right'], rows: [['x', 'y']] });
 assert.equal(parseTable(['| a | b |', '| --- |']), null);
 assert.equal(parseTable(['a | b']), null);
 assert.equal(parseTable(['Une phrase sans barre', '---']), null);

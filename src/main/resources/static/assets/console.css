@@ -1674,7 +1674,15 @@ table.grid tr.just-changed td, .compact-card.just-changed { animation: change-ar
 
 .markdown-body { display: flex; flex-direction: column; gap: 8px; }
 .markdown-body p.chat-paragraph { margin: 0; }
-.markdown-body ul { margin: 4px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.markdown-body ul, .markdown-body ol { margin: 4px 0; padding-left: 22px; display: flex; flex-direction: column; gap: 4px; }
+.markdown-body ul ul, .markdown-body ol ol, .markdown-body ul ol, .markdown-body ol ul { margin: 4px 0 0; }
+.markdown-body ul { list-style: disc; }
+.markdown-body ul ul { list-style: circle; }
+.markdown-body ol { list-style: decimal; }
+.markdown-body blockquote.chat-quote { margin: 4px 0; padding: 4px 0 4px 12px; border-left: 3px solid var(--line); color: var(--ink-2); display: flex; flex-direction: column; gap: 6px; }
+.markdown-body hr.chat-rule { width: 100%; margin: 6px 0; border: 0; border-top: 1px solid var(--line); }
+.markdown-body a.chat-link { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
+.markdown-body del { color: var(--ink-3); }
 .markdown-body li { line-height: 1.5; }
 .markdown-body h3.chat-header, .markdown-body h4.chat-header, .markdown-body h5.chat-header {
   margin: 10px 0 4px;
@@ -1699,31 +1707,34 @@ table.grid tr.just-changed td, .compact-card.just-changed { animation: change-ar
   color: var(--ink);
 }
 
+/* Un bloc de code : un bandeau (langage à gauche, « Copier » à droite) posé sur le code lui-même, de
+   sorte que le bouton ne recouvre jamais une ligne et que la sélection du code n'embarque pas son libellé. */
+.code-wrap { margin: 8px 0; border-radius: var(--radius-sm); border: 1px solid var(--line); overflow: hidden; background: var(--rail-bg); }
+.code-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 4px 6px 4px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--rail-ink) 14%, transparent);
+}
+.code-lang { font-size: 10px; font-weight: 700; color: var(--rail-muted); text-transform: uppercase; letter-spacing: .08em; }
+.code-copy {
+  min-height: 24px; padding: 2px 8px;
+  font: inherit; font-size: 11px; color: var(--rail-ink);
+  background: transparent; border: 1px solid color-mix(in srgb, var(--rail-ink) 22%, transparent); border-radius: 4px;
+  cursor: pointer;
+}
+.code-copy:hover { background: color-mix(in srgb, var(--rail-ink) 12%, transparent); }
 .code-block {
-  position: relative;
-  margin: 8px 0;
+  margin: 0;
   padding: 12px 14px;
-  border-radius: var(--radius-sm);
   background: var(--rail-bg);
   color: var(--rail-ink);
   font-family: var(--mono);
   font-size: 12px;
   line-height: 1.5;
   overflow-x: auto;
-  border: 1px solid var(--line);
 }
 .code-block code { font-family: inherit; }
-.code-block[data-lang]::before {
-  content: attr(data-lang);
-  position: absolute;
-  top: 6px;
-  right: 10px;
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--rail-muted);
-  text-transform: uppercase;
-  letter-spacing: .08em;
-}
+.code-wrap.streaming .code-head { opacity: .7; }
 .turn .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 
 .chip {
