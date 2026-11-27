@@ -19,7 +19,7 @@ gras, puis pourquoi, puis ce qui le corrige et le test qui l'aurait attrapé.
 - [Persistance et migrations](#persistance-et-migrations) — 3
 - [Console et espace utilisateur](#console-et-espace-utilisateur) — 23
 - [Tests](#tests) — 11
-- [CI, image et publication](#ci-image-et-publication) — 6
+- [CI, image et publication](#ci-image-et-publication) — 7
 
 ## Démarrage et configuration
 
@@ -680,6 +680,15 @@ Workflows, cache, image Docker, scan, versions publiées.
   job de test retéléchargeait alors `surefire-junit-platform`, jusqu'au `429` de Maven Central. Un seul
   écrivain désormais, le job `build` de `ci.yml` (`actions/cache`), les autres en lecture seule
   (`actions/cache/restore`) ; `.mvn/maven.config` porte six réessais sur `429` et `503`.
+
+- **Le cache Maven porte aussi la distribution du wrapper, sous les mêmes chemins partout.** Seul
+  `~/.m2/repository` était en cache : chaque job retéléchargeait Maven 3.10.2 par le `wget` de `mvnw`,
+  qui ne réessaie pas, et un hoquet de repo.maven.apache.org a fait échouer `browser` en douze
+  secondes, deux fois, sans qu'aucune ligne du projet ne soit en cause — les réessais de
+  `.mvn/maven.config` ne valent qu'une fois Maven lancé. `~/.m2/wrapper` est ajouté à chaque cache, et
+  la liste doit rester identique entre l'écrivain et les lecteurs : `actions/cache` range les chemins
+  dans la version de la clé, et un lecteur qui en liste d'autres ne restaure rien, sans le dire.
+  `scripts/tests/test_workflow_maven_cache.py` l'impose.
 
 - **Une variable d'environnement de job l'emporte sur le défaut d'un script.** `explorer-contract`
   déclare `KEX_AGENT_API_KEY: contract-secret` pour tout le job, mais démarrait l'agent avec

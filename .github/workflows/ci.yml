@@ -36,10 +36,14 @@ jobs:
       # les modules que Surefire ne résout qu'au moment des tests. Un job qui ne fait que
       # compiler, sauvegardé le premier sous la même clé, en privait tous les autres — et
       # chaque test retéléchargeait surefire-junit-platform, jusqu'au 429 de Maven Central.
+      # Le wrapper aussi : sans lui, chaque job retélécharge Maven par un wget sans réessai. Les
+      # chemins sont les mêmes dans tous les workflows, ils font partie de la version de la clé.
       - name: Cache Maven repository
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.m2/repository
+          path: |
+            ~/.m2/repository
+            ~/.m2/wrapper
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}
           restore-keys: maven-${{ runner.os }}-
 
@@ -86,7 +90,9 @@ jobs:
       - name: Restore Maven repository
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.m2/repository
+          path: |
+            ~/.m2/repository
+            ~/.m2/wrapper
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}
           restore-keys: maven-${{ runner.os }}-
       - name: Run MCP interoperability contract
@@ -150,7 +156,9 @@ jobs:
       - name: Restore Maven repository
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.m2/repository
+          path: |
+            ~/.m2/repository
+            ~/.m2/wrapper
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}
           restore-keys: maven-${{ runner.os }}-
 
@@ -415,7 +423,9 @@ jobs:
       - name: Restore Maven repository
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.m2/repository
+          path: |
+            ~/.m2/repository
+            ~/.m2/wrapper
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', '.mvn/**') }}
           restore-keys: maven-${{ runner.os }}-
 
