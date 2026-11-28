@@ -526,4 +526,29 @@ $('#refresh-requests').addEventListener('click', async () => { await refreshHist
 $('#refresh-attention').addEventListener('click', async () => { await refreshHistory(); await approvals.refresh(); drawAttention(); });
 addEventListener('hashchange', route);
 addEventListener('pagehide', () => { clearInterval(activityTimer); clearTimeout(historyTimer); if (active) { active.request.status = 'INTERRUPTED'; save(); active.controller.abort(); } });
+
+// Partage la préférence de thème avec la console (`kex.agent.theme`) pour éviter un flash lumineux
+// en basculant entre `/` et `/app` : `light-dark()` obéit directement à `color-scheme`.
+const THEME_STORAGE = 'kex.agent.theme';
+const THEME_LABELS = { system: 'Thème : système', light: 'Thème : clair', dark: 'Thème : sombre' };
+function applyTheme(next) {
+  const mode = next === 'light' || next === 'dark' ? next : 'system';
+  if (mode === 'system') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = mode;
+  const toggle = $('#theme-toggle');
+  if (toggle) toggle.textContent = THEME_LABELS[mode];
+}
+function readTheme() {
+  try { return localStorage.getItem(THEME_STORAGE) || 'system'; } catch { return 'system'; }
+}
+$('#theme-toggle')?.addEventListener('click', () => {
+  const order = ['system', 'light', 'dark'];
+  const next = order[(order.indexOf(readTheme()) + 1) % order.length];
+  try {
+    if (next === 'system') localStorage.removeItem(THEME_STORAGE);
+    else localStorage.setItem(THEME_STORAGE, next);
+  } catch { /* préférence active pour la session */ }
+  applyTheme(next);
+});
+applyTheme(readTheme());
 route(); authenticate();

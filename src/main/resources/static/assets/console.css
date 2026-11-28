@@ -93,8 +93,8 @@
   --radius: var(--radius-panel);
   --radius-sm: var(--radius-control);
 
-  /* ── Mouvement : courbe physique, jamais de rebond ── */
-  --ease-spatial: cubic-bezier(.2, .8, .2, 1);
+  /* ── Mouvement : courbe ease-out franche, jamais de rebond ── */
+  --ease-spatial: cubic-bezier(0.23, 1, 0.32, 1);
   --dur-press: 100ms;
   --dur-hover: 180ms;
   --dur-panel: 240ms;
@@ -428,8 +428,7 @@ body {
   margin-top: env(safe-area-inset-top, 0px);
   border-radius: 20px;
   box-shadow: var(--highlight), 0 0 0 1px var(--hairline);
-  transition: background-color var(--dur-panel) ease, box-shadow var(--dur-panel) ease,
-    backdrop-filter var(--dur-panel) ease;
+  transition: background-color var(--dur-panel) ease, box-shadow var(--dur-panel) ease;
 }
 /* Dès que le contenu défile sous elle, la barre se rapproche : plus opaque, plus floue, ombrée. */
 :root[data-scrolled="true"] .topbar {
@@ -499,6 +498,7 @@ body {
   -webkit-backdrop-filter: blur(var(--blur-thick)) saturate(var(--saturate-thick));
   /* Plus proche qu'un panneau, moins qu'un dialogue : l'ombre est entre les deux. */
   box-shadow: var(--highlight), 0 0 0 1px var(--hairline), var(--depth-2);
+  transform-origin: top right;
   animation: popover-in var(--dur-hover) var(--ease-spatial) both;
 }
 .menu-action {
@@ -549,12 +549,6 @@ main {
 }
 main:focus { outline: none; }
 .view { display: flex; flex-direction: column; gap: 20px; width: 100%; max-width: 1440px; margin-inline: auto; }
-.view:not([hidden]) > * { animation: view-enter var(--dur-panel) var(--ease-spatial) both; }
-.view:not([hidden]) > *:nth-child(2) { animation-delay: 35ms; }
-.view:not([hidden]) > *:nth-child(3) { animation-delay: 70ms; }
-@keyframes view-enter {
-  from { opacity: 0; transform: translateY(6px); }
-}
 /* Une surface qui s'approche : fondu, léger agrandissement, petite remontée. Jamais de rebond. */
 @keyframes surface-in {
   from { opacity: 0; transform: translateY(6px) scale(.97); }
@@ -705,13 +699,15 @@ button, .ghost {
   transition: background-color var(--dur-hover) ease, border-color var(--dur-hover) ease,
     box-shadow var(--dur-hover) ease, transform var(--dur-hover) var(--ease-spatial);
 }
-button:hover:not(:disabled), a.ghost:hover {
-  background: var(--control-bg-hover);
-  transform: translateY(-1px);
-  box-shadow: var(--highlight), 0 3px 10px rgb(20 30 50 / 6%);
+@media (hover: hover) and (pointer: fine) {
+  button:hover:not(:disabled), a.ghost:hover {
+    background: var(--control-bg-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--highlight), 0 3px 10px rgb(20 30 50 / 6%);
+  }
 }
 button:active:not(:disabled), a.ghost:active {
-  transform: scale(.985);
+  transform: scale(0.97);
   transition-duration: var(--dur-press);
   box-shadow: none;
 }
@@ -1730,9 +1726,9 @@ table.grid tr.just-changed td, .compact-card.just-changed { animation: change-ar
 }
 .code-lang { font-size: 10px; font-weight: 700; color: var(--rail-muted); text-transform: uppercase; letter-spacing: .08em; }
 .code-copy {
-  min-height: 24px; padding: 2px 8px;
-  font: inherit; font-size: 11px; color: var(--rail-ink);
-  background: transparent; border: 1px solid color-mix(in srgb, var(--rail-ink) 22%, transparent); border-radius: 4px;
+  min-height: 32px; padding: 4px 10px;
+  font: inherit; font-size: 12px; color: var(--rail-ink);
+  background: transparent; border: 1px solid color-mix(in srgb, var(--rail-ink) 22%, transparent); border-radius: 6px;
   cursor: pointer;
 }
 .code-copy:hover { background: color-mix(in srgb, var(--rail-ink) 12%, transparent); }
@@ -1825,6 +1821,8 @@ dialog {
   box-shadow: var(--highlight), 0 0 0 1px var(--hairline), var(--depth-3);
 }
 dialog[open] { animation: surface-in var(--dur-panel) var(--ease-spatial) both; }
+/* La palette clavier (⌘K / Ctrl K) s'ouvre instantanément : jamais d'animation sur un geste clavier répété. */
+dialog.command-palette[open] { animation: none; }
 dialog::backdrop {
   background: var(--scrim);
   backdrop-filter: blur(4px);
@@ -1848,13 +1846,18 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
 }
 .toast > button { margin-left: 8px; padding: 4px 10px; }
 .toast-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
   color: var(--ink-3);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1;
-  padding: 3px 6px;
+  padding: 0;
   vertical-align: middle;
 }
 .toast-close:hover { background: var(--surface-2); color: var(--ink); }
@@ -1928,12 +1931,16 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
   box-shadow: inset 3px 0 0 var(--accent), var(--highlight), 0 0 0 1px var(--hairline), var(--depth-2);
   font-size: 13px;
   overflow-wrap: anywhere;
-  animation: surface-in var(--dur-hover) var(--ease-spatial) both;
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity var(--dur-hover) var(--ease-spatial), transform var(--dur-hover) var(--ease-spatial);
 }
-@keyframes toast-in { from { opacity: 0; transform: translateY(6px); } }
-@media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
+@starting-style {
+  .toast { opacity: 0; transform: translateY(100%); }
+}
+.toast.toast-leaving { opacity: 0; transform: translateY(100%); pointer-events: none; }
 @media (prefers-reduced-motion: reduce) {
-  .view:not([hidden]) > *, .live-pulse, .hero-cycle.is-running .hero-cycle-dot,
+  .live-pulse, .hero-cycle.is-running .hero-cycle-dot,
   .hero-cycle.is-running::after, .kpi-change.just-changed,
   table.grid tr.just-changed td, .compact-card.just-changed,
   .process-wizard #process-wizard-question { animation: none; }
@@ -2672,6 +2679,8 @@ table.grid th button.sort { min-height: 32px; display: inline-flex; align-items:
   .operator-context select { font-size: 14px; width: 100%; }
   .overview-hero { padding: 18px; }
   .overview-hero h1 { font-size: 24px; }
+  /* Sous iOS Safari, tout champ < 16 px déclenche un zoom automatique à la focalisation. */
+  input, textarea, select { font-size: 16px; }
 }
 
 /* Liens vers les applications qui montrent le processus de près : sortants, donc marqués ↗. */

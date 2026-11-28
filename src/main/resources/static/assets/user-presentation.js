@@ -20,8 +20,10 @@ export function findingQuality(finding, sources = [], now = Date.now()) {
 }
 export function drawValidation(host, turn) {
   const warnings = turn.presentation?.warnings || [];
-  if (!turn.presentation) { host.append(el('p', 'muted', 'Validation côté serveur non disponible pour cette réponse.')); return; }
-  host.append(el('p', 'muted', turn.presentation.text ? 'Structure contrôlée côté serveur ; conclusions et exactitude des mesures à vérifier.' : 'Réponse affichée sans validation structurelle.'));
+  if (!turn.presentation) return;
+  if (!turn.presentation.text) {
+    host.append(el('p', 'muted', 'Réponse affichée sans validation structurelle.'));
+  }
   if (warnings.length) {
     const details = el('details', 'result-validation'); details.append(el('summary', null, `${warnings.length} limite(s) de restitution signalée(s)`));
     const list = el('ul'); warnings.forEach(w => list.append(el('li', null, w))); details.append(list); host.append(details);

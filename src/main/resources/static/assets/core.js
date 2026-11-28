@@ -168,21 +168,48 @@ export function toast(message, kind, action) {
     } catch { /* retour visible via le toast pour cette session */ }
     dispatchEvent(new CustomEvent('kex:action', { detail: { message, at: new Date().toISOString() } }));
   }
-  // Une minuterie qu'on peut suspendre : sans ça, un toast se referme sous la souris pendant
-  // qu'on le lit, l'action qu'il propose disparaissant avec lui.
+  // Une minuterie qui se suspend au survol, au focus clavier et quand l'onglet est masqué :
+  // sans cela, un toast disparaît sous la souris, sous Tab ou pendant que l'opérateur est ailleurs.
   const life = action ? 10_000 : 6000;
   let remaining = life;
   let since = Date.now();
-  let timer = setTimeout(() => dismiss(), remaining);
-  dismiss = () => { clearTimeout(timer); node.remove(); };
-  node.addEventListener('mouseenter', () => {
+  let timer = null;
+  let closed = false;
+  const pause = () => {
+    if (timer === null) return;
     clearTimeout(timer);
-    remaining -= Date.now() - since;
-  });
-  node.addEventListener('mouseleave', () => {
+    timer = null;
+    remaining = Math.max(1000, remaining - (Date.now() - since));
+  };
+  const resume = () => {
+    if (closed || document.hidden || timer !== null) return;
     since = Date.now();
-    timer = setTimeout(() => dismiss(), Math.max(remaining, 1000));
+    timer = setTimeout(() => dismiss(), remaining);
+  };
+  const onVisibility = () => (document.hidden ? pause() : resume());
+  dismiss = () => {
+    if (closed) return;
+    closed = true;
+    clearTimeout(timer);
+    timer = null;
+    document.removeEventListener('visibilitychange', onVisibility);
+    const reduced = document.documentElement.dataset.motion === 'reduced'
+      || matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) {
+      node.remove();
+      return;
+    }
+    node.classList.add('toast-leaving');
+    setTimeout(() => node.remove(), 180);
+  };
+  document.addEventListener('visibilitychange', onVisibility);
+  node.addEventListener('mouseenter', pause);
+  node.addEventListener('mouseleave', resume);
+  node.addEventListener('focusin', pause);
+  node.addEventListener('focusout', (event) => {
+    if (!node.contains(event.relatedTarget)) resume();
   });
+  resume();
 }
 
 export const report = (error) => toast(error instanceof Error ? error.message : String(error), 'error');

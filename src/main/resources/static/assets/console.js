@@ -890,12 +890,18 @@ function commandItems() {
   const recent = readJson(RECENT_COMMANDS_STORAGE, []).map((item) => ({ ...item, group: 'Récents' }));
   const commands = [
     { label: 'Vue d’ensemble', group: 'Navigation', kind: 'Navigation', href: '#/overview', keywords: 'accueil dashboard' },
+    { label: 'Prévisions', group: 'Navigation', kind: 'Navigation', href: '#/forecasts', keywords: 'forecast timesfm metriques tendance' },
     { label: 'À traiter', group: 'Navigation', kind: 'Navigation', href: '#/attention', keywords: 'priorités actions' },
     { label: 'Activité', group: 'Navigation', kind: 'Navigation', href: '#/activity', keywords: 'timeline historique événements' },
     { label: 'Incidents', group: 'Navigation', kind: 'Navigation', href: '#/incidents', keywords: 'investigation' },
     { label: 'Processus', group: 'Navigation', kind: 'Navigation', href: '#/processes', keywords: 'supervision' },
     { label: 'Décisions', group: 'Navigation', kind: 'Navigation', href: '#/decisions', keywords: 'approbation validation' },
+    { label: 'Tâches', group: 'Navigation', kind: 'Navigation', href: '#/tasks', keywords: 'plans durables exécution' },
     { label: 'Conversation', group: 'Navigation', kind: 'Navigation', href: '#/chat', keywords: 'agent chat' },
+    { label: 'Agent', group: 'Navigation', kind: 'Navigation', href: '#/agent', keywords: 'autonomie politique charte gouvernance compétences' },
+    { label: 'Connaissance', group: 'Navigation', kind: 'Navigation', href: '#/knowledge', keywords: 'mémoire résumés documents rag' },
+    { label: 'Système', group: 'Navigation', kind: 'Navigation', href: '#/system', keywords: 'santé health métriques actuator' },
+    { label: 'Audit', group: 'Navigation', kind: 'Navigation', href: '#/audit', keywords: 'journal historique traçabilité' },
     { label: 'Connexions MCP', group: 'MCP', kind: 'Intégrations', href: '#/integrations', keywords: 'serveur outils externe' },
     { label: 'Serveur MCP Kex', group: 'MCP', kind: 'Configuration', href: '#/settings', keywords: 'sessions catalogue playground' },
     { label: 'Exécuter une analyse maintenant', group: 'Actions', kind: 'Action', action: runCycle, keywords: 'cycle lancer run' },
@@ -939,6 +945,16 @@ function commandItems() {
   });
 }
 
+function selectCommand(buttons, index) {
+  buttons.forEach((button, i) => {
+    const active = i === index;
+    button.classList.toggle('selected', active);
+    button.setAttribute('aria-selected', String(active));
+  });
+  if (buttons[index]) commandQuery.setAttribute('aria-activedescendant', buttons[index].id);
+  else commandQuery.removeAttribute('aria-activedescendant');
+}
+
 function renderCommands() {
   const query = commandQuery.value.trim().toLowerCase();
   const matches = commandItems().filter((item) => !query
@@ -946,6 +962,7 @@ function renderCommands() {
   const results = $('#command-results');
   if (!matches.length) {
     results.replaceChildren(el('p', 'command-empty', 'Aucun résultat.'));
+    commandQuery.removeAttribute('aria-activedescendant');
     return;
   }
   const nodes = [];
@@ -957,6 +974,9 @@ function renderCommands() {
     }
     const button = el('button', 'command-result');
     button.type = 'button';
+    button.id = `command-option-${index}`;
+    button.setAttribute('role', 'option');
+    button.setAttribute('aria-selected', 'false');
     button.dataset.index = String(index);
     button.append(el('span', 'strong', item.label), el('span', 'hint', item.kind));
     button.addEventListener('click', () => {
@@ -968,7 +988,7 @@ function renderCommands() {
     nodes.push(button);
   });
   results.replaceChildren(...nodes);
-  results.querySelector('button')?.classList.add('selected');
+  selectCommand([...results.querySelectorAll('button')], 0);
 }
 
 function openCommand() {
@@ -985,9 +1005,8 @@ commandQuery.addEventListener('keydown', (event) => {
   const current = Math.max(0, buttons.findIndex((button) => button.classList.contains('selected')));
   if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
     event.preventDefault();
-    buttons[current].classList.remove('selected');
     const next = (current + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
-    buttons[next].classList.add('selected');
+    selectCommand(buttons, next);
     buttons[next].scrollIntoView({ block: 'nearest' });
   } else if (event.key === 'Enter') {
     event.preventDefault();
@@ -1181,11 +1200,29 @@ $('#refresh-activity')?.addEventListener('click', supervision.activity);
 $('#run-cycle').addEventListener('click', runCycle);
 $('#toggle-pause').addEventListener('click', togglePause);
 $('#open-credentials').addEventListener('click', openCredentials);
-document.querySelector('.action-menu').addEventListener('click', (event) => {
-  if (event.target.closest('.menu-action')) event.currentTarget.removeAttribute('open');
+const actionMenu = document.querySelector('.action-menu');
+actionMenu.addEventListener('click', (event) => {
+  if (event.target.closest('.menu-action')) actionMenu.removeAttribute('open');
+});
+document.addEventListener('pointerdown', (event) => {
+  if (actionMenu.open && !actionMenu.contains(event.target)) actionMenu.removeAttribute('open');
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && actionMenu.open) {
+    event.preventDefault();
+    actionMenu.removeAttribute('open');
+    actionMenu.querySelector('summary')?.focus();
+  }
 });
 
-$('#credentials-form').addEventListener('submit', () => {
+// Adapte le repère visuel du raccourci clavier à la plateforme (⌘K sur Apple, Ctrl K ailleurs).
+const shortcutBadge = $('#command-shortcut');
+if (shortcutBadge && !/Mac|iPhone|iPad|iPod/i.test(navigator.userAgentData?.platform || navigator.platform || '')) {
+  shortcutBadge.textContent = 'Ctrl K';
+}
+
+$('#credentials-form').addEventListener('submit', (event) => {
+  if (event.submitter?.value === 'cancel') return;
   credentials.set($('#api-key').value.trim());
   toast(credentials.get() ? 'Jeton enregistré.' : 'Jeton effacé.');
   refreshStatus();
