@@ -45,7 +45,7 @@ export function maskCitations(text) {
   const masked = String(text).replace(/\[source:([^\]\r\n]{1,200})\]/g, (_, id) => { ids.push(id); return `${MARK_OPEN}${ids.length - 1}${MARK_CLOSE}`; });
   return { masked, ids };
 }
-export function drawEvidence(host, text, sources = []) {
+export function drawEvidence(host, text, sources = [], { warnUnlinked = true } = {}) {
   const content = el('div', 'answer evidence-text'); let linked = false;
   const { masked, ids } = maskCitations(text);
   const known = Array.isArray(sources) ? sources : [];
@@ -66,7 +66,7 @@ export function drawEvidence(host, text, sources = []) {
   const literal = value => value.replace(new RegExp(MARKER.source, 'g'), (_, index) => `[source:${ids[Number(index)]}]`);
   content.append(renderMarkdown(masked, { inline, literal }));
   host.append(content);
-  if (!linked) host.append(el('p', 'muted evidence-note', 'Aucune source reliée à ce constat dans la réponse. Les sources consultées ne prouvent pas à elles seules cette conclusion.'));
+  if (warnUnlinked && !linked) host.append(el('p', 'muted evidence-note', 'Aucune source reliée à ce constat dans la réponse. Les sources consultées ne prouvent pas à elles seules cette conclusion.'));
 }
 export function validFindings(findings) {
   return Array.isArray(findings) ? findings.slice(0, 20).filter(f => f && typeof f.text === 'string' && f.text.trim() && f.text.length <= 4000 && Array.isArray(f.sourceIds) && f.sourceIds.length <= 10 && f.sourceIds.every(id => typeof id === 'string' && /^[^\]\r\n]{1,200}$/.test(id)) && (f.toolNames === undefined || (Array.isArray(f.toolNames) && f.toolNames.length <= 10 && f.toolNames.every(name => typeof name === 'string' && name.length <= 200)))) : [];

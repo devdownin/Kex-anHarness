@@ -1684,6 +1684,9 @@ table.grid tr.just-changed td, .compact-card.just-changed { animation: change-ar
 .markdown-body a.chat-link { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
 .markdown-body del { color: var(--ink-3); }
 .markdown-body li { line-height: 1.5; }
+.markdown-body li.task-item { list-style: none; margin-left: -18px; }
+.markdown-body .task-mark { font-family: var(--mono); color: var(--ink-3); }
+.markdown-body .task-mark.checked { color: var(--accent); }
 .markdown-body h3.chat-header, .markdown-body h4.chat-header, .markdown-body h5.chat-header {
   margin: 10px 0 4px;
   font-weight: 700;
@@ -2607,6 +2610,14 @@ dialog h2 { margin: 0 0 6px; font-size: 15px; }
 
 /* Sous la bulle d'erreur, aligné sur elle plutôt que sur toute la largeur du fil. */
 .turn .turn-retry { align-self: flex-start; margin-top: 6px; }
+.turn .turn-error-note {
+  margin: 6px 0 0; padding: 8px 12px; border-radius: var(--radius-sm);
+  border: 1px solid var(--danger); background: var(--danger-soft); color: var(--danger);
+  font-size: 13px;
+}
+.turn .turn-error-note::before { content: "✕ "; font-family: var(--mono); }
+.turn .turn-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.turn .turn-copy { min-height: 32px; font-size: 12px; }
 
 /* Une conversation en cours garde l'accès à l'assistant guidé sur une ligne, sans le bloc
    d'amorces qui repoussait le fil vers le haut à chaque échange. */

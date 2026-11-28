@@ -19,6 +19,14 @@ public sealed interface AgentEvent {
     record Evidence(AnswerEvidence.Evidence evidence) implements AgentEvent {
     }
 
+    /**
+     * Métadonnées de fin de flux : motif d'arrêt dans le vocabulaire du fournisseur et jetons
+     * consommés, émis une fois le dernier fragment reçu afin qu'une réponse coupée au plafond
+     * {@code max_tokens}/{@code length} ne se confonde pas avec une réponse complète.
+     */
+    record Metadata(String finishReason, AgentUsage usage) implements AgentEvent {
+    }
+
     record ToolCall(String tool, long durationMillis, boolean failed, String observedAt, String result) implements AgentEvent {
         public ToolCall(String tool, long durationMillis, boolean failed) {
             this(tool, durationMillis, failed, null, null);

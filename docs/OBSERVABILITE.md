@@ -63,8 +63,10 @@ n'étant pas une consommation nulle.
 
 Ces réponses portent aussi `finishReason`, dans le vocabulaire du fournisseur (`max_tokens` chez
 Anthropic, `length` chez OpenAI) : sans lui, une réponse coupée au plafond `max-tokens` se lit
-exactement comme une réponse complète. La console marque le tour concerné. Le chemin en flux ne le
-rend pas encore — la métadonnée arrive dans le dernier fragment, que `stream()` ne collecte pas.
+exactement comme une réponse complète. Le chemin en flux (`/chat/stream` et l'espace utilisateur)
+émet ces mêmes métadonnées (`finishReason` et `usage`) dans un événement SSE `metadata` juste avant
+`done` : la console marque le tour concerné et l'espace utilisateur classe une réponse tronquée en
+`PARTIAL`.
 
 `kex.agent.token-budget.daily-limit` (`0` par défaut, illimité) plafonne ce que ces mêmes compteurs
 accumulent par jour, toutes conversations confondues — le seul frein d'un cycle de supervision qui

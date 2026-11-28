@@ -167,12 +167,13 @@ public class AgentService {
         ChatResponse response = bounded(conversation, execution, CircuitBreaker.decorateSupplier(modelCircuitBreaker,
                 () -> request(conversation, message, recorder, execution).call().chatResponse()));
         AgentUsage usage = AgentUsage.from(response);
-        if (longTermMemory != null && conversation.remembered()) {
-            longTermMemory.recordSuccessfulTask(conversation.owner(), conversation.id(), message, text(response), recorder.calls());
-        }
+        String reason = finishReason(response);
         String content = text(response);
-        return new AgentAnswer(conversation.id(), content, recorder.calls(), usage, finishReason(response),
-                conversation.sources(), AnswerEvidence.check(content, message, recorder.calls()));
+        if (longTermMemory != null && conversation.remembered() && !isTruncated(reason)) {
+            longTermMemory.recordSuccessfulTask(conversation.owner(), conversation.id(), message, content, recorder.calls());
+        }
+        return new AgentAnswer(conversation.id(), content, recorder.calls(), usage, reason,
+                conversation.sources(), AnswerEvidence.check(content, message, recorder.calls(), conversation.sources()));
     }
 
     public AgentStructuredAnswer askStructured(String conversationId, String message,
@@ -247,11 +248,26 @@ public class AgentService {
         // la souscription et couvre tout l'échange, comme sur le chemin bloquant ; contrairement à
         // lui, il annule réellement l'amont.
         StringBuilder answer = new StringBuilder();
+        var lastFinishReason = new java.util.concurrent.atomic.AtomicReference<String>();
+        var usageTracker = new StreamUsageTracker();
         Flux<AgentEvent> tokens = request(conversation, message, recorder, execution)
                 .stream()
-                .content()
-                .doOnNext(answer::append)
-                .<AgentEvent>map(AgentEvent.Token::new)
+                .chatResponse()
+                .<AgentEvent>handle((response, sink) -> {
+                    String reason = finishReason(response);
+                    if (reason != null) {
+                        lastFinishReason.set(reason);
+                    }
+                    AgentUsage usage = AgentUsage.from(response);
+                    if (usage != null) {
+                        usageTracker.accept(usage, reason);
+                    }
+                    String chunk = text(response);
+                    if (chunk != null && !chunk.isEmpty()) {
+                        answer.append(chunk);
+                        sink.next(new AgentEvent.Token(chunk));
+                    }
+                })
                 .takeUntilOther(Mono.delay(timeout)
                         .flatMap(tick -> Mono.error(new AgentTimeoutException(timeout, id))))
                 // Après le plafond, pour que notre propre timeout compte comme un échec du
@@ -260,27 +276,35 @@ public class AgentService {
                 .transformDeferred(CircuitBreakerOperator.of(modelCircuitBreaker))
                 .doFinally(signal -> {
                     execution.cancel();
-                    // Seul un flux qui va jusqu'à son terme normal compte comme un échange réussi :
-                    // une erreur, un timeout ou une déconnexion client (`ON_COMPLETE` est le seul
-                    // signal qui l'atteste) ne doivent pas nourrir la mémoire long-terme d'une
-                    // réponse tronquée. Sans cette écriture, /chat/stream — le chemin que la
-                    // console emprunte par défaut — n'alimentait jamais ce second système de
-                    // mémoire, contrairement à ask/askStructured.
-                    if (longTermMemory != null && signal == SignalType.ON_COMPLETE) {
+                    // Seul un flux qui va jusqu'à son terme normal et sans coupure au plafond de
+                    // jetons compte comme un échange réussi : une erreur, un timeout, une coupure
+                    // max_tokens ou une déconnexion client ne doivent pas nourrir la mémoire
+                    // long-terme d'une réponse tronquée.
+                    if (longTermMemory != null && signal == SignalType.ON_COMPLETE && !isTruncated(lastFinishReason.get())) {
                         longTermMemory.recordSuccessfulTask(conversation.owner(), conversation.id(), message,
                                 answer.toString(), recorder.calls());
                     }
                     tools.tryEmitComplete();
                 });
 
-        // Le constat sur les chiffres ne peut venir qu'après le dernier jeton, et seulement d'un flux
-        // allé à son terme : une erreur ou un timeout saute cette étape comme la mémoire long terme.
-        Flux<AgentEvent> evidence = Flux.defer(() -> {
-            AnswerEvidence.Evidence verdict = AnswerEvidence.check(answer.toString(), message, recorder.calls());
-            return verdict.worthSaying() ? Flux.just(new AgentEvent.Evidence(verdict)) : Flux.empty();
+        // Le constat sur les chiffres et les métadonnées finales ne peuvent venir qu'après le dernier
+        // jeton, et seulement d'un flux allé à son terme : une erreur ou un timeout saute cette étape.
+        Flux<AgentEvent> tail = Flux.defer(() -> {
+            java.util.List<AgentEvent> trailing = new java.util.ArrayList<>(2);
+            AnswerEvidence.Evidence verdict = AnswerEvidence.check(answer.toString(), message, recorder.calls(),
+                    conversation.sources());
+            if (verdict.worthSaying()) {
+                trailing.add(new AgentEvent.Evidence(verdict));
+            }
+            String reason = lastFinishReason.get();
+            AgentUsage usage = usageTracker.snapshot();
+            if (reason != null || usage != null) {
+                trailing.add(new AgentEvent.Metadata(reason, usage));
+            }
+            return Flux.fromIterable(trailing);
         });
         return new AgentStream(id, Flux.concat(Flux.defer(() -> conversation.sources().isEmpty() ? Flux.empty()
-                : Flux.just(new AgentEvent.Sources(conversation.sources()))), Flux.merge(tools.asFlux(), tokens), evidence));
+                : Flux.just(new AgentEvent.Sources(conversation.sources()))), Flux.merge(tools.asFlux(), tokens), tail));
     }
 
     public void clear(String conversationId) {
@@ -504,5 +528,72 @@ public class AgentService {
                 .map(ChatGenerationMetadata::getFinishReason)
                 .filter(StringUtils::hasText)
                 .orElse(null);
+    }
+
+    /** Vrai quand le fournisseur signale une coupure au plafond de jetons de sortie. */
+    public static boolean isTruncated(String finishReason) {
+        if (finishReason == null) return false;
+        String normalized = finishReason.strip().toLowerCase(java.util.Locale.ROOT);
+        return "max_tokens".equals(normalized) || "length".equals(normalized);
+    }
+
+    /**
+     * Agrège les compteurs de jetons reçus en flux. Sur un même tour fournisseur, les fragments
+     * portent un cumul croissant (ne jamais les additionner entre eux) ; après un tour d'outils
+     * ({@code tool_calls}/{@code tool_use}), le tour suivant repart d'un nouveau compteur qu'on
+     * cumule au précédent.
+     */
+    private static final class StreamUsageTracker {
+        private long committedInput;
+        private long committedOutput;
+        private boolean hasCommittedInput;
+        private boolean hasCommittedOutput;
+        private AgentUsage current;
+
+        synchronized void accept(AgentUsage usage, String finishReason) {
+            if (current == null || usage.total() >= current.total()) {
+                current = merge(current, usage);
+            }
+            else {
+                commitCurrent();
+                current = usage;
+            }
+            if (finishReason != null && ("tool_calls".equalsIgnoreCase(finishReason)
+                    || "tool_use".equalsIgnoreCase(finishReason))) {
+                commitCurrent();
+            }
+        }
+
+        synchronized AgentUsage snapshot() {
+            long input = committedInput + (current != null && current.inputTokens() != null ? current.inputTokens() : 0);
+            long output = committedOutput + (current != null && current.outputTokens() != null ? current.outputTokens() : 0);
+            boolean hasInput = hasCommittedInput || (current != null && current.inputTokens() != null);
+            boolean hasOutput = hasCommittedOutput || (current != null && current.outputTokens() != null);
+            if (!hasInput && !hasOutput) {
+                return null;
+            }
+            return new AgentUsage(hasInput ? (int) Math.min(Integer.MAX_VALUE, input) : null,
+                    hasOutput ? (int) Math.min(Integer.MAX_VALUE, output) : null);
+        }
+
+        private void commitCurrent() {
+            if (current == null) return;
+            if (current.inputTokens() != null) {
+                committedInput += current.inputTokens();
+                hasCommittedInput = true;
+            }
+            if (current.outputTokens() != null) {
+                committedOutput += current.outputTokens();
+                hasCommittedOutput = true;
+            }
+            current = null;
+        }
+
+        private static AgentUsage merge(AgentUsage previous, AgentUsage next) {
+            if (previous == null) return next;
+            Integer in = next.inputTokens() != null ? next.inputTokens() : previous.inputTokens();
+            Integer out = next.outputTokens() != null ? next.outputTokens() : previous.outputTokens();
+            return new AgentUsage(in, out);
+        }
     }
 }

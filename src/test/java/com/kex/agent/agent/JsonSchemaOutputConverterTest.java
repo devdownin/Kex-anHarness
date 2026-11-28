@@ -34,6 +34,23 @@ class JsonSchemaOutputConverterTest {
     }
 
     @Test
+    void accepte_un_json_entoure_de_clotures_markdown() {
+        assertThat(new JsonSchemaOutputConverter(SCHEMA).convert("```json\n{\"total\": 8}\n```"))
+                .containsEntry("total", 8);
+        assertThat(new JsonSchemaOutputConverter(SCHEMA).convert("  ```\n{\"total\": 12}\n```  "))
+                .containsEntry("total", 12);
+    }
+
+    @Test
+    void signale_une_reponse_vide_ou_non_objet_comme_sortie_non_conforme() {
+        JsonSchemaOutputConverter converter = new JsonSchemaOutputConverter(SCHEMA);
+
+        assertThatThrownBy(() -> converter.convert(null)).isInstanceOf(StructuredOutputException.class);
+        assertThatThrownBy(() -> converter.convert("   ")).isInstanceOf(StructuredOutputException.class);
+        assertThatThrownBy(() -> converter.convert("[1, 2]")).isInstanceOf(StructuredOutputException.class);
+    }
+
+    @Test
     void signale_une_reponse_non_conforme() {
         JsonSchemaOutputConverter converter = new JsonSchemaOutputConverter(SCHEMA);
 

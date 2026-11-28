@@ -100,4 +100,36 @@ class RoutingChatModelTest {
         assertThat(RoutingChatModel.eligible(new InterruptedException())).isFalse();
         assertThat(RoutingChatModel.eligible(new IllegalArgumentException("bad argument"))).isFalse();
     }
+
+    @Test
+    void conserve_les_options_portables_et_le_format_de_sortie_sans_fuiter_les_secrets() {
+        ChatModel m1 = mock(ChatModel.class);
+        ChatResponse response = new ChatResponse(List.of(new Generation(new org.springframework.ai.chat.messages.AssistantMessage("{}"))));
+        given(m1.call(any(Prompt.class))).willReturn(response);
+
+        LlmRoutingProperties.Endpoint ep1 = new LlmRoutingProperties.Endpoint(
+                LlmRoutingProperties.Provider.OPENAI, "https://api.openai.com/v1", "secret-key", "gpt-4o-mini",
+                Duration.ofSeconds(30), 4096, 0.2);
+        LlmRoutingProperties props = new LlmRoutingProperties(true, false,
+                Map.of("m1", ep1), Map.of(LlmRoutingProperties.Task.CHAT, List.of("m1")));
+        RoutingChatModel router = new RoutingChatModel(props, Map.of("m1", m1));
+
+        var format = org.springframework.ai.openai.OpenAiChatModel.ResponseFormat.builder()
+                .type(org.springframework.ai.openai.OpenAiChatModel.ResponseFormat.Type.JSON_OBJECT).build();
+        var options = org.springframework.ai.openai.OpenAiChatOptions.builder()
+                .model("wrong-model").maxTokens(300).temperature(0.4).topP(0.9)
+                .stopSequences(List.of("END")).responseFormat(format).build();
+
+        router.call(new Prompt("hi", options));
+
+        var captor = org.mockito.ArgumentCaptor.forClass(Prompt.class);
+        verify(m1).call(captor.capture());
+        var forwarded = (org.springframework.ai.openai.OpenAiChatOptions) captor.getValue().getOptions();
+        assertThat(forwarded.getModel()).isEqualTo("gpt-4o-mini");
+        assertThat(forwarded.getMaxTokens()).isEqualTo(300);
+        assertThat(forwarded.getTemperature()).isEqualTo(0.4);
+        assertThat(forwarded.getTopP()).isEqualTo(0.9);
+        assertThat(forwarded.getStopSequences()).containsExactly("END");
+        assertThat(forwarded.getResponseFormat()).isEqualTo(format);
+    }
 }

@@ -117,11 +117,18 @@ class HarnessToolsTest {
             return "lag=4";
         })), model, controls);
         var context = HarnessFixtures.context("tenant", "conv");
+        var recorder = new com.kex.agent.agent.ToolCallRecorder();
+        context.put(com.kex.agent.agent.ToolCallRecorder.CONTEXT_KEY, recorder);
         var tools = harness.prepare(List.of(), null, context);
         assertThat(named(tools, "delegate_diagnostic").call("{\"specialist\":\"kafka\",\"objective\":\"Mesurer le lag\"}", new ToolContext(context)))
                 .contains("UNVERIFIED", "Lag 4");
         assertThat(measured).hasValue(1);
         assertThat(turns).hasValue(2);
+        // L'extrait enregistré doit rester du JSON lisible (avant balisage <tool_result>) pour AnswerEvidence.
+        assertThat(recorder.calls()).singleElement().satisfies(call -> {
+            assertThat(call.tool()).isEqualTo("delegate_diagnostic");
+            assertThat(call.result()).isNotNull().contains("\"specialist\":\"kafka\"");
+        });
     }
 
     @Test

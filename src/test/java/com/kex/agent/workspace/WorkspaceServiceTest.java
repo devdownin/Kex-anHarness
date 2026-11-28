@@ -142,4 +142,26 @@ class WorkspaceServiceTest {
         org.mockito.Mockito.verify(taskService).get("team", "task");
         assertThatThrownBy(() -> service.link(bob, request.id(), "task")).isInstanceOf(ResponseStatusException.class);
     }
+    @Test void une_reponse_tronquee_au_plafond_de_jetons_est_marquee_partielle_et_signalee() {
+        when(agent.stream(anyString(), anyString(), anyString())).thenAnswer(call -> new AgentStream(call.getArgument(1),
+                Flux.just(new AgentEvent.Token("Début tronqué"),
+                        new AgentEvent.Metadata("max_tokens", new com.kex.agent.agent.AgentUsage(500, 4096)))));
+        var events = service.stream(alice, input(null)).collectList().block();
+        assertThat(events).extracting(e -> e.event()).contains("metadata", "snapshot", "done");
+        var saved = service.list(alice).getFirst();
+        assertThat(saved.status()).isEqualTo("PARTIAL");
+        assertThat(saved.turns().getLast().error()).contains("plafond de jetons").contains("max_tokens");
+    }
+    @Test void une_panne_du_fournisseur_rend_un_motif_exploitable_sans_fuiter_les_details() {
+        var unauthorized = com.anthropic.errors.UnauthorizedException.builder()
+                .headers(com.anthropic.core.http.Headers.builder().build())
+                .body(com.anthropic.core.JsonValue.from(java.util.Map.of("error", "secret-key-detail")))
+                .build();
+        when(agent.stream(anyString(), anyString(), anyString())).thenAnswer(call -> new AgentStream(call.getArgument(1), Flux.error(unauthorized)));
+        var events = service.stream(alice, input(null)).collectList().block();
+        assertThat(events).anySatisfy(e -> {
+            assertThat(e.event()).isEqualTo("error");
+            assertThat(e.data()).contains("HTTP 401").doesNotContain("secret-key-detail");
+        });
+    }
 }

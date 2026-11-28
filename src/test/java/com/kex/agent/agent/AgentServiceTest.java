@@ -258,10 +258,14 @@ class AgentServiceTest {
         assertThat(service(Duration.ofSeconds(10)).ask("conv-1", "ping").usage()).isNull();
     }
 
+    private static ChatResponse chunk(String text) {
+        return new ChatResponse(List.of(new Generation(new AssistantMessage(text))));
+    }
+
     @Test
     void rend_l_identifiant_avec_le_flux() {
         streamingCall();
-        given(streamSpec.content()).willReturn(Flux.just("pong"));
+        given(streamSpec.chatResponse()).willReturn(Flux.just(chunk("pong")));
 
         var stream = service(Duration.ofSeconds(10)).stream(null, "ping");
 
@@ -273,9 +277,39 @@ class AgentServiceTest {
     }
 
     @Test
+    void le_flux_rend_le_motif_d_arret_et_les_jetons_et_n_archive_pas_une_reponse_tronquee() {
+        streamingCall();
+        given(streamSpec.chatResponse()).willReturn(Flux.just(
+                chunk("début "),
+                response("coupé net", "max_tokens", new DefaultUsage(1200, 4096))));
+
+        StepVerifier.create(serviceWithLongTermMemory(Duration.ofSeconds(10)).stream("conv-1", "analyse").events())
+                .expectNext(new AgentEvent.Token("début "), new AgentEvent.Token("coupé net"))
+                .expectNext(new AgentEvent.Metadata("max_tokens", new AgentUsage(1200, 4096)))
+                .verifyComplete();
+
+        verify(longTermMemory, never()).recordSuccessfulTask(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void le_flux_cumule_les_jetons_sur_plusieurs_tours_d_outils_sans_doubler_les_fragments() {
+        streamingCall();
+        given(streamSpec.chatResponse()).willReturn(Flux.just(
+                response("", null, new DefaultUsage(100, 10)),
+                response("", "tool_calls", new DefaultUsage(100, 25)),
+                response("réponse ", null, new DefaultUsage(150, 5)),
+                response("finale", "stop", new DefaultUsage(150, 20))));
+
+        StepVerifier.create(service(Duration.ofSeconds(10)).stream("conv-1", "statut ?").events())
+                .expectNext(new AgentEvent.Token("réponse "), new AgentEvent.Token("finale"))
+                .expectNext(new AgentEvent.Metadata("stop", new AgentUsage(250, 45)))
+                .verifyComplete();
+    }
+
+    @Test
     void le_flux_signale_apres_le_dernier_jeton_un_chiffre_qu_aucun_outil_ne_fonde() {
         streamingCall();
-        given(streamSpec.content()).willReturn(Flux.just("Le retard est de ", "120 000 messages."));
+        given(streamSpec.chatResponse()).willReturn(Flux.just(chunk("Le retard est de "), chunk("120 000 messages.")));
 
         StepVerifier.create(service(Duration.ofSeconds(10)).stream("conv-1", "Quel retard ?").events())
                 .expectNext(new AgentEvent.Token("Le retard est de "), new AgentEvent.Token("120 000 messages."))
@@ -289,7 +323,7 @@ class AgentServiceTest {
     @Test
     void le_flux_ne_dit_rien_d_une_reponse_sans_chiffre() {
         streamingCall();
-        given(streamSpec.content()).willReturn(Flux.just("Rien à signaler."));
+        given(streamSpec.chatResponse()).willReturn(Flux.just(chunk("Rien à signaler.")));
 
         StepVerifier.create(service(Duration.ofSeconds(10)).stream("conv-1", "Statut ?").events())
                 .expectNext(new AgentEvent.Token("Rien à signaler."))
@@ -299,7 +333,7 @@ class AgentServiceTest {
     @Test
     void le_flux_interrompu_ne_porte_aucun_constat_sur_une_reponse_tronquee() {
         streamingCall();
-        given(streamSpec.content()).willReturn(Flux.concat(Flux.just("Le retard est de 120 000"),
+        given(streamSpec.chatResponse()).willReturn(Flux.concat(Flux.just(chunk("Le retard est de 120 000")),
                 Flux.error(new IllegalStateException("coupé"))));
 
         StepVerifier.create(service(Duration.ofSeconds(10)).stream("conv-1", "Quel retard ?").events())
@@ -321,7 +355,7 @@ class AgentServiceTest {
     @Test
     void coupe_un_flux_muet_qui_depasse_le_plafond() {
         streamingCall();
-        given(streamSpec.content()).willReturn(Flux.never());
+        given(streamSpec.chatResponse()).willReturn(Flux.never());
 
         var stream = service(Duration.ofMillis(100)).stream("conv-1", "ping");
 
@@ -336,7 +370,7 @@ class AgentServiceTest {
     @Test
     void coupe_un_flux_bavard_qui_dure_plus_que_le_plafond() {
         streamingCall();
-        given(streamSpec.content()).willReturn(Flux.interval(Duration.ofMillis(10)).map(tick -> "jeton "));
+        given(streamSpec.chatResponse()).willReturn(Flux.interval(Duration.ofMillis(10)).map(tick -> chunk("jeton ")));
 
         var stream = service(Duration.ofMillis(150)).stream("conv-1", "ping");
 
@@ -354,7 +388,7 @@ class AgentServiceTest {
     @Test
     void alimente_la_memoire_long_terme_a_la_fin_d_un_flux_reussi() {
         streamingCall();
-        given(streamSpec.content()).willReturn(Flux.just("pong"));
+        given(streamSpec.chatResponse()).willReturn(Flux.just(chunk("pong")));
 
         StepVerifier.create(serviceWithLongTermMemory(Duration.ofSeconds(10)).stream("conv-1", "ping").events())
                 .expectNext(new AgentEvent.Token("pong"))
@@ -370,7 +404,7 @@ class AgentServiceTest {
     @Test
     void n_alimente_pas_la_memoire_long_terme_quand_le_flux_echoue_par_timeout() {
         streamingCall();
-        given(streamSpec.content()).willReturn(Flux.never());
+        given(streamSpec.chatResponse()).willReturn(Flux.never());
 
         StepVerifier.create(serviceWithLongTermMemory(Duration.ofMillis(100)).stream("conv-1", "ping").events())
                 .expectError(AgentTimeoutException.class).verify();
@@ -594,7 +628,7 @@ class AgentServiceTest {
     @Test
     void refuse_un_flux_quand_le_disjoncteur_est_ouvert() {
         streamingCall();
-        given(streamSpec.content()).willReturn(Flux.just("pong"));
+        given(streamSpec.chatResponse()).willReturn(Flux.just(chunk("pong")));
 
         CircuitBreakerRegistry registry = CircuitBreakerRegistry.ofDefaults();
         CircuitBreaker breaker = registry.circuitBreaker("agent-model");
@@ -609,7 +643,7 @@ class AgentServiceTest {
     @Test
     void compte_l_echec_d_un_flux_dans_le_disjoncteur() {
         streamingCall();
-        given(streamSpec.content()).willReturn(Flux.error(new AgentTimeoutException(Duration.ofSeconds(1), "conv-1")));
+        given(streamSpec.chatResponse()).willReturn(Flux.error(new AgentTimeoutException(Duration.ofSeconds(1), "conv-1")));
 
         CircuitBreakerRegistry registry = CircuitBreakerRegistry.ofDefaults();
         registry.circuitBreaker("agent-model", CircuitBreakerConfig.custom()

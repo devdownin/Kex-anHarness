@@ -91,4 +91,42 @@ class AnswerEvidenceTest {
         assertThat(evidence.message()).isEmpty();
         assertThat(AnswerEvidence.check(null, null, null).status()).isEqualTo(Status.NOT_APPLICABLE);
     }
+
+    @Test
+    void un_chiffre_issu_d_une_source_documentaire_est_fonde() {
+        var source = new com.kex.agent.knowledge.KnowledgeSource(
+                "doc-1", "Runbook Kafka", "2026-11-26T08:00:00Z", null, "Seuil critique : 5000 messages en retard.");
+        Evidence grounded = AnswerEvidence.check("Le seuil documenté est de 5 000 messages [source:doc-1].",
+                "Quel seuil ?", List.of(), List.of(source));
+        assertThat(grounded.status()).isEqualTo(Status.GROUNDED);
+
+        Evidence unsupported = AnswerEvidence.check("Le seuil documenté est de 9 500 messages.",
+                "Quel seuil ?", List.of(), List.of(source));
+        assertThat(unsupported.status()).isEqualTo(Status.UNSUPPORTED);
+        assertThat(unsupported.message()).contains("sources consultées").contains("9 500");
+    }
+
+    @Test
+    void ignore_les_blocs_de_code_les_adresses_ipv4_et_les_codes_http() {
+        String answer = """
+                Le serveur 127.0.0.1 a répondu HTTP 503. Exemple de configuration :
+                ```yaml
+                kex:
+                  agent:
+                    supervision:
+                      thresholds:
+                        consumer-lag: 1000
+                ```
+                """;
+        assertThat(check(answer, "Comment configurer ?").status()).isEqualTo(Status.NOT_APPLICABLE);
+    }
+
+    @Test
+    void sanitize_accepte_un_resultat_json_de_plus_de_4000_caracteres_jusqu_au_plafond_par_defaut() {
+        String largeJson = "{\"lag\":123456,\"padding\":\"" + "a".repeat(6000) + "\"}";
+        String sanitized = ToolResultEvidence.sanitize(largeJson);
+        assertThat(sanitized).isNotNull().contains("123456");
+        assertThat(check("Retard mesuré : 123 456.", "Lag ?", call(sanitized)).status())
+                .isEqualTo(Status.GROUNDED);
+    }
 }

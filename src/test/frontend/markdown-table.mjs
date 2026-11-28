@@ -11,9 +11,9 @@ assert.deepEqual(parseTable(['| Rang | Topic | Records |', '|------|-------|----
   headers: ['Rang', 'Topic', 'Records'], align: [null, null, 'right'],
   rows: [['1', 'demo.app.topic', '4000'], ['2', 'demo.iot.sensors', '144']],
 });
-// Barres de bord facultatives, alignements, ligne courte complétée, longue tronquée, barre échappée.
-assert.deepEqual(parseTable(['a | b', ':--- | :---:', 'x |', 'y | z | w', 'p\\|q | r']), {
-  headers: ['a', 'b'], align: ['left', 'center'], rows: [['x', ''], ['y', 'z'], ['p|q', 'r']],
+// Barres de bord facultatives, alignements, ligne courte complétée, longue tronquée, barre échappée ou en code inline.
+assert.deepEqual(parseTable(['a | b', ':--- | :---:', 'x |', 'y | z | w', 'p\\|q | r', '`foo|bar` | 42']), {
+  headers: ['a', 'b'], align: ['left', 'center'], rows: [['x', ''], ['y', 'z'], ['p|q', 'r'], ['`foo|bar`', '42']],
 });
 // Pas un tableau : séparateur absent, trop court, ou d'une autre largeur que l'en-tête.
 assert.equal(parseTable(['| a | b |', '| x | y |']), null);

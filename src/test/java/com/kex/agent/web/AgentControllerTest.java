@@ -374,6 +374,25 @@ class AgentControllerTest {
                 .isGreaterThan(events.indexOf(events.stream().filter(e -> e.startsWith("evidence=")).findFirst().orElseThrow()));
     }
 
+    @Test
+    void le_flux_emet_les_metadonnees_de_fin_avant_done() throws Exception {
+        given(agentService.stream("Anonyme", null, "analyse")).willReturn(new AgentStream("conv-11",
+                Flux.just(new AgentEvent.Token("début"),
+                        new AgentEvent.Metadata("max_tokens", new com.kex.agent.agent.AgentUsage(450, 4096)))));
+
+        var response = mvc.post().uri("/api/agent/chat/stream")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"message":"analyse"}""")
+                .exchange();
+
+        List<String> events = sseEvents(response.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
+        assertThat(events).anySatisfy(event -> assertThat(event).startsWith("metadata=")
+                .contains("\"finishReason\":\"max_tokens\"").contains("\"inputTokens\":450").contains("\"outputTokens\":4096"));
+        assertThat(events.indexOf("done=response-complete"))
+                .isGreaterThan(events.indexOf(events.stream().filter(e -> e.startsWith("metadata=")).findFirst().orElseThrow()));
+    }
+
     /** Découpe un corps SSE comme la norme : une seule espace retirée après {@code data:}. */
     private static List<String> sseEvents(String body) {
         List<String> events = new java.util.ArrayList<>();

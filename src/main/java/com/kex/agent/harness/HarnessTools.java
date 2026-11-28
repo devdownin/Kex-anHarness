@@ -216,13 +216,17 @@ public final class HarnessTools {
                 AgentExecution.ensureActive(context);
                 TaskToolPolicy.check(name, context);
                 policy.check(name, input);
-                return ToolCallRecorder.timed(context, name, () -> {
+                // Le balisage <tool_result> entoure le résultat APRÈS enregistrement, comme dans
+                // RecordingToolCallbackProvider : sinon ToolResultEvidence reçoit du XML au lieu du JSON
+                // et rend l'extrait illisible (UNVERIFIABLE) pour AnswerEvidence.
+                String bounded = ToolCallRecorder.timed(context, name, () -> {
                     TokenBudgetService.chargeTool(context.getContext(), name);
                     JsonNode value;
                     try { value = mapper.readTree(input); }
                     catch (Exception ex) { throw new IllegalArgumentException("Arguments JSON invalides"); }
-                    return UntrustedText.wrap(name, policy.boundResult(name, action.apply(value, context)));
+                    return policy.boundResult(name, action.apply(value, context));
                 });
+                return UntrustedText.wrap(name, bounded);
             }
         };
     }

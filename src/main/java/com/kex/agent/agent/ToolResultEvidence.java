@@ -15,10 +15,13 @@ final class ToolResultEvidence {
             "password|passwd|secret|token|authorization|api.?key|credential|cookie|private.?key",
             Pattern.CASE_INSENSITIVE);
 
+    /** Aligné sur le plafond par défaut des résultats d'outils (12 000 car.) pour ne pas rendre illisibles les relevés multi-partitions. */
+    private static final int MAX_EVIDENCE_CHARACTERS = 12_000;
+
     private ToolResultEvidence() { }
 
     static String sanitize(Object result) {
-        if (!(result instanceof String text) || text.length() > 4000) return null;
+        if (!(result instanceof String text) || text.length() > MAX_EVIDENCE_CHARACTERS) return null;
         try {
             JsonNode node = JSON.readTree(text);
             if (node == null) return null;

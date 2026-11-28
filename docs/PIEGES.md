@@ -12,12 +12,12 @@ gras, puis pourquoi, puis ce qui le corrige et le test qui l'aurait attrapé.
 
 - [Démarrage et configuration](#démarrage-et-configuration) — 6
 - [Sécurité, API et canaux de messagerie](#sécurité-api-et-canaux-de-messagerie) — 12
-- [Modèle et conversation](#modèle-et-conversation) — 12
+- [Modèle et conversation](#modèle-et-conversation) — 16
 - [Serveurs MCP](#serveurs-mcp) — 7
 - [Supervision, décisions et mesures](#supervision-décisions-et-mesures) — 17
 - [Compétences et mémoire long terme](#compétences-et-mémoire-long-terme) — 10
 - [Persistance et migrations](#persistance-et-migrations) — 3
-- [Console et espace utilisateur](#console-et-espace-utilisateur) — 23
+- [Console et espace utilisateur](#console-et-espace-utilisateur) — 24
 - [Tests](#tests) — 11
 - [CI, image et publication](#ci-image-et-publication) — 7
 
@@ -217,10 +217,36 @@ Appel du fournisseur, flux SSE, mémoire de conversation, cache, métriques de j
 
 - **Le motif d'une panne du fournisseur est le même sur les deux routes, et sans le corps brut.** Le flux
   rendait « refusé la clé (HTTP 401) » ; la route bloquante renvoyait `ex.getMessage()` — le JSON du
-  fournisseur, avec parfois l'identifiant de requête. Une seule fonction (`modelProviderMessage`) dit
-  maintenant quoi régler : le plafond d'un appel (`InterruptedIOException` d'OkHttp), une adresse fausse
-  (`ConnectException`, `UnknownHostException`), un `400` de serveur local (fenêtre dépassée, modèle sans
-  appel d'outils), un `402` de crédits, un `404` de modèle.
+  fournisseur, avec parfois l'identifiant de requête. Une seule fonction (`ModelErrorMessages.modelProviderMessage`)
+  sert maintenant les deux routes et l'espace utilisateur (`WorkspaceService`), et dit quoi régler :
+  le plafond d'un appel (`InterruptedIOException` d'OkHttp), une adresse fausse (`ConnectException`,
+  `UnknownHostException`), un `400` de serveur local (fenêtre dépassée, modèle sans appel d'outils),
+  un `402` de crédits, un `404` de modèle.
+
+- **`.stream().content()` a le même défaut que `.call().content()` : il jette `finishReason` et `usage`.**
+  Le chemin par défaut de la console et de l'espace utilisateur ne détectait donc jamais une réponse
+  coupée au plafond `max_tokens`/`length` et l'archivaient comme complète. `AgentService.streamConversation`
+  passe par `.stream().chatResponse()`, émet `AgentEvent.Metadata` (SSE `metadata`) avant `done`,
+  empêche la mémorisation long terme d'une réponse tronquée et fait basculer l'espace utilisateur en
+  `PARTIAL`.
+
+- **`RoutingChatModel.forEndpoint` doit propager les options portables, pas seulement les outils.**
+  Reconstruire des `OpenAiChatOptions` neufs sans recopier `maxTokens`, `temperature`, `topP`,
+  `stopSequences` ni `responseFormat` annulait silencieusement les plafonds de `SuggestionService` et
+  `ContextCompactor` ainsi que le décodage contraint en sortie structurée dès que `kex.models.enabled`
+  était actif — tout en continuant de ne jamais copier clé API, URL ni modèle d'une autre destination.
+
+- **Un JSON structuré entouré de clôtures ```` ```json ```` ou vide ne doit pas renvoyer 400 ni casser un cycle.**
+  `JsonSchemaOutputConverter` ne retirait pas les clôtures Markdown que Claude, OpenRouter ou un modèle
+  local ajoutent autour d'un objet JSON valide, et laissait `JSON.readTree(null)` lever
+  `IllegalArgumentException` (400 côté appelant) au lieu de `StructuredOutputException` (502 amont).
+
+- **Baliser `<tool_result>` avant `ToolCallRecorder.timed` rend l'extrait illisible à `AnswerEvidence`.**
+  `HarnessTools.local` entourait le résultat de XML *à l'intérieur* du bloc chronométré :
+  `ToolResultEvidence.sanitize` recevait du XML au lieu du JSON, rendait `null`, et tout appel à
+  `read_tool_result` ou `delegate_diagnostic` dégradait systématiquement le contrôle en `UNVERIFIABLE`.
+  Le balisage se pose désormais à la sortie, comme dans `RecordingToolCallbackProvider`, et le plafond
+  d'extrait suit celui des résultats d'outils (12 000 car.).
 
 ## Serveurs MCP
 
@@ -576,6 +602,13 @@ Rendu, interactions, accessibilité, surfaces et thèmes de l'interface sans bui
   ouvert une emphase au milieu d'un renvoi, et un renvoi coupé entre deux nœuds n'est plus reconnu. Une réponse
   reçue en partie se rend aussi en Markdown : elle n'est pas du texte brut parce qu'elle est incomplète. Et la
   ligne de séparation d'un tableau n'exige pas trois tirets : `|:--|--:|` est ce que les modèles écrivent.
+
+- **Un délimiteur dans du code inline ne coupe ni une emphase ni un tableau, et une erreur en cours de flux
+  n'écrase pas le Markdown déjà reçu.** `closingRun` (`markdown.js`) s'arrêtait sur le `*` de
+  ``**Topic `orders.*` en retard**`` et `markdown-table.js` coupait les cellules sur `|` dans `` `a|b` `` ;
+  côté `chat.js`, un événement `error` en fin de flux réécrivait la bulle entière en texte brut. Les deux
+  analyseurs sautent désormais les extraits entre backticks, et `chat.js` laisse le Markdown partiel en
+  forme en ajoutant l'erreur sous la bulle.
 
 ## Tests
 

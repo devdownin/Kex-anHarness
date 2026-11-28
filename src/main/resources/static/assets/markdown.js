@@ -32,22 +32,49 @@ export function safeHref(raw) {
 
 const ESCAPABLE = /[\\`*_{}[\]()#+\-.!|~>]/;
 const isWord = (ch) => ch !== undefined && /[\p{L}\p{N}]/u.test(ch);
+const AUTOLINK = /^https?:\/\/[^\s<>()]+(?:\([^\s<>()]*\)[^\s<>()]*)*/i;
+const TRAILING_PUNCT = /[.,;:!?]+$/;
+const TASK_ITEM = /^\[([ xX])\]\s+(.*)$/;
 
 function closingRun(text, from, marker) {
-  // Cherche le prochain `marker` qui n'est pas échappé ; un délimiteur de code ne se laisse pas enjamber.
+  // Cherche le prochain `marker` qui n'est pas échappé et saute les extraits de code délimités par backticks
+  // afin qu'un motif comme **Topic `orders.*` en retard** ne se coupe pas au milieu du code.
   for (let i = from; i < text.length; i += 1) {
     if (text[i] === '\\') { i += 1; continue; }
+    if (text[i] === '`') {
+      let run = 1;
+      while (text[i + run] === '`') run += 1;
+      const close = text.indexOf('`'.repeat(run), i + run);
+      if (close > i + run) { i = close + run - 1; continue; }
+      i += run - 1;
+      continue;
+    }
     if (text.startsWith(marker, i)) return i;
+  }
+  return -1;
+}
+
+/** Cherche la parenthèse fermante d'une URL Markdown en autorisant les parenthèses équilibrées (ex. Wikipedia). */
+function closingHref(text, from) {
+  let depth = 0;
+  for (let i = from; i < text.length; i += 1) {
+    const ch = text[i];
+    if (ch === '\\') { i += 1; continue; }
+    if (ch === '(') { depth += 1; continue; }
+    if (ch === ')') {
+      if (depth === 0) return i;
+      depth -= 1;
+    }
   }
   return -1;
 }
 
 /** Un marqueur d'emphase ouvre ici, ou rend null : le texte qui suit reste alors du texte. */
 function delimited(text, i) {
-  for (const [marker, kind] of [['**', 'strong'], ['__', 'strong'], ['~~', 'del'], ['*', 'em'], ['_', 'em']]) {
+  for (const [marker, kind] of [['***', 'strong-em'], ['___', 'strong-em'], ['**', 'strong'], ['__', 'strong'], ['~~', 'del'], ['*', 'em'], ['_', 'em']]) {
     if (!text.startsWith(marker, i)) continue;
     const width = marker.length;
-    // « * » ne s'ouvre pas devant un autre « * » : c'est « ** », déjà essayé plus haut.
+    // « * » ne s'ouvre pas devant un autre « * » : c'est « ** » ou « *** », déjà essayés plus haut.
     if (width === 1 && text[i + 1] === marker) continue;
     const end = closingRun(text, i + width, marker);
     if (end <= i + width) continue;
@@ -55,7 +82,10 @@ function delimited(text, i) {
     if (inner.trim() !== inner) continue; // un délimiteur collé à une espace n'emphatise rien
     // « snake__case » et « a_b_c » : un souligné au milieu d'un mot n'ouvre ni ne ferme.
     if (marker[0] === '_' && (isWord(text[i - 1]) || isWord(text[end + width]))) continue;
-    return { node: { t: kind, c: parseInline(inner) }, next: end + width };
+    const node = kind === 'strong-em'
+      ? { t: 'strong', c: [{ t: 'em', c: parseInline(inner) }] }
+      : { t: kind, c: parseInline(inner) };
+    return { node, next: end + width };
   }
   return null;
 }
@@ -89,12 +119,26 @@ export function parseInline(text) {
     if (ch === '[') {
       const close = closingRun(text, i + 1, ']');
       if (close > i + 1 && text[close + 1] === '(') {
-        const end = closingRun(text, close + 2, ')');
+        const end = closingHref(text, close + 2);
         const href = end > 0 ? safeHref(text.slice(close + 2, end).split(/\s+/)[0]) : null;
         if (href) {
           flush();
           out.push({ t: 'link', href, c: parseInline(text.slice(i + 1, close)) });
           i = end + 1;
+          continue;
+        }
+      }
+    }
+
+    if ((ch === 'h' || ch === 'H') && !isWord(text[i - 1])) {
+      const match = AUTOLINK.exec(text.slice(i));
+      if (match) {
+        const raw = match[0].replace(TRAILING_PUNCT, '');
+        const href = safeHref(raw);
+        if (href) {
+          flush();
+          out.push({ t: 'link', href, c: [{ t: 'text', v: raw }] });
+          i += raw.length;
           continue;
         }
       }
@@ -162,8 +206,19 @@ function buildLists(lines) {
 }
 
 function listBlock(list) {
-  return { type: 'list', ordered: list.ordered, start: list.start,
-    items: list.items.map((item) => ({ inline: parseInline(item.text), children: item.children.map(listBlock) })) };
+  return {
+    type: 'list',
+    ordered: list.ordered,
+    start: list.start,
+    items: list.items.map((item) => {
+      const task = !list.ordered ? TASK_ITEM.exec(item.text) : null;
+      return {
+        ...(task ? { checked: task[1].toLowerCase() === 'x' } : {}),
+        inline: parseInline(task ? task[2] : item.text),
+        children: item.children.map(listBlock),
+      };
+    }),
+  };
 }
 
 export function parseBlocks(text) {

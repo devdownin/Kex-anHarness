@@ -56,12 +56,22 @@ class JsonSchemaOutputConverter implements StructuredOutputConverter<Map<String,
         return schema;
     }
 
+    private static final java.util.regex.Pattern FENCED_JSON =
+            java.util.regex.Pattern.compile("(?is)^```(?:json)?\\s*\\R(.*?)\\R?```$");
+
     @Override
     @SuppressWarnings("unchecked")
     public Map<String, Object> convert(String source) {
+        if (source == null || source.isBlank()) {
+            throw new StructuredOutputException("réponse vide");
+        }
+        String cleaned = unwrapFences(source);
         try {
-            JsonNode value = JSON.readTree(source);
-            List<com.networknt.schema.Error> errors = validator.validate(source, InputFormat.JSON);
+            JsonNode value = JSON.readTree(cleaned);
+            if (value == null || !value.isObject()) {
+                throw new StructuredOutputException("un objet JSON est attendu");
+            }
+            List<com.networknt.schema.Error> errors = validator.validate(cleaned, InputFormat.JSON);
             if (!errors.isEmpty()) {
                 String detail = errors.stream().map(com.networknt.schema.Error::getMessage).sorted()
                         .limit(3).collect(java.util.stream.Collectors.joining(" ; "));
@@ -74,6 +84,13 @@ class JsonSchemaOutputConverter implements StructuredOutputConverter<Map<String,
             // d'appelant, et la distinction compte pour qui lit les codes de retour.
             throw new StructuredOutputException(ex);
         }
+    }
+
+    /** Retire une clôture Markdown ```json ... ``` qui entoure toute la réponse sans tolérer de prose autour. */
+    private static String unwrapFences(String source) {
+        String trimmed = source.strip();
+        var matcher = FENCED_JSON.matcher(trimmed);
+        return matcher.matches() ? matcher.group(1).strip() : trimmed;
     }
 
     /** Les références distantes transformeraient un schéma fourni par l'appelant en requête SSRF. */

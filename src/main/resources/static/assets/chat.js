@@ -14,7 +14,7 @@ import { wireProcessWizard } from './process-creation.js';
 // découpeur SSE pour toute la console : une seconde copie gardait l'espace qui suit `data:`,
 // que la norme retire et que Spring Framework 7.1 émet désormais.
 import { events as serverSentEvents } from './user-stream.js';
-import { renderMarkdown } from './markdown-view.js';
+import { copyText, renderMarkdown } from './markdown-view.js';
 
 const CONVERSATION_STORAGE = 'kex.agent.conversation';
 
@@ -392,7 +392,11 @@ function replayContext(id) {
     const turn = addContextTurn(saved.role, saved.text);
     if (saved.role === 'agent') {
       renderToolChips(turn, saved.tools || []);
+      renderSources(turn, saved.sources);
       renderFinishReason(turn, saved.finishReason);
+      renderEvidence(turn, saved.evidence);
+      renderUsage(turn, saved.usage);
+      renderCopyAction(turn, saved.text);
     }
   });
 }
@@ -430,8 +434,15 @@ async function sendContextual(question) {
   const savedQuestion = { role: 'user', text: question, context, contextTitle: title };
   appendTranscript(answer.conversationId, savedQuestion);
   touchIndex(answer.conversationId, question.slice(0, 48));
-  appendTranscript(answer.conversationId,
-    { role: 'agent', text: answer.content, tools: answer.tools, finishReason: answer.finishReason });
+  appendTranscript(answer.conversationId, {
+    role: 'agent',
+    text: answer.content,
+    tools: answer.tools,
+    sources: answer.sources,
+    evidence: answer.evidence,
+    finishReason: answer.finishReason,
+    usage: answer.usage,
+  });
 
   if (activeContextId === contextId) {
     // La conversation complète reste la continuité de ce panneau : en l'ouvrant ensuite, les tours
@@ -443,6 +454,9 @@ async function sendContextual(question) {
     renderToolChips(contextualTurn, answer.tools || []);
     renderSources(contextualTurn, answer.sources);
     renderFinishReason(contextualTurn, answer.finishReason);
+    renderEvidence(contextualTurn, answer.evidence);
+    renderUsage(contextualTurn, answer.usage);
+    renderCopyAction(contextualTurn, answer.content);
   }
 }
 
@@ -483,11 +497,49 @@ function renderSources(turn, sources) {
 function renderFinishReason(turn, finishReason) {
   const reason = (finishReason || '').toLowerCase();
   if (!reason || NORMAL_ENDINGS.has(reason)) return;
-  const note = el('div', 'chips');
+  turn.querySelector('.finish-note')?.remove();
+  const note = el('div', 'chips finish-note');
   note.append(el('span', 'chip failed', TRUNCATED.has(reason)
     ? `réponse coupée au plafond de jetons (${finishReason})`
     : `fin inhabituelle (${finishReason})`));
   turn.append(note);
+}
+
+/** Affiche les jetons consommés quand le fournisseur les renvoie — jamais 0 par défaut. */
+function renderUsage(turn, usage) {
+  if (!usage || (usage.inputTokens == null && usage.outputTokens == null)) return;
+  turn.querySelector('.usage-chip')?.remove();
+  const parts = [];
+  if (usage.inputTokens != null) parts.push(`${usage.inputTokens.toLocaleString('fr-FR')} entrée`);
+  if (usage.outputTokens != null) parts.push(`${usage.outputTokens.toLocaleString('fr-FR')} sortie`);
+  if (!parts.length) return;
+  const bar = ensureTurnActions(turn);
+  const chip = el('span', 'chip usage-chip', `${parts.join(' · ')} jetons`);
+  chip.title = 'Jetons déclarés par le fournisseur pour cet échange';
+  bar.prepend(chip);
+}
+
+function ensureTurnActions(turn) {
+  let bar = turn.querySelector('.turn-actions');
+  if (!bar) {
+    bar = el('div', 'turn-actions');
+    turn.append(bar);
+  }
+  return bar;
+}
+
+/** Permet de copier la réponse Markdown entière en un clic, sans embarquer les badges d'état. */
+function renderCopyAction(turn, text) {
+  if (!text || !text.trim() || turn.querySelector('.turn-copy')) return;
+  const bar = ensureTurnActions(turn);
+  const button = el('button', 'ghost compact turn-copy', 'Copier la réponse');
+  button.type = 'button';
+  button.addEventListener('click', async () => {
+    const ok = await copyText(text);
+    button.textContent = ok ? 'Copié' : 'Copie impossible';
+    setTimeout(() => { button.textContent = 'Copier la réponse'; }, 1600);
+  });
+  bar.append(button);
 }
 
 /**
@@ -535,8 +587,34 @@ async function sendStreaming(message) {
   // interrompu ne doit pas écrire son tour incomplet dans la conversation qui vient de le remplacer.
   let ownConversationId = null;
   let accumulatedText = '';
+  let sources = [];
+  let evidence = null;
+  let finishReason = null;
+  let usage = null;
   let completed = false;
   let failed = false;
+  let pendingFrame = 0;
+
+  // Regroupe les rendus Markdown au rythme d'affichage (~60 ips) pour éviter de détruire le DOM à
+  // chaque jeton sur un flux rapide ; vidé de façon synchrone avant toute fin ou erreur.
+  const flushRender = () => {
+    if (pendingFrame) {
+      cancelAnimationFrame(pendingFrame);
+      pendingFrame = 0;
+    }
+    const transcript = $('#transcript');
+    const stick = nearBottom(transcript);
+    updateBubble(bubble, 'agent', accumulatedText);
+    if (stick) transcript.scrollTop = transcript.scrollHeight;
+  };
+  const scheduleRender = () => {
+    if (pendingFrame) return;
+    pendingFrame = requestAnimationFrame(() => {
+      pendingFrame = 0;
+      flushRender();
+    });
+  };
+
   try {
     for await (const event of serverSentEvents(response)) {
       if (requestCredential !== credentials.get()) throw new DOMException('Accès modifié', 'AbortError');
@@ -546,43 +624,65 @@ async function sendStreaming(message) {
         appendTranscript(ownConversationId, { role: 'user', text: message });
         touchIndex(ownConversationId, message.slice(0, 48));
       } else if (event.name === 'token') {
-        // Capturé avant d'ajouter le texte : une fois le contenu ajouté, `scrollHeight` a déjà
-        // grandi et la distance au bas ne dit plus si l'utilisateur y était avant ce jeton.
-        const transcript = $('#transcript');
-        const stick = nearBottom(transcript);
         accumulatedText += event.data;
-        updateBubble(bubble, 'agent', accumulatedText);
-        if (stick) transcript.scrollTop = transcript.scrollHeight;
+        scheduleRender();
       } else if (event.name === 'sources') {
-        renderSources(turn, JSON.parse(event.data));
+        sources = JSON.parse(event.data);
+        renderSources(turn, sources);
       } else if (event.name === 'evidence') {
-        renderEvidence(turn, JSON.parse(event.data));
+        evidence = JSON.parse(event.data);
+        renderEvidence(turn, evidence);
+      } else if (event.name === 'metadata') {
+        const meta = JSON.parse(event.data);
+        finishReason = meta?.finishReason || null;
+        usage = meta?.usage || null;
+        renderFinishReason(turn, finishReason);
+        renderUsage(turn, usage);
       } else if (event.name === 'tool') {
         calls.push(JSON.parse(event.data));
         renderToolChips(turn, calls);
         renderToolLog(calls);
       } else if (event.name === 'done') {
+        flushRender();
         completed = true;
       } else if (event.name === 'error') {
         failed = true;
-        turn.classList.add('error');
-        accumulatedText += (accumulatedText ? '\n\n' : '') + event.data;
-        updateBubble(bubble, 'error', accumulatedText);
+        if (accumulatedText.trim()) {
+          // Conserve le Markdown déjà reçu en forme plutôt que de l'écraser en texte brut.
+          flushRender();
+          const note = el('p', 'turn-error-note', event.data);
+          turn.append(note);
+        } else {
+          turn.classList.add('error');
+          accumulatedText = event.data;
+          updateBubble(bubble, 'error', accumulatedText);
+        }
         offerRetry(turn, message);
       }
     }
   } finally {
+    if (pendingFrame) flushRender();
     bubble.classList.remove('caret');
-    // Le motif d'arrêt n'arrive pas sur ce chemin (voir OBSERVABILITE.md) : rien à consigner ici,
-    // contrairement au chemin bloquant.
+    if (completed && !failed && accumulatedText.trim()) {
+      renderCopyAction(turn, accumulatedText);
+    }
     if (ownConversationId) {
-      appendTranscript(ownConversationId, { role: 'agent', text: accumulatedText, tools: calls });
+      appendTranscript(ownConversationId, {
+        role: 'agent',
+        text: accumulatedText,
+        tools: calls,
+        sources,
+        evidence,
+        finishReason,
+        usage,
+      });
     }
     inFlight = null;
   }
-  // Une réponse confirmée de bout en bout, et elle seule : une relance sur une réponse coupée
+  // Une réponse confirmée de bout en bout et non tronquée : une relance sur une réponse coupée
   // partirait d'un texte que l'agent n'a pas fini d'écrire.
-  return completed && !failed && accumulatedText.trim() ? { turn, text: accumulatedText } : null;
+  const truncated = TRUNCATED.has((finishReason || '').toLowerCase());
+  return completed && !failed && !truncated && accumulatedText.trim() ? { turn, text: accumulatedText } : null;
 }
 
 async function sendBlocking(message) {
@@ -597,10 +697,20 @@ async function sendBlocking(message) {
   renderSources(turn, answer.sources);
   renderFinishReason(turn, answer.finishReason);
   renderEvidence(turn, answer.evidence);
+  renderUsage(turn, answer.usage);
+  renderCopyAction(turn, answer.content);
   renderToolLog(answer.tools || []);
-  appendTranscript(answer.conversationId,
-    { role: 'agent', text: answer.content, tools: answer.tools, finishReason: answer.finishReason });
-  return answer.content?.trim() ? { turn, text: answer.content } : null;
+  appendTranscript(answer.conversationId, {
+    role: 'agent',
+    text: answer.content,
+    tools: answer.tools,
+    sources: answer.sources,
+    evidence: answer.evidence,
+    finishReason: answer.finishReason,
+    usage: answer.usage,
+  });
+  const truncated = TRUNCATED.has((answer.finishReason || '').toLowerCase());
+  return !truncated && answer.content?.trim() ? { turn, text: answer.content } : null;
 }
 
 /** Redessine une conversation déjà connue depuis sa transcription locale, sans appel réseau. */
@@ -615,7 +725,11 @@ function replay(id) {
         renderToolChips(turn, saved.tools);
         lastTools = saved.tools;
       }
+      if (saved.sources?.length) renderSources(turn, saved.sources);
       if (saved.finishReason) renderFinishReason(turn, saved.finishReason);
+      if (saved.evidence) renderEvidence(turn, saved.evidence);
+      if (saved.usage) renderUsage(turn, saved.usage);
+      renderCopyAction(turn, saved.text);
     }
   });
   renderToolLog(lastTools);

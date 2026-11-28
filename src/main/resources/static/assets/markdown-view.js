@@ -42,7 +42,7 @@ function appendInline(nodes, parent, options) {
   }
 }
 
-async function copyText(text) {
+export async function copyText(text) {
   try {
     await navigator.clipboard.writeText(text);
     return true;
@@ -114,7 +114,14 @@ function list(block, options) {
   const element = make(block.ordered ? 'ol' : 'ul');
   if (block.ordered && block.start !== 1) element.start = block.start;
   for (const item of block.items) {
-    const li = make('li');
+    const isTask = typeof item.checked === 'boolean';
+    const li = make('li', isTask ? 'task-item' : undefined);
+    if (isTask) {
+      const mark = make('span', item.checked ? 'task-mark checked' : 'task-mark', item.checked ? '☑' : '☐');
+      mark.setAttribute('role', 'img');
+      mark.setAttribute('aria-label', item.checked ? 'Fait' : 'À faire');
+      li.append(mark, document.createTextNode(' '));
+    }
     appendInline(item.inline, li, options);
     item.children.forEach((child) => li.append(list(child, options)));
     element.append(li);

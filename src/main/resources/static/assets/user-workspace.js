@@ -259,9 +259,9 @@ function drawDetail() {
     const result = t.role === 'agent' ? presentedResponse(t) : null;
     if (t.role === 'agent' && t.completed) drawValidation(article, t);
     if (result?.kind === 'result') {
-      [['Ce que j’ai constaté', result.observations], ['Ce qui reste incertain', result.uncertainties], ['Prochaine action', result.nextAction]].forEach(([title, content]) => {
+      [['Ce que j’ai constaté', result.observations, true], ['Ce qui reste incertain', result.uncertainties, false], ['Prochaine action', result.nextAction, false]].forEach(([title, content, warnUnlinked]) => {
         article.append(el('h3', null, title));
-        if (title === 'Ce que j’ai constaté') drawEvidence(article, content, t.sources); else article.append(el('div', 'answer', content));
+        drawEvidence(article, content, t.sources, { warnUnlinked });
       });
     } else if (result?.kind === 'clarification') {
       article.append(el('h3', null, result.question));
@@ -274,6 +274,9 @@ function drawDetail() {
       const partial = el('div', 'answer evidence-text'); partial.append(renderMarkdown(t.text)); article.append(partial);
     } else article.append(el('div', 'answer', t.role === 'agent' && current.status === 'RUNNING' && t === current.turns.at(-1) ? 'Kex prépare votre réponse…' : t.text || 'En attente de la réponse…'));
     if (t.role === 'agent' && t.completed && result?.kind !== 'clarification') { const provenance = { sources: t.sources || [], tools: t.tools || [], presentation: t.presentation || null, receivedAt: t.receivedAt || null }; drawFindings(article, result?.findings, t.sources, t.tools); drawMetrics(article, Array.isArray(result?.metrics) ? result.metrics.map(m => ({ ...m, provenance })) : []); drawTables(article, result?.tables, provenance); drawJson(article, t.text, provenance); drawExports(article, t, provenance); }
+    if (t.evidence?.message && (t.evidence.status === 'UNSUPPORTED' || t.evidence.status === 'UNVERIFIABLE')) {
+      article.append(el('p', t.evidence.status === 'UNSUPPORTED' ? 'source-missing evidence-note' : 'muted evidence-note', `⚠ ${t.evidence.message}`));
+    }
     if (t.error) article.append(el('p', 'error', t.error));
     if (t.sources?.length) {
       const d = el('details'); d.append(el('summary', null, 'Sources consultées'));
@@ -401,19 +404,34 @@ async function send(message, request = null, recovery = null) {
     delete request.detailError;
     for await (const event of events(response)) {
       if (ownEpoch !== epoch) return;
+      const wasStarted = request.answerStarted;
       if (event.name === 'request') { const saved = JSON.parse(event.data); request.serverId = saved.id; }
       else if (event.name === 'snapshot') canonical = JSON.parse(event.data);
       else if (event.name === 'conversation') request.conversationId = event.data;
       else if (event.name === 'token') { answer.text += event.data; request.answerStarted = true; }
       else if (event.name === 'tool') { const tool = JSON.parse(event.data); request.tools.push(tool); answer.tools.push(tool); }
       else if (event.name === 'sources') answer.sources = JSON.parse(event.data);
+      else if (event.name === 'evidence') answer.evidence = JSON.parse(event.data);
+      else if (event.name === 'metadata') {
+        const meta = JSON.parse(event.data);
+        answer.finishReason = meta?.finishReason || null;
+        if (meta?.finishReason && ['max_tokens', 'length'].includes(meta.finishReason.toLowerCase())) {
+          answer.error = `Réponse coupée au plafond de jetons (${meta.finishReason}). Les conclusions peuvent être incomplètes.`;
+        }
+      }
       else if (event.name === 'error') { answer.error = event.data; request.status = 'ERROR'; }
       else if (event.name === 'done') complete = true;
-      request.updatedAt = new Date().toISOString(); save();
-      if (current === request) drawDetail(); if (event.name !== 'token') drawOverview();
+      request.updatedAt = new Date().toISOString();
+      // Sur un jeton alors que la rédaction est déjà annoncée, ne pas reconstruire tout le détail ni réécrire sessionStorage à chaque fragment.
+      if (event.name !== 'token' || !wasStarted) {
+        save();
+        if (current === request) drawDetail();
+      }
+      if (event.name !== 'token') drawOverview();
     }
-    if (request.status !== 'ERROR') request.status = complete && answer.text ? (request.tools.slice(firstCall).some(t => t.failed) ? 'PARTIAL' : 'COMPLETE') : 'PARTIAL';
-    answer.completed = complete && !answer.error;
+    const truncated = ['max_tokens', 'length'].includes((answer.finishReason || '').toLowerCase());
+    if (request.status !== 'ERROR') request.status = complete && answer.text && !truncated ? (request.tools.slice(firstCall).some(t => t.failed) ? 'PARTIAL' : 'COMPLETE') : 'PARTIAL';
+    answer.completed = complete && (!answer.error || truncated);
     answer.receivedAt = new Date().toISOString();
     if (request.status === 'COMPLETE' && parseResponse(answer.text)?.kind === 'clarification') request.status = 'NEEDS_INPUT';
     if (complete && canonical) { request.updatedAt = canonical.updatedAt; request.revision = canonical.revision; answer.receivedAt = canonical.updatedAt; answer.presentation = canonical.turns?.at(-1)?.presentation; }

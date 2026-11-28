@@ -14,8 +14,42 @@ function cells(line) {
   let row = line.trim();
   if (row.startsWith('|')) row = row.slice(1);
   if (row.endsWith('|') && !row.endsWith('\\|')) row = row.slice(0, -1);
-  // Une barre échappée appartient au contenu de la cellule, pas à la grille.
-  return row.split(/(?<!\\)\|/).map((cell) => cell.trim().replace(/\\\|/g, '|'));
+  // Une barre échappée ou dans un extrait de code (`a|b`) appartient à la cellule, pas à la grille.
+  const out = [];
+  let current = '';
+  let i = 0;
+  while (i < row.length) {
+    const ch = row[i];
+    if (ch === '\\' && row[i + 1] === '|') {
+      current += '|';
+      i += 2;
+      continue;
+    }
+    if (ch === '`') {
+      let run = 1;
+      while (row[i + run] === '`') run += 1;
+      const marker = '`'.repeat(run);
+      const end = row.indexOf(marker, i + run);
+      if (end > i + run) {
+        current += row.slice(i, end + run);
+        i = end + run;
+        continue;
+      }
+      current += marker;
+      i += run;
+      continue;
+    }
+    if (ch === '|') {
+      out.push(current.trim());
+      current = '';
+      i += 1;
+      continue;
+    }
+    current += ch;
+    i += 1;
+  }
+  out.push(current.trim());
+  return out;
 }
 
 /**

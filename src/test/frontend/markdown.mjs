@@ -21,9 +21,17 @@ for (const bad of ['javascript:alert(1)', 'JaVaScRiPt:alert(1)', 'data:text/html
 }
 assert.deepEqual(parseInline('[x](javascript:alert(1))'), [{ t: 'text', v: '[x](javascript:alert(1))' }]);
 assert.equal(parseInline('[doc](https://e.fr/a)')[0].href, 'https://e.fr/a');
+assert.equal(parseInline('[Kafka](https://fr.wikipedia.org/wiki/Kafka_(logiciel))')[0].href, 'https://fr.wikipedia.org/wiki/Kafka_(logiciel)', 'les parenthèses équilibrées dans une URL sont conservées');
+assert.equal(parseInline('[voir `a]b`](https://e.fr/a)')[0].href, 'https://e.fr/a', 'un crochet dans du code inline ne coupe pas le libellé du lien');
+const autolink = parseInline('Voir https://docs.example.org/runbook_(v2).');
+assert.equal(autolink[1].t, 'link');
+assert.equal(autolink[1].href, 'https://docs.example.org/runbook_(v2)');
+assert.equal(autolink[2].v, '.');
 
 // Emphase : appariée, jamais ouverte au milieu d'un mot, jamais jusqu'à la fin d'une réponse tronquée.
 assert.deepEqual(parseInline('**gras** et *it* et ~~bar~~ et `code`').map((n) => n.t), ['strong', 'text', 'em', 'text', 'del', 'text', 'code']);
+assert.deepEqual(parseInline('***critique***'), [{ t: 'strong', c: [{ t: 'em', c: [{ t: 'text', v: 'critique' }] }] }], 'gras + italique imbriqués');
+assert.deepEqual(parseInline('**Topic `orders.*` en retard**'), [{ t: 'strong', c: [{ t: 'text', v: 'Topic ' }, { t: 'code', v: 'orders.*' }, { t: 'text', v: ' en retard' }] }], 'un marqueur dans du code inline ne coupe pas l’emphase');
 assert.equal(parseInline('snake__case_et_plus').length, 1, 'les soulignés d’un identifiant n’ouvrent rien');
 assert.deepEqual(parseInline('**inachevé'), [{ t: 'text', v: '**inachevé' }], 'un marqueur sans compagnon reste du texte (flux en cours)');
 assert.deepEqual(parseInline('a * b * c'), [{ t: 'text', v: 'a * b * c' }], 'des étoiles entourées d’espaces ne sont pas une emphase');
@@ -40,6 +48,9 @@ assert.deepEqual(tree.items.map((i) => i.children.length), [1, 0]);
 assert.equal(tree.items[0].children[0].items[0].children[0].items[0].inline[0].v, 'c');
 const mixed = parseBlocks('- a\n1. x\n2. y');
 assert.deepEqual(mixed.map((b) => b.ordered), [false, true], 'un autre genre de marqueur ouvre une autre liste');
+const tasks = parseBlocks('- [x] Fait\n- [ ] À vérifier')[0];
+assert.deepEqual(tasks.items.map((i) => i.checked), [true, false], 'les cases de liste de tâches sont reconnues');
+assert.equal(plain(tasks.items[0].inline), 'Fait');
 assert.equal(parseBlocks('3. trois\n4. quatre')[0].start, 3);
 assert.deepEqual(types('* * *\n\n* item'), ['rule', 'list']);
 assert.deepEqual(types('Tarif : 3 - 2 = 1'), ['paragraph'], 'un tiret dans une phrase n’est pas une liste');

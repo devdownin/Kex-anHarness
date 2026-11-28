@@ -7,14 +7,15 @@ import java.util.List;
 import java.util.Map;
 
 import com.anthropic.errors.AnthropicException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kex.agent.agent.AgentAnswer;
 import com.kex.agent.agent.AgentEvent;
 import com.kex.agent.agent.AgentService;
 import com.kex.agent.agent.AgentStream;
 import com.kex.agent.agent.AgentStructuredAnswer;
 import com.kex.agent.agent.AgentTimeoutException;
-import com.kex.agent.agent.AnswerEvidence;
 import com.kex.agent.agent.InvalidJsonSchemaException;
+import com.kex.agent.agent.ModelErrorMessages;
 import com.kex.agent.agent.StructuredOutputException;
 import com.kex.agent.config.ActorIdentity;
 import com.kex.agent.mcp.McpConfigurationBundle;
@@ -65,14 +66,7 @@ import reactor.core.publisher.Flux;
 class AgentController {
 
     private static final Logger log = LoggerFactory.getLogger(AgentController.class);
-
-    /**
-     * Le disjoncteur `agent-model` a ouvert après une série d'échecs amont : échouer tout de suite
-     * plutôt que de laisser chaque appel attendre son propre plafond de temps pour redécouvrir la
-     * même panne. Partagé par les deux chemins, pour qu'ils n'en dérivent pas séparément.
-     */
-    private static final String MODEL_CIRCUIT_OPEN =
-            "Le modèle a échoué à plusieurs reprises récemment ; nouvel essai dans quelques instants";
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     private final AgentService agentService;
     private final McpToolCatalog toolCatalog;
@@ -120,26 +114,17 @@ class AgentController {
 
     private static ServerSentEvent<String> event(AgentEvent agentEvent) {
         return switch (agentEvent) {
-            case AgentEvent.Sources sources -> event("sources", sourcesJson(sources.sources()));
+            case AgentEvent.Sources sources -> event("sources", serialize(sources.sources(), "Sources non sérialisables"));
             case AgentEvent.Token token -> event("token", token.text());
-            case AgentEvent.ToolCall call -> event("tool", toolJson(call));
-            case AgentEvent.Evidence evidence -> event("evidence", evidenceJson(evidence.evidence()));
+            case AgentEvent.ToolCall call -> event("tool", serialize(call, "Outil non sérialisable"));
+            case AgentEvent.Evidence evidence -> event("evidence", serialize(evidence.evidence(), "Constat non sérialisable"));
+            case AgentEvent.Metadata metadata -> event("metadata", serialize(metadata, "Métadonnées non sérialisables"));
         };
     }
 
-    private static String evidenceJson(AnswerEvidence.Evidence evidence) {
-        try { return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(evidence); }
-        catch (com.fasterxml.jackson.core.JsonProcessingException ex) { throw new IllegalStateException("Constat non sérialisable", ex); }
-    }
-
-    private static String toolJson(AgentEvent.ToolCall call) {
-        try { return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(call); }
-        catch (com.fasterxml.jackson.core.JsonProcessingException ex) { throw new IllegalStateException("Outil non sérialisable", ex); }
-    }
-
-    private static String sourcesJson(List<com.kex.agent.knowledge.KnowledgeSource> sources) {
-        try { return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(sources); }
-        catch (com.fasterxml.jackson.core.JsonProcessingException ex) { throw new IllegalStateException("Sources non sérialisables", ex); }
+    private static String serialize(Object value, String errorMessage) {
+        try { return JSON.writeValueAsString(value); }
+        catch (com.fasterxml.jackson.core.JsonProcessingException ex) { throw new IllegalStateException(errorMessage, ex); }
     }
 
     private static ServerSentEvent<String> event(String name, String data) {
@@ -153,21 +138,7 @@ class AgentController {
      * façons selon la route empruntée.
      */
     private static String streamErrorMessage(Throwable ex) {
-        if (ex instanceof AgentTimeoutException timeout) {
-            return timeout.getMessage();
-        }
-        if (ex instanceof CallNotPermittedException) {
-            return MODEL_CIRCUIT_OPEN;
-        }
-        if (ex instanceof com.kex.agent.agent.BudgetExceededException) return ex.getMessage();
-        // Une panne du fournisseur se lisait « le flux s'est interrompu », comme une coupure
-        // réseau : rien ne disait de regarder la clé ou le quota plutôt que de renvoyer le message.
-        if (ex instanceof AnthropicException || ex instanceof OpenAIException) {
-            log.warn("Le fournisseur du modèle a refusé ou n'a pas pu traiter l'appel en flux", ex);
-            return modelProviderMessage(ex);
-        }
-        log.error("Échec pendant le flux de chat", ex);
-        return "Le flux s'est interrompu avant la fin de la réponse";
+        return ModelErrorMessages.streamError(ex, log, "Le flux s'est interrompu avant la fin de la réponse");
     }
 
     @DeleteMapping("/conversations/{conversationId}")
@@ -414,57 +385,12 @@ class AgentController {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY, modelProviderMessage(ex));
     }
 
-    /**
-     * Le motif sans le corps brut du fournisseur, souvent un JSON : le code HTTP amont suffit à
-     * dire où regarder. Le détail reste dans les journaux.
-     */
     static String modelProviderMessage(Throwable ex) {
-        Integer status = ex instanceof com.anthropic.errors.AnthropicServiceException anthropic ? anthropic.statusCode()
-                : ex instanceof com.openai.errors.OpenAIServiceException openai ? openai.statusCode() : null;
-        if (status == null) {
-            // Pas de code HTTP : l'échec est avant ou pendant le transport. Le dire distinctement envoie
-            // régler le bon réglage — un plafond trop court pour un modèle local, ou une adresse fausse —
-            // plutôt que de laisser croire à une panne du fournisseur.
-            if (hasCause(ex, java.net.SocketTimeoutException.class, java.io.InterruptedIOException.class)) {
-                return "Le fournisseur du modèle n'a pas répondu dans le délai accordé à un appel "
-                        + "(spring.ai.openai.timeout, KEX_AGENT_MODEL_TIMEOUT) — un modèle local lent demande un plafond plus long";
-            }
-            if (hasCause(ex, java.net.ConnectException.class, java.net.UnknownHostException.class,
-                    java.net.NoRouteToHostException.class)) {
-                return "Le fournisseur du modèle est injoignable (connexion refusée ou adresse inconnue) — "
-                        + "vérifier son adresse de base et qu'il tourne";
-            }
-            return "Le fournisseur du modèle est injoignable ou a renvoyé une réponse illisible";
-        }
-        return switch (status) {
-            case 401, 403 -> "Le fournisseur du modèle a refusé la clé (HTTP " + status + ") — vérifier la clé dans Configuration";
-            case 429 -> "Limite de débit du fournisseur du modèle atteinte (HTTP 429) — réessayer dans un instant";
-            case 402 -> "Le fournisseur du modèle réclame des crédits que ce compte n'a pas (HTTP 402)";
-            case 404 -> "Modèle ou adresse introuvable chez le fournisseur (HTTP 404) — vérifier le nom du modèle et l'adresse de base";
-            // Un serveur local qui dépasse sa fenêtre ou ne sait pas appeler d'outils répond 400 : c'est le
-            // cas le plus fréquent, et « n'a pas pu traiter l'appel » n'en disait rien.
-            case 400 -> "Le fournisseur du modèle a refusé la requête (HTTP 400) — souvent une fenêtre de contexte "
-                    + "dépassée, ou un modèle qui ne sait pas appeler d'outils";
-            case 408, 504 -> "Le fournisseur du modèle a mis trop de temps à répondre (HTTP " + status + ")";
-            default -> status >= 500
-                    ? "Le fournisseur du modèle est indisponible (HTTP " + status + ") — réessayer plus tard"
-                    : "Le fournisseur du modèle n'a pas pu traiter l'appel (HTTP " + status + ")";
-        };
-    }
-
-    @SafeVarargs
-    private static boolean hasCause(Throwable ex, Class<? extends Throwable>... types) {
-        int depth = 0;
-        for (Throwable cause = ex; cause != null && depth < 8; cause = cause.getCause(), depth++) {
-            for (Class<? extends Throwable> type : types) {
-                if (type.isInstance(cause)) return true;
-            }
-        }
-        return false;
+        return ModelErrorMessages.modelProviderMessage(ex);
     }
 
     @ExceptionHandler(CallNotPermittedException.class)
     ProblemDetail modelCircuitOpen(CallNotPermittedException ex) {
-        return ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, MODEL_CIRCUIT_OPEN);
+        return ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, ModelErrorMessages.MODEL_CIRCUIT_OPEN);
     }
 }

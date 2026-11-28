@@ -75,15 +75,27 @@ public final class AnswerEvidence {
             "(?<![\\p{L}\\d_.-])(?:\\d{1,3}(?:[\\u00a0\\u202f ]\\d{3})+(?:[.,]\\d+)?|\\d+(?:[.,]\\d+)*)(?![\\p{L}\\d_])");
     // Dates ISO, françaises ou anglaises : leurs chiffres ne sont pas des mesures.
     private static final Pattern DATE = Pattern.compile(
-            "\\b\\d{4}-\\d{2}-\\d{2}(?:[T ]\\d{2}:\\d{2}(?::\\d{2})?(?:\\.\\d+)?Z?)?\\b|\\b\\d{1,2}[/.]\\d{1,2}[/.]\\d{2,4}\\b|\\b\\d{1,2}:\\d{2}(?::\\d{2})?\\b");
+            "\\b\\d{4}-\\d{2}-\\d{2}(?:[T ]\\d{2}:\\d{2}(?::\\d{2})?(?:\\.\\d+)?(?:Z|[+-]\\d{2}:?\\d{2})?)?\\b|\\b\\d{1,2}[/.]\\d{1,2}[/.]\\d{2,4}\\b|\\b\\d{1,2}:\\d{2}(?::\\d{2})?\\b");
+    // Adresses IPv4 et codes HTTP cités dans un diagnostic : ce ne sont pas des mesures métier.
+    private static final Pattern NON_MEASURE = Pattern.compile(
+            "\\b\\d{1,3}(?:\\.\\d{1,3}){3}\\b|(?i)\\bHTTP\\s+\\d{3}\\b");
+    // Blocs de code clôturés (exemples YAML, JSON, commandes) : ne pas accuser des valeurs d'exemple.
+    private static final Pattern FENCED_CODE = Pattern.compile("(?ms)^ {0,3}(`{3,}|~{3,})[^\\n]*\\n.*?^ {0,3}\\1\\s*$");
     private static final int MINIMUM_DIGITS = 3;
 
     private AnswerEvidence() {
     }
 
     public static Evidence check(String answer, String userMessage, List<AgentEvent.ToolCall> calls) {
+        return check(answer, userMessage, calls, List.of());
+    }
+
+    public static Evidence check(String answer, String userMessage, List<AgentEvent.ToolCall> calls,
+                                 List<com.kex.agent.knowledge.KnowledgeSource> sources) {
         List<AgentEvent.ToolCall> all = calls == null ? List.of() : calls;
-        Map<String, String> cited = figures(answer);
+        List<com.kex.agent.knowledge.KnowledgeSource> docs = sources == null ? List.of() : sources;
+        String prose = answer == null ? null : FENCED_CODE.matcher(answer).replaceAll(" ");
+        Map<String, String> cited = figures(prose);
         Set<String> given = figures(userMessage).keySet();
         cited.keySet().removeAll(given);
         if (cited.isEmpty()) {
@@ -103,6 +115,12 @@ public final class AnswerEvidence {
                 observed.addAll(figures(call.result()).keySet());
             }
         }
+        for (com.kex.agent.knowledge.KnowledgeSource doc : docs) {
+            if (doc != null) {
+                observed.addAll(figures(doc.excerpt()).keySet());
+                observed.addAll(figures(doc.source()).keySet());
+            }
+        }
         List<String> missing = new ArrayList<>();
         cited.forEach((digits, written) -> {
             if (!observed.contains(digits)) missing.add(written);
@@ -113,6 +131,10 @@ public final class AnswerEvidence {
         if (unreadable) {
             return Evidence.of(Status.UNVERIFIABLE, all.size(), missing);
         }
+        if (all.isEmpty() && !docs.isEmpty()) {
+            return new Evidence(Status.UNSUPPORTED, 0, missing,
+                    "Chiffres non retrouvés tels quels dans les sources consultées : " + String.join(", ", missing));
+        }
         return Evidence.of(Status.UNSUPPORTED, all.size(), missing);
     }
 
@@ -120,8 +142,8 @@ public final class AnswerEvidence {
     private static Map<String, String> figures(String text) {
         Map<String, String> found = new LinkedHashMap<>();
         if (text == null || text.isBlank()) return found;
-        String withoutDates = DATE.matcher(text).replaceAll(" ");
-        Matcher matcher = NUMBER.matcher(withoutDates);
+        String cleaned = NON_MEASURE.matcher(DATE.matcher(text).replaceAll(" ")).replaceAll(" ");
+        Matcher matcher = NUMBER.matcher(cleaned);
         while (matcher.find()) {
             String written = matcher.group().strip().replaceAll("[.,]+$", "");
             String digits = written.replaceAll("\\D", "");

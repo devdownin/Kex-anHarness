@@ -100,14 +100,27 @@ public final class RoutingChatModel implements ChatModel {
 
     private Prompt forEndpoint(Prompt prompt, String name) {
         ChatOptions original = prompt.getOptions();
-        // Portable options only. Copying a provider-specific object could transfer its API key,
-        // URL or model to the fallback. Tool callbacks, context and JSON schema remain intact.
+        // Options portables uniquement : copier l'objet propre à un fournisseur risquerait de
+        // fuiter sa clé API, son URL ou son modèle sur la destination de secours. Les réglages de
+        // génération, les outils et le format de sortie structurée sont en revanche conservés.
         var portable = OpenAiChatOptions.builder().model(properties.endpoints().get(name).model());
+        if (original != null) {
+            if (original.getMaxTokens() != null) portable.maxTokens(original.getMaxTokens());
+            if (original.getTemperature() != null) portable.temperature(original.getTemperature());
+            if (original.getTopP() != null) portable.topP(original.getTopP());
+            if (original.getStopSequences() != null) portable.stopSequences(original.getStopSequences());
+        }
         if (original instanceof ToolCallingChatOptions tools) {
             portable.toolCallbacks(tools.getToolCallbacks()).toolContext(tools.getToolContext());
         }
-        // Structured output options are carried by the original prompt when the provider supports
-        // them; routing never copies credentials or endpoint-specific fields into the fallback.
+        if (original instanceof OpenAiChatOptions openAi) {
+            if (openAi.getMaxCompletionTokens() != null && original.getMaxTokens() == null) {
+                portable.maxTokens(openAi.getMaxCompletionTokens());
+            }
+            if (openAi.getResponseFormat() != null) {
+                portable.responseFormat(openAi.getResponseFormat());
+            }
+        }
         return new Prompt(prompt.getInstructions(), portable.build());
     }
 
