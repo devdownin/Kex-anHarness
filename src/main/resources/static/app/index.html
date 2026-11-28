@@ -14,7 +14,7 @@
 <a class="skip" href="#main">Aller au contenu</a>
 <header class="app-header">
   <a class="brand" href="/app"><img src="/assets/logo.png" width="36" height="36" alt=""><span><strong>Kex-anHarness</strong><small>Espace utilisateur</small></span></a>
-  <div class="header-actions"><span id="identity"></span><a href="/#/chat" id="expert">Console experte</a><button id="account" type="button">Se connecter</button></div>
+  <div class="header-actions"><span id="identity"></span><button id="theme-toggle" type="button" aria-label="Changer le thème">Thème : système</button><a href="/#/chat" id="expert">Console experte</a><button id="account" type="button">Se connecter</button></div>
 </header>
 <nav aria-label="Navigation utilisateur">
   <a href="#/work" data-page="work">Mon travail</a>
@@ -109,17 +109,27 @@
   <section id="detail" hidden aria-labelledby="detail-title">
     <a href="#/requests">Toutes mes demandes</a>
     <h1 id="detail-title"></h1>
-    <p id="run-status" role="status"></p>
-    <p id="run-activity" role="status" aria-live="polite"></p><p id="last-activity" class="muted"></p><p id="activity-delay" role="status" hidden></p><button id="refresh-current" type="button">Actualiser le suivi</button>
+    <div class="detail-bar">
+      <p id="run-status" role="status"></p>
+      <div class="row">
+        <button id="stop" type="button" hidden>Arrêter la réception</button>
+        <button id="refresh-current" type="button">Actualiser le suivi</button>
+      </div>
+    </div>
+    <p id="run-activity" role="status" aria-live="polite"></p><p id="last-activity" class="muted"></p><p id="activity-delay" role="status" hidden></p>
     <section id="result-issue" class="panel" role="status" hidden></section>
-    <ol id="progress" aria-label="Déroulement du traitement"></ol>
-    <div class="row"><button id="stop" type="button" hidden>Arrêter la réception</button><button id="open-expert" type="button">Examiner dans la console experte</button></div>
-    <div class="row"><button id="favorite-request" type="button">Ajouter cette demande aux favoris</button><button id="reprepare-request" type="button">Préparer une nouvelle demande</button><button id="prepare-plan" type="button" hidden>Préparer un plan à valider</button></div>
-    <section id="linked-plan-section" hidden aria-label="Plan associé à cette demande"><h2>Plan associé</h2><button id="refresh-linked-plan" type="button">Actualiser ce plan</button><p id="linked-plan-note" role="status"></p><div id="linked-plan"></div></section>
-    <section id="completion-summary" class="panel" hidden aria-label="Bilan de la demande"></section>
-    <details id="saved-context" hidden><summary>Contexte envoyé avec cette demande</summary><div id="saved-context-content"></div></details>
     <div id="turns"></div>
     <form id="followup-form" class="panel"><label for="followup">Préciser ou poursuivre votre demande</label><textarea id="followup" rows="2" required maxlength="24000"></textarea><button class="primary" id="followup-send" type="submit">Envoyer</button></form>
+    <section id="completion-summary" class="panel" hidden aria-label="Bilan de la demande"></section>
+    <section id="linked-plan-section" hidden aria-label="Plan associé à cette demande"><h2>Plan associé</h2><button id="refresh-linked-plan" type="button">Actualiser ce plan</button><p id="linked-plan-note" role="status"></p><div id="linked-plan"></div></section>
+    <div class="row detail-actions">
+      <button id="reprepare-request" type="button">Préparer une nouvelle demande</button>
+      <button id="favorite-request" type="button">Ajouter cette demande aux favoris</button>
+      <button id="prepare-plan" type="button" hidden>Préparer un plan à valider</button>
+      <button id="open-expert" type="button">Examiner dans la console experte</button>
+    </div>
+    <details id="progress-details" open><summary>Déroulement du traitement</summary><ol id="progress" aria-label="Déroulement du traitement"></ol></details>
+    <details id="saved-context" hidden><summary>Contexte envoyé avec cette demande</summary><div id="saved-context-content"></div></details>
   </section>
 </main>
 <dialog id="connection"><form id="connection-form">
